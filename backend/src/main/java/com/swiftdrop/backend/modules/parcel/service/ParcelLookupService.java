@@ -1,0 +1,37 @@
+package com.swiftdrop.backend.modules.parcel.service;
+
+import java.util.Locale;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.swiftdrop.backend.modules.parcel.entity.Parcel;
+import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
+import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
+
+import lombok.RequiredArgsConstructor;
+
+/**
+ * Finds parcels by the tracking number customers type in.
+ */
+@Service
+@RequiredArgsConstructor
+public class ParcelLookupService {
+
+    private final ParcelRepository parcelRepository;
+
+    /**
+     * @throws ParcelNotFoundException if no parcel has this tracking number
+     */
+    @Transactional(readOnly = true)
+    public Parcel getByTrackingNumber(String trackingNumber) {
+        String normalised = normalise(trackingNumber);
+        return parcelRepository.findByTrackingNumber(normalised)
+                .orElseThrow(() -> new ParcelNotFoundException(normalised));
+    }
+
+    /** Tracking numbers are stored in upper case; customers may type them in any case. */
+    public static String normalise(String trackingNumber) {
+        return trackingNumber == null ? "" : trackingNumber.strip().toUpperCase(Locale.ROOT);
+    }
+}
