@@ -13,14 +13,12 @@ import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.tracking.exception.InvalidStatusTransitionException;
 
 /**
- * Turns tracking and receipt errors into RFC 9457 problem responses.
- * Runs before any catch-all global handler so these keep their proper status codes.
+ * Turns parcel and status-change errors into RFC 9457 problem responses, for every
+ * controller (tracking, receipts, and the courier or dispatcher endpoints that call
+ * updateStatus()). Runs before any catch-all handler so these keep their proper status codes.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(basePackages = {
-        "com.swiftdrop.backend.modules.tracking",
-        "com.swiftdrop.backend.modules.receipt"
-})
+@RestControllerAdvice
 public class TrackingExceptionHandler {
 
     @ExceptionHandler(ParcelNotFoundException.class)
@@ -42,7 +40,7 @@ public class TrackingExceptionHandler {
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ProblemDetail handleInvalidInput() {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request",
-                "Tracking numbers are 6 to 32 letters, digits or dashes.");
+                "One or more values in the request are not valid.");
     }
 
     private static ProblemDetail problem(HttpStatus status, String title, String detail) {
