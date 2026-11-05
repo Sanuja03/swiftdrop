@@ -56,9 +56,6 @@ jobs:
       # away after the job. NEVER use create-drop against Supabase: it deletes
       # every table and all its data.
       SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
-      # Hibernate creates tables from the @Entity classes when tests start and drops
-      # them when tests end. SAFE ONLY on this throwaway CI database, never on Supabase.
-      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
 
     steps:
       - uses: actions/checkout@v5
