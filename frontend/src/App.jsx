@@ -1,15 +1,12 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { ROUTES } from './config/routes'
-import CustomerLayout from './layouts/CustomerLayout'
-import PublicLayout from './layouts/PublicLayout'
-import NotFoundPage from './pages/NotFoundPage'
-import CreateDeliveryPage from './pages/customer/CreateDeliveryPage'
-import DeliveryHistoryPage from './pages/customer/DeliveryHistoryPage'
-import LiveTrackingPage from './pages/customer/LiveTrackingPage'
-import MyShipmentsPage from './pages/customer/MyShipmentsPage'
-import OverviewPage from './pages/customer/OverviewPage'
-import SettingsPage from './pages/customer/SettingsPage'
-import TrackParcelPage from './pages/public/TrackParcelPage'
+import { ROUTES } from '@/shared/config/routes'
+import CustomerLayout from '@/shared/layouts/CustomerLayout'
+import PublicLayout from '@/shared/layouts/PublicLayout'
+import NotFoundPage from '@/shared/pages/NotFoundPage'
+import { CreateDeliveryPage } from '@/features/booking'
+import { DeliveryHistoryPage, LiveTrackingPage, MyShipmentsPage, TrackParcelPage } from '@/features/tracking'
+import { OverviewPage } from '@/features/dashboard'
+import { SettingsPage } from '@/features/account'
 
 export default function App() {
   return (
