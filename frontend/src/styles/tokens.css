@@ -1,0 +1,45 @@
+/* SwiftDrop design tokens, taken from the colour guide. */
+:root {
+  --color-navy: #0f2747;
+  --color-navy-deep: #081b32;
+  --color-orange: #e06a1f;
+  --color-orange-hover: #c25414;
+  --color-orange-soft: #fdf0e7;
+  --color-background: #f5f7fa;
+  --color-surface: #ffffff;
+  --color-text: #1e293b;
+  --color-muted: #64748b;
+  --color-border: #e2e8f0;
+  --color-success: #16a34a;
+  --color-success-soft: #e8f6ed;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fef5e4;
+  --color-error: #dc2626;
+  --color-error-soft: #fdecec;
+  --color-info: #2563eb;
+  --color-info-soft: #e9f0fe;
+  --color-sidebar-text: #cbd5e1;
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgb(15 39 71 / 0.04), 0 4px 16px rgb(15 39 71 / 0.06);
+  --shadow-raised: 0 10px 30px rgb(15 39 71 / 0.12);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --sidebar-width: 240px;
+  --topbar-height: 72px;
+  --transition: 160ms ease;
+}
