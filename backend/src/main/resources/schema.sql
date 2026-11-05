@@ -39,3 +39,13 @@ CREATE TABLE IF NOT EXISTS parcel_status_history (
 
 CREATE INDEX IF NOT EXISTS idx_parcel_status_history_parcel
     ON parcel_status_history (parcel_id, changed_at);
+
+-- One receipt per parcel, issued the first time it is requested.
+CREATE TABLE IF NOT EXISTS receipts (
+    id             UUID           PRIMARY KEY,
+    parcel_id      UUID           NOT NULL UNIQUE REFERENCES parcels (id) ON DELETE CASCADE,
+    receipt_number VARCHAR(40)    NOT NULL UNIQUE,
+    amount         NUMERIC(12, 2) NOT NULL,
+    currency       VARCHAR(3)     NOT NULL,
+    issued_at      TIMESTAMPTZ    NOT NULL
+);

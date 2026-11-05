@@ -18,6 +18,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ParcelLookupService {
 
+    /** Accepted tracking number format: 6 to 32 letters, digits or dashes. */
+    public static final String TRACKING_NUMBER_PATTERN = "^[A-Za-z0-9-]{6,32}$";
+
     private final ParcelRepository parcelRepository;
 
     /**

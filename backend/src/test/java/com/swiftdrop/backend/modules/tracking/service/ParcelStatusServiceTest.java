@@ -7,7 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -21,10 +20,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
-import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
 import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
@@ -32,6 +29,7 @@ import com.swiftdrop.backend.modules.tracking.entity.ParcelStatusHistory;
 import com.swiftdrop.backend.modules.tracking.event.ParcelStatusChangedEvent;
 import com.swiftdrop.backend.modules.tracking.exception.InvalidStatusTransitionException;
 import com.swiftdrop.backend.modules.tracking.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.backend.support.TestParcels;
 
 @ExtendWith(MockitoExtension.class)
 class ParcelStatusServiceTest {
@@ -54,19 +52,7 @@ class ParcelStatusServiceTest {
     void setUp() {
         service = new ParcelStatusService(parcelRepository, historyRepository, eventPublisher,
                 Clock.fixed(NOW, ZoneOffset.UTC));
-        parcel = Parcel.builder()
-                .trackingNumber("SDP7845621")
-                .senderName("Sanuja Perera")
-                .recipientName("Nimal Silva")
-                .pickupAddress("No. 415, Cotta Road")
-                .pickupCity("Colombo")
-                .dropoffAddress("No. 12, Galle Road")
-                .dropoffCity("Dehiwala")
-                .serviceType(ServiceType.STANDARD)
-                .weightKg(new BigDecimal("2.50"))
-                .fee(new BigDecimal("590.00"))
-                .build();
-        ReflectionTestUtils.setField(parcel, "id", PARCEL_ID);
+        parcel = TestParcels.withId(PARCEL_ID);
     }
 
     @Test
