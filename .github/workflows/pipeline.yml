@@ -75,6 +75,32 @@ jobs:
           chmod +x mvnw
           ./mvnw -B verify
 
+      # Show the coverage numbers on the run's Summary page, so nobody has to
+      # download the report just to see the percentage.
+      - name: Write coverage summary
+        if: always()
+        run: |
+          CSV=target/site/jacoco/jacoco.csv
+          {
+            echo "## Backend test coverage (JaCoCo)"
+            if [ ! -f "$CSV" ]; then
+              echo "No coverage report was produced (the build failed before the tests finished)."
+            else
+              awk -F, '
+                function pct(c, m) { return (c + m) == 0 ? "n/a" : sprintf("%.1f%%", 100 * c / (c + m)) }
+                NR > 1 { im += $4; ic += $5; bm += $6; bc += $7; lm += $8; lc += $9 }
+                END {
+                  print "| Metric | Covered | Total | Coverage |"
+                  print "|---|---:|---:|---:|"
+                  printf "| Lines | %d | %d | %s |\n", lc, lc + lm, pct(lc, lm)
+                  printf "| Branches | %d | %d | %s |\n", bc, bc + bm, pct(bc, bm)
+                  printf "| Instructions | %d | %d | %s |\n", ic, ic + im, pct(ic, im)
+                }' "$CSV"
+              echo ""
+              echo "Full report: download **backend-test-and-coverage-reports** below and open \`jacoco/index.html\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # Save the test results + JaCoCo coverage report so you can download them
       # from the run page. "always()" means: save them even if tests failed.
       - name: Upload test and coverage reports
