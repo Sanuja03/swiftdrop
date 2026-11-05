@@ -1,0 +1,35 @@
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.body {
+  flex: 1;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.text {
+  color: var(--color-muted);
+}
+
+.info {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+
+.error {
+  background: var(--color-error-soft);
+  color: var(--color-error);
+}

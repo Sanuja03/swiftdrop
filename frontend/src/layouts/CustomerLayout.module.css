@@ -1,0 +1,23 @@
+.shell {
+  min-height: 100vh;
+}
+
+.content {
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+}
+
+.main {
+  max-width: 1280px;
+  padding: 0 var(--space-8) var(--space-10);
+}
+
+@media (max-width: 960px) {
+  .content {
+    margin-left: 0;
+  }
+
+  .main {
+    padding: 0 var(--space-4) var(--space-8);
+  }
+}

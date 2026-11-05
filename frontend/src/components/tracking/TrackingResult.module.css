@@ -1,0 +1,42 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.mapCard {
+  padding: var(--space-3);
+  display: flex;
+}
+
+.mapCard > * {
+  flex: 1;
+}
+
+.history {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mapCard {
+    min-height: 260px;
+  }
+}

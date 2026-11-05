@@ -1,0 +1,81 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.md {
+  height: 42px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+.sm {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.lg {
+  height: 50px;
+  padding: 0 24px;
+  font-size: 15px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.primary {
+  background: var(--color-orange);
+  color: #fff;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-orange-hover);
+}
+
+.secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--color-orange);
+  color: var(--color-orange);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-orange);
+  padding-inline: 4px;
+}
+
+.ghost:hover:not(:disabled) {
+  color: var(--color-orange-hover);
+}
+
+.outlineLight {
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.5);
+  color: #fff;
+}
+
+.outlineLight:hover {
+  background: rgb(255 255 255 / 0.1);
+}
