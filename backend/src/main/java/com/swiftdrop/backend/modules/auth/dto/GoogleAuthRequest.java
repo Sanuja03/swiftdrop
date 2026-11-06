@@ -15,3 +15,4 @@ public class GoogleAuthRequest {
     @NotBlank(message = "Google ID token / credential is required")
     private String idToken;
 }
+
