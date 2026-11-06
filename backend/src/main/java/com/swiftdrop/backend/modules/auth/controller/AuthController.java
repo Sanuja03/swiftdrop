@@ -30,6 +30,12 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> googleLogin(@Valid @RequestBody GoogleAuthRequest request) {
+        AuthResponse response = authService.loginWithGoogle(request);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody TokenRefreshRequest request) {
         AuthResponse response = authService.refreshToken(request);
@@ -43,6 +49,18 @@ public class AuthController {
         }
         UserProfileDto profile = authService.getCurrentUser(principal.getName());
         return ResponseEntity.ok(profile);
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<UserProfileDto> updateProfile(
+            Principal principal,
+            @Valid @RequestBody UpdateProfileRequest request
+    ) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        UserProfileDto updated = authService.updateProfile(principal.getName(), request);
+        return ResponseEntity.ok(updated);
     }
 
     @PostMapping("/logout")

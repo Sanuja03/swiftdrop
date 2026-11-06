@@ -268,6 +268,41 @@
   overflow: hidden;
 }
 
+/* Google OAuth Row */
+.google-oauth-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+
+.google-oauth-row > div {
+  width: 100% !important;
+}
+
+/* Divider */
+.signup-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 16px 0 20px 0;
+}
+
+.signup-divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: #E2E8F0;
+}
+
+.signup-divider-text {
+  font-size: 12px;
+  color: #94A3B8;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* Alerts */
 .signup-alert-error {
   display: flex;

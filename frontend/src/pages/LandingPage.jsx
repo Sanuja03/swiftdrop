@@ -14,13 +14,17 @@ import {
   Layers, 
   CreditCard, 
   Navigation,
-  FileText
+  FileText,
+  User,
+  LogOut
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import DeliveryVanIllustration from '../components/common/DeliveryVanIllustration';
+import { useAuth } from '../context/AuthContext';
 import './LandingPage.css';
 
 export default function LandingPage() {
+  const { user, isAuthenticated, logout } = useAuth();
   const [trackingInput, setTrackingInput] = useState('');
   const [currentTrackingNo, setCurrentTrackingNo] = useState('SDP7845621');
   const [searchNotification, setSearchNotification] = useState('');
@@ -51,10 +55,25 @@ export default function LandingPage() {
           </nav>
 
           <div className="landing-nav-cta">
-            <Link to="/login" className="btn-nav-login">Login</Link>
-            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
-              <Link to="/signup" className="btn-nav-get-started">Get Started</Link>
-            </motion.div>
+            {isAuthenticated ? (
+              <div className="landing-nav-user-group">
+                <Link to="/profile" className="btn-nav-profile">
+                  <User size={15} />
+                  <span>{user?.fullName ? user.fullName.split(' ')[0] : 'My Account'}</span>
+                </Link>
+                <button onClick={logout} className="btn-nav-logout" title="Sign Out">
+                  <LogOut size={15} />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <Link to="/login" className="btn-nav-login">Login</Link>
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
+                  <Link to="/signup" className="btn-nav-get-started">Get Started</Link>
+                </motion.div>
+              </>
+            )}
           </div>
         </div>
       </header>

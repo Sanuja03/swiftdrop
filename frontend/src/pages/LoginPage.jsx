@@ -15,11 +15,12 @@ import {
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 import './LoginPage.css';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, loading } = useAuth();
+  const { login, loginWithGoogle, loading } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,6 +47,24 @@ export default function LoginPage() {
       }, 700);
     } else {
       setErrorMessage(res.error || 'Invalid credentials or service offline.');
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setErrorMessage('');
+    setSuccessUser(null);
+    if (!credentialResponse?.credential) {
+      setErrorMessage('Google token was not returned.');
+      return;
+    }
+    const res = await loginWithGoogle(credentialResponse.credential);
+    if (res.success) {
+      setSuccessUser(res.user);
+      setTimeout(() => {
+        navigate('/profile');
+      }, 700);
+    } else {
+      setErrorMessage(res.error || 'Google authentication failed.');
     }
   };
 
@@ -152,6 +171,25 @@ export default function LoginPage() {
               <div className="login-form-header">
                 <h2 className="login-form-title">Welcome back</h2>
                 <p className="login-form-subtitle">Sign in to access your SwiftDrop account</p>
+              </div>
+
+              {/* Official Google OAuth 2.0 Button */}
+              <div className="google-oauth-row">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setErrorMessage('Google Sign-In was cancelled or failed.')}
+                  shape="rectangular"
+                  theme="outline"
+                  size="large"
+                  text="continue_with"
+                  width="100%"
+                />
+              </div>
+
+              <div className="login-divider">
+                <div className="login-divider-line"></div>
+                <span className="login-divider-text">or sign in with email</span>
+                <div className="login-divider-line"></div>
               </div>
 
               {/* Error Alert */}

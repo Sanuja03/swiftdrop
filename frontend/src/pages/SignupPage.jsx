@@ -16,10 +16,13 @@ import {
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { signupUser } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 import './SignupPage.css';
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const { loginWithGoogle } = useAuth();
 
   // Role: ROLE_CUSTOMER or ROLE_MERCHANT
   const [role, setRole] = useState('ROLE_CUSTOMER');
@@ -100,6 +103,24 @@ export default function SignupPage() {
       }
     } else {
       setErrorMessage(res.error || 'Failed to register account. Please check your inputs.');
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setErrorMessage('');
+    setSuccessInfo(null);
+    setLoading(true);
+    if (!credentialResponse?.credential) {
+      setErrorMessage('Google token was not returned.');
+      setLoading(false);
+      return;
+    }
+    const res = await loginWithGoogle(credentialResponse.credential);
+    setLoading(false);
+    if (res.success) {
+      navigate('/profile');
+    } else {
+      setErrorMessage(res.error || 'Google signup failed. Please try with email.');
     }
   };
 
@@ -260,6 +281,29 @@ export default function SignupPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Official Google OAuth 2.0 Button for Customers */}
+              {role === 'ROLE_CUSTOMER' && (
+                <>
+                  <div className="google-oauth-row">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => setErrorMessage('Google Sign-In was cancelled or failed.')}
+                      shape="rectangular"
+                      theme="outline"
+                      size="large"
+                      text="signup_with"
+                      width="100%"
+                    />
+                  </div>
+
+                  <div className="signup-divider">
+                    <span className="signup-divider-line"></span>
+                    <span className="signup-divider-text">or register with email</span>
+                    <span className="signup-divider-line"></span>
+                  </div>
+                </>
+              )}
 
               {/* Registration Form */}
               <form onSubmit={handleSubmit} className="signup-form">

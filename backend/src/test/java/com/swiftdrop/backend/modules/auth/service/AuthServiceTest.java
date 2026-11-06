@@ -1,8 +1,10 @@
 package com.swiftdrop.backend.modules.auth.service;
 
 import com.swiftdrop.backend.modules.auth.dto.AuthResponse;
+import com.swiftdrop.backend.modules.auth.dto.GoogleAuthRequest;
 import com.swiftdrop.backend.modules.auth.dto.LoginRequest;
 import com.swiftdrop.backend.modules.auth.dto.SignUpRequest;
+import com.swiftdrop.backend.modules.auth.dto.UpdateProfileRequest;
 import com.swiftdrop.backend.modules.auth.entity.*;
 import com.swiftdrop.backend.modules.auth.exception.AccountNotActiveException;
 import com.swiftdrop.backend.modules.auth.exception.UserAlreadyExistsException;
@@ -217,6 +219,107 @@ class AuthServiceTest {
         when(passwordEncoder.matches("correctpassword", "hashed-pw")).thenReturn(true);
 
         assertThrows(AccountNotActiveException.class, () -> authService.login(request));
+    }
+
+    @Test
+    @DisplayName("Should successfully authenticate new user via Google OAuth")
+    void loginWithGoogleNewUserSuccess() {
+        GoogleAuthRequest request = GoogleAuthRequest.builder()
+                .idToken("mock-google-token-alice")
+                .build();
+
+        when(userRepository.findByEmail("alice@gmail.com")).thenReturn(Optional.empty());
+
+        User createdUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("alice@gmail.com")
+                .fullName("Google User (alice)")
+                .role(Role.ROLE_CUSTOMER)
+                .status(AccountStatus.ACTIVE)
+                .provider(AuthProvider.GOOGLE)
+                .providerId("mock-google-sub-alice")
+                .build();
+
+        when(userRepository.save(any(User.class))).thenReturn(createdUser);
+        when(jwtTokenProvider.generateAccessToken(createdUser)).thenReturn("google-jwt-token");
+        when(jwtTokenProvider.getAccessTokenExpirationMs()).thenReturn(3600000L);
+
+        RefreshToken savedToken = RefreshToken.builder()
+                .token("mock-google-refresh-token")
+                .user(createdUser)
+                .build();
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(savedToken);
+
+        AuthResponse response = authService.loginWithGoogle(request);
+
+        assertNotNull(response);
+        assertEquals("google-jwt-token", response.getAccessToken());
+        assertEquals("mock-google-refresh-token", response.getRefreshToken());
+        assertEquals("alice@gmail.com", response.getUser().getEmail());
+        assertEquals(AuthProvider.GOOGLE, response.getUser().getProvider());
+    }
+
+    @Test
+    @DisplayName("Should successfully authenticate existing user via Google OAuth")
+    void loginWithGoogleExistingUserSuccess() {
+        GoogleAuthRequest request = GoogleAuthRequest.builder()
+                .idToken("mock-google-token-bob")
+                .build();
+
+        User existingUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("bob@gmail.com")
+                .fullName("Bob Existing")
+                .role(Role.ROLE_CUSTOMER)
+                .status(AccountStatus.ACTIVE)
+                .provider(AuthProvider.LOCAL)
+                .build();
+
+        when(userRepository.findByEmail("bob@gmail.com")).thenReturn(Optional.of(existingUser));
+        when(userRepository.save(any(User.class))).thenReturn(existingUser);
+        when(jwtTokenProvider.generateAccessToken(existingUser)).thenReturn("bob-jwt-token");
+        when(jwtTokenProvider.getAccessTokenExpirationMs()).thenReturn(3600000L);
+
+        RefreshToken savedToken = RefreshToken.builder()
+                .token("bob-refresh-token")
+                .user(existingUser)
+                .build();
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(savedToken);
+
+        AuthResponse response = authService.loginWithGoogle(request);
+
+        assertNotNull(response);
+        assertEquals("bob-jwt-token", response.getAccessToken());
+        assertEquals("bob-refresh-token", response.getRefreshToken());
+        assertEquals(AuthProvider.GOOGLE, existingUser.getProvider());
+    }
+
+    @Test
+    @DisplayName("Should successfully update user profile details")
+    void updateProfileSuccess() {
+        UpdateProfileRequest request = UpdateProfileRequest.builder()
+                .fullName("Risinu Updated")
+                .phone("0771234567")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@gmail.com")
+                .fullName("Original Name")
+                .phone(null)
+                .role(Role.ROLE_CUSTOMER)
+                .status(AccountStatus.ACTIVE)
+                .provider(AuthProvider.GOOGLE)
+                .build();
+
+        when(userRepository.findByEmail("user@gmail.com")).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var updated = authService.updateProfile("user@gmail.com", request);
+
+        assertNotNull(updated);
+        assertEquals("Risinu Updated", updated.getFullName());
+        assertEquals("0771234567", updated.getPhone());
     }
 }
 
