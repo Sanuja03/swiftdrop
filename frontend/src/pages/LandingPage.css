@@ -6,9 +6,9 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--color-bg-pale);
-  font-family: var(--font-primary);
-  color: var(--color-text-main);
+  background-color: #F5F7FA;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #172B4D;
   overflow-x: hidden;
 }
 
@@ -16,8 +16,8 @@
    1. Dark Navy Navbar (as per Track Parcel template in Colour Guide)
    -------------------------------------------------------------------------- */
 .landing-nav-bar {
-  background-color: var(--color-navy-dark);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: #081F38;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   height: 74px;
   display: flex;
   align-items: center;
@@ -49,7 +49,7 @@
 }
 
 .nav-item {
-  color: #94A3B8;
+  color: #CBD5E1;
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
@@ -69,7 +69,7 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background-color: var(--color-orange);
+  background-color: #F58220;
   border-radius: 2px;
 }
 
@@ -86,29 +86,30 @@
   text-decoration: none;
   padding: 8px 18px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   transition: all 0.15s ease;
 }
 
 .btn-nav-login:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.35);
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .btn-nav-get-started {
-  background-color: var(--color-orange);
+  background-color: #F58220;
   color: #FFFFFF;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
   padding: 9px 20px;
   border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(245, 130, 32, 0.3);
+  box-shadow: 0 4px 14px rgba(245, 130, 32, 0.35);
   transition: all 0.15s ease;
+  border: none;
 }
 
 .btn-nav-get-started:hover {
-  background-color: var(--color-orange-hover);
+  background-color: #E66D0A;
   transform: translateY(-1px);
 }
 
@@ -116,9 +117,9 @@
    2. Hero Section (Track Your Parcel)
    -------------------------------------------------------------------------- */
 .landing-hero-section {
-  background: linear-gradient(180deg, var(--color-navy-dark) 0%, #0C213D 60%, var(--color-navy) 100%);
+  background: linear-gradient(180deg, #081F38 0%, #0B1E36 50%, #102A4C 100%);
   color: #FFFFFF;
-  padding: 56px 32px 72px 32px;
+  padding: 56px 32px 76px 32px;
   position: relative;
   overflow: hidden;
 }
@@ -138,7 +139,7 @@
 }
 
 .hero-main-title {
-  font-size: 44px;
+  font-size: 46px;
   font-weight: 800;
   line-height: 1.15;
   color: #FFFFFF;
@@ -147,13 +148,13 @@
 }
 
 .title-highlight {
-  color: var(--color-orange);
+  color: #F58220;
 }
 
 .hero-subtitle-text {
   font-size: 16px;
   color: #CBD5E1;
-  line-height: 1.5;
+  line-height: 1.55;
   margin: 0 0 28px 0;
   max-width: 520px;
 }
@@ -166,16 +167,16 @@
   align-items: center;
   padding: 6px 6px 6px 18px;
   max-width: 540px;
-  box-shadow: 0 14px 34px -4px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 14px 34px -4px rgba(0, 0, 0, 0.4);
   transition: all 0.2s ease;
 }
 
 .hero-search-box:focus-within {
-  box-shadow: 0 14px 34px -4px rgba(245, 130, 32, 0.35), 0 0 0 2px var(--color-orange);
+  box-shadow: 0 14px 34px -4px rgba(245, 130, 32, 0.4), 0 0 0 2px #F58220;
 }
 
 .hero-search-icon {
-  color: #94A3B8;
+  color: #64748B;
   flex-shrink: 0;
   margin-right: 10px;
 }
@@ -185,18 +186,19 @@
   border: none;
   outline: none;
   font-size: 15px;
-  font-weight: 500;
-  color: var(--color-navy);
+  font-weight: 600;
+  color: #102A4C;
   font-family: inherit;
   background: transparent;
 }
 
 .hero-search-input::placeholder {
   color: #94A3B8;
+  font-weight: 400;
 }
 
 .hero-search-button {
-  background-color: var(--color-orange);
+  background-color: #F58220;
   color: #FFFFFF;
   border: none;
   border-radius: 8px;
@@ -209,7 +211,7 @@
 }
 
 .hero-search-button:hover {
-  background-color: var(--color-orange-hover);
+  background-color: #E66D0A;
 }
 
 .hero-search-toast {
@@ -217,9 +219,9 @@
   align-items: center;
   gap: 8px;
   margin-top: 14px;
-  background: rgba(22, 163, 74, 0.2);
+  background: rgba(22, 163, 74, 0.25);
   color: #86EFAC;
-  border: 1px solid rgba(22, 163, 74, 0.4);
+  border: 1px solid rgba(22, 163, 74, 0.5);
   padding: 6px 14px;
   border-radius: 8px;
   font-size: 13px;
@@ -232,25 +234,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.hero-ambient-backdrop {
-  position: absolute;
-  width: 380px;
-  height: 380px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(245, 130, 32, 0.22) 0%, rgba(16, 42, 76, 0.05) 70%, transparent 100%);
-  filter: blur(28px);
-  z-index: 1;
-}
-
-.hero-van-graphic {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  max-width: 420px;
-  height: auto;
-  filter: drop-shadow(0 24px 38px rgba(0, 0, 0, 0.45));
 }
 
 /* --------------------------------------------------------------------------
@@ -278,9 +261,9 @@
 
 /* Reusable SwiftDrop Card */
 .sd-card {
-  background: var(--color-surface);
+  background: #FFFFFF;
   border-radius: 16px;
-  border: 1px solid var(--color-border);
+  border: 1px solid #E2E8F0;
   box-shadow: 0 8px 24px -4px rgba(16, 42, 76, 0.06), 0 2px 6px -1px rgba(16, 42, 76, 0.03);
   padding: 24px;
 }
@@ -306,7 +289,7 @@
 .sd-card-title {
   font-size: 17px;
   font-weight: 700;
-  color: var(--color-navy);
+  color: #102A4C;
   margin: 0;
 }
 
@@ -338,7 +321,7 @@
 .sd-stepper-progress-fill {
   width: 50%;
   height: 100%;
-  background: linear-gradient(90deg, #16A34A 0%, #16A34A 50%, var(--color-orange) 100%);
+  background: linear-gradient(90deg, #16A34A 0%, #16A34A 50%, #F58220 100%);
 }
 
 .sd-step {
@@ -370,8 +353,8 @@
 }
 
 .sd-step.active .sd-step-circle {
-  background-color: var(--color-orange);
-  border-color: var(--color-orange);
+  background-color: #F58220;
+  border-color: #F58220;
   color: #FFFFFF;
   box-shadow: 0 0 0 4px rgba(245, 130, 32, 0.2);
 }
@@ -389,13 +372,13 @@
 .sd-step-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-navy);
+  color: #102A4C;
   margin-bottom: 3px;
 }
 
 .sd-step-date {
   font-size: 11px;
-  color: var(--color-text-muted);
+  color: #64748B;
 }
 
 /* Parcel Details Card */
@@ -421,20 +404,20 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-text-muted);
+  color: #64748B;
   font-weight: 600;
 }
 
 .info-entry-value {
   font-size: 14px;
   font-weight: 500;
-  color: var(--color-navy);
+  color: #172B4D;
 }
 
 .info-entry-value.highlight-navy {
   font-size: 16px;
   font-weight: 700;
-  color: var(--color-navy);
+  color: #102A4C;
 }
 
 /* Estimated Delivery Box (Matching Design Template) */
@@ -445,7 +428,7 @@
 
 .estimate-box {
   background-color: #F8FAFC;
-  border: 1px solid var(--color-border);
+  border: 1px solid #E2E8F0;
   border-radius: 12px;
   padding: 18px 20px;
   width: 100%;
@@ -461,7 +444,7 @@
 .estimate-title {
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: #64748B;
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -469,7 +452,7 @@
 .estimate-time-value {
   font-size: 17px;
   font-weight: 700;
-  color: var(--color-navy);
+  color: #102A4C;
   margin-bottom: 12px;
 }
 
@@ -516,7 +499,7 @@
   border-radius: 12px;
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--color-border);
+  border: 1px solid #E2E8F0;
   background-color: #F8FAFC;
 }
 
@@ -548,12 +531,12 @@
 .pin-label {
   font-size: 11px;
   font-weight: 700;
-  color: var(--color-navy);
-  background: rgba(255, 255, 255, 0.9);
+  color: #102A4C;
+  background: rgba(255, 255, 255, 0.95);
   padding: 2px 6px;
   border-radius: 4px;
   margin-top: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   white-space: nowrap;
 }
 
@@ -569,7 +552,7 @@
 .pin-dot.destination {
   width: 28px;
   height: 28px;
-  background-color: var(--color-orange);
+  background-color: #F58220;
   color: #FFFFFF;
   border: 3px solid #FFFFFF;
   border-radius: 50% 50% 50% 0;
@@ -593,7 +576,7 @@
 .van-icon-bubble {
   width: 32px;
   height: 32px;
-  background-color: var(--color-navy);
+  background-color: #102A4C;
   border: 2px solid #FFFFFF;
   border-radius: 50%;
   display: flex;
@@ -622,9 +605,9 @@
   bottom: 14px;
   left: 14px;
   right: 14px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
-  border: 1px solid var(--color-border);
+  border: 1px solid #E2E8F0;
   border-radius: 10px;
   padding: 10px 14px;
   display: flex;
@@ -652,12 +635,12 @@
 .telemetry-code {
   font-size: 13px;
   font-weight: 700;
-  color: var(--color-navy);
+  color: #102A4C;
 }
 
 .telemetry-eta {
   font-size: 11px;
-  color: var(--color-text-muted);
+  color: #64748B;
 }
 
 /* --------------------------------------------------------------------------
@@ -682,7 +665,7 @@
 .section-eyebrow {
   font-size: 12px;
   font-weight: 700;
-  color: var(--color-orange);
+  color: #F58220;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   display: block;
@@ -692,14 +675,14 @@
 .section-heading {
   font-size: 30px;
   font-weight: 800;
-  color: var(--color-navy);
+  color: #102A4C;
   margin: 0 0 10px 0;
   letter-spacing: -0.4px;
 }
 
 .section-description {
   font-size: 15px;
-  color: var(--color-text-muted);
+  color: #64748B;
   line-height: 1.5;
   margin: 0;
 }
@@ -711,8 +694,8 @@
 }
 
 .service-bento-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
   border-radius: 14px;
   padding: 28px 22px;
   transition: all 0.2s ease;
@@ -740,13 +723,13 @@
 .service-bento-title {
   font-size: 16px;
   font-weight: 700;
-  color: var(--color-navy);
+  color: #102A4C;
   margin: 0 0 8px 0;
 }
 
 .service-bento-text {
   font-size: 13px;
-  color: var(--color-text-muted);
+  color: #64748B;
   line-height: 1.55;
   margin: 0;
 }
@@ -755,9 +738,9 @@
    5. Island-Wide Performance Statistics Strip
    -------------------------------------------------------------------------- */
 .landing-stats-strip {
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  background: #FFFFFF;
+  border-top: 1px solid #E2E8F0;
+  border-bottom: 1px solid #E2E8F0;
   padding: 44px 32px;
 }
 
@@ -778,14 +761,14 @@
   display: block;
   font-size: 36px;
   font-weight: 800;
-  color: var(--color-navy);
+  color: #102A4C;
   margin-bottom: 4px;
   letter-spacing: -0.5px;
 }
 
 .metric-description {
   font-size: 13px;
-  color: var(--color-text-muted);
+  color: #64748B;
   font-weight: 500;
 }
 
@@ -803,7 +786,7 @@
 }
 
 .cta-banner-card {
-  background: linear-gradient(135deg, var(--color-navy-dark) 0%, var(--color-navy) 100%);
+  background: linear-gradient(135deg, #081F38 0%, #102A4C 100%);
   border-radius: 20px;
   padding: 48px;
   display: flex;
@@ -836,7 +819,7 @@
 }
 
 .btn-cta-primary {
-  background-color: var(--color-orange);
+  background-color: #F58220;
   color: #FFFFFF;
   font-size: 15px;
   font-weight: 600;
@@ -851,7 +834,7 @@
 }
 
 .btn-cta-primary:hover {
-  background-color: var(--color-orange-hover);
+  background-color: #E66D0A;
   transform: translateY(-1px);
 }
 
@@ -875,7 +858,7 @@
    7. Footer (Deep Navy #081F38)
    -------------------------------------------------------------------------- */
 .landing-footer-root {
-  background-color: var(--color-navy-dark);
+  background-color: #081F38;
   color: #FFFFFF;
   padding: 56px 32px 24px 32px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -933,7 +916,7 @@
 }
 
 .footer-nav-list a:hover {
-  color: var(--color-orange);
+  color: #F58220;
 }
 
 .footer-copyright-bar {

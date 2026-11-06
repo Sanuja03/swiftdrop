@@ -19,7 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
-import heroVan from '../assets/hero.png';
+import DeliveryVanIllustration from '../components/common/DeliveryVanIllustration';
 import './LandingPage.css';
 
 export default function LandingPage() {
@@ -96,12 +96,7 @@ export default function LandingPage() {
 
           {/* Right Column: SwiftDrop Delivery Van & City Silhouette */}
           <div className="hero-visual-content">
-            <div className="hero-ambient-backdrop"></div>
-            <img 
-              src={heroVan} 
-              alt="SwiftDrop White Delivery Van" 
-              className="hero-van-graphic" 
-            />
+            <DeliveryVanIllustration />
           </div>
         </div>
       </section>

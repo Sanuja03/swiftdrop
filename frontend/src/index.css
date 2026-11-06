@@ -3,16 +3,28 @@
 */
 
 :root {
-  /* Brand Palette */
+  /* Brand Palette (SwiftDrop Website Pages & Colour Guide) */
   --primary-navy: #102A4C;
   --deep-navy: #081F38;
+  --color-navy: #102A4C;
+  --color-navy-dark: #081F38;
+
   --brand-orange: #F58220;
+  --color-orange: #F58220;
   --orange-hover: #E66D0A;
+  --color-orange-hover: #E66D0A;
+
   --bg-pale: #F5F7FA;
+  --color-bg-pale: #F5F7FA;
   --surface-white: #FFFFFF;
+  --color-surface: #FFFFFF;
+
   --text-primary: #172B4D;
+  --color-text-main: #172B4D;
   --text-muted: #64748B;
+  --color-text-muted: #64748B;
   --border-subtle: #E2E8F0;
+  --color-border: #E2E8F0;
   
   /* Status Colors */
   --success: #16A34A;
@@ -21,6 +33,7 @@
 
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(16, 42, 76, 0.05);
