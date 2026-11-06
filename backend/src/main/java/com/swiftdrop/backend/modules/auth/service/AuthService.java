@@ -98,7 +98,7 @@ public class AuthService {
         }
 
         if (user.getStatus() == AccountStatus.PENDING_APPROVAL) {
-            throw new AccountNotActiveException("Your merchant account is pending admin approval.");
+            throw new AccountNotActiveException("Your merchant account is currently under verification. We will activate your account within 24 hours.");
         }
 
         if (user.getStatus() == AccountStatus.SUSPENDED) {
@@ -109,80 +109,6 @@ public class AuthService {
         RefreshToken refreshToken = createRefreshToken(user);
 
         log.info("User logged in successfully: [{}]", user.getEmail());
-
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken.getToken())
-                .expiresIn(jwtTokenProvider.getAccessTokenExpirationMs())
-                .user(UserProfileDto.fromEntity(user))
-                .build();
-    }
-
-    @Transactional
-    public AuthResponse loginWithGoogle(GoogleAuthRequest request) {
-        String token = request.getIdToken().trim();
-        String email;
-        String name;
-        String sub;
-
-        // Support demo/mock tokens for offline development and tests
-        if (token.startsWith("mock-google-token-")) {
-            String suffix = token.replace("mock-google-token-", "");
-            email = suffix + "@gmail.com";
-            name = "Google User (" + suffix + ")";
-            sub = "mock-google-sub-" + suffix;
-        } else {
-            try {
-                RestClient restClient = RestClient.create();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> tokenInfo = restClient.get()
-                        .uri("https://oauth2.googleapis.com/tokeninfo?id_token={token}", token)
-                        .retrieve()
-                        .body(Map.class);
-
-                if (tokenInfo == null || !tokenInfo.containsKey("email")) {
-                    throw new BadCredentialsException("Invalid Google token or email not found in token");
-                }
-
-                email = (String) tokenInfo.get("email");
-                name = (String) tokenInfo.getOrDefault("name", email);
-                sub = (String) tokenInfo.get("sub");
-            } catch (BadCredentialsException bce) {
-                throw bce;
-            } catch (Exception e) {
-                log.error("Failed to verify Google token: {}", e.getMessage());
-                throw new BadCredentialsException("Invalid or expired Google authentication token");
-            }
-        }
-
-        String normalizedEmail = email.toLowerCase().trim();
-        User user = userRepository.findByEmail(normalizedEmail).orElseGet(() -> {
-            log.info("Creating new user account from Google OAuth: {}", normalizedEmail);
-            User newUser = User.builder()
-                    .email(normalizedEmail)
-                    .fullName(name != null ? name : normalizedEmail)
-                    .role(Role.ROLE_CUSTOMER)
-                    .status(AccountStatus.ACTIVE)
-                    .provider(AuthProvider.GOOGLE)
-                    .providerId(sub)
-                    .build();
-            return userRepository.save(newUser);
-        });
-
-        if (user.getStatus() == AccountStatus.SUSPENDED) {
-            throw new AccountNotActiveException("Your account has been suspended. Please contact customer support.");
-        }
-
-        if (user.getProvider() == null || user.getProvider() == AuthProvider.LOCAL) {
-            user.setProvider(AuthProvider.GOOGLE);
-            user.setProviderId(sub);
-            userRepository.save(user);
-        }
-
-        String accessToken = jwtTokenProvider.generateAccessToken(user);
-        RefreshToken refreshToken = createRefreshToken(user);
-
-        log.info("Google OAuth login successful for [{}]", user.getEmail());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)

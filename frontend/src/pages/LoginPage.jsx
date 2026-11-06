@@ -1,13 +1,25 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Truck, ArrowRight, MapPin, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Mail, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  Truck, 
+  ArrowRight, 
+  MapPin, 
+  CheckCircle2, 
+  AlertCircle,
+  ShieldCheck
+} from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { useAuth } from '../context/AuthContext';
 import './LoginPage.css';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, loginWithGoogle, loading } = useAuth();
+  const { login, loading } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,78 +49,83 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setErrorMessage('');
-    setSuccessUser(null);
-    // In local/evaluator test mode, authenticate using mock Google token
-    const res = await loginWithGoogle('mock-google-token-customer');
-    if (res.success) {
-      setSuccessUser(res.user);
-      setTimeout(() => {
-        navigate('/profile');
-      }, 700);
-    } else {
-      setErrorMessage(res.error || 'Google authentication failed.');
-    }
-  };
-
   return (
     <div className="login-page-container">
-      {/* Top Header */}
+      {/* 1. Dark Navy Header (matching Landing Page) */}
       <header className="login-header">
         <div className="login-header-inner">
-          <Link to="/" style={{ textDecoration: 'none' }}>
-            <Logo size="medium" />
+          <Link to="/" className="login-brand-link">
+            <Logo size="medium" dark={true} />
           </Link>
-          <div className="login-header-links">
-            <Link to="/#tracking-section" className="login-header-link">Track Parcel</Link>
-            <span className="login-header-badge">Island-Wide Service</span>
+          
+          <nav className="login-nav-links">
+            <Link to="/" className="login-nav-item">Home</Link>
+            <Link to="/#tracking-dashboard" className="login-nav-item">Track Parcel</Link>
+            <Link to="/#services" className="login-nav-item">Services</Link>
+          </nav>
+
+          <div className="login-header-actions">
+            <Link to="/signup" className="btn-login-signup">
+              Create Account
+            </Link>
           </div>
         </div>
       </header>
 
-      {/* Main Container */}
+      {/* 2. Main Login Area */}
       <main className="login-main">
-        <div className="login-card">
-          {/* Left Brand Panel */}
+        <motion.div 
+          className="login-card"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          {/* Left Brand Panel (Deep Navy) */}
           <div className="login-left-panel">
-            <div className="login-badge-pill">
-              <span className="login-badge-dot"></span>
-              Live Island-Wide Logistics
-            </div>
+            <div>
+              <div className="login-badge-pill">
+                <span className="login-badge-dot"></span>
+                Live Island-Wide Logistics
+              </div>
 
-            <h1 className="login-left-title">
-              Swift, Secure & Reliable Parcel Delivery
-            </h1>
-            <p className="login-left-subtitle">
-              Island-wide express tracking, automated merchant integrations, and intelligent courier dispatching.
-            </p>
+              <h1 className="login-left-title">
+                Swift, Secure & Reliable Parcel Delivery
+              </h1>
+              <p className="login-left-subtitle">
+                Guaranteed island-wide doorstep delivery, live GPS tracking, and dependable courier service across Sri Lanka.
+              </p>
 
-            {/* Real-time Tracking Preview Widget (matches design reference) */}
-            <div className="login-tracking-widget">
-              <div className="login-widget-header">
-                <div className="login-widget-left">
-                  <div className="login-truck-icon">
-                    <Truck size={18} color="#F58220" />
+              {/* Real-Time Live Tracking Preview Widget */}
+              <div className="login-tracking-widget">
+                <div className="login-widget-header">
+                  <div className="login-widget-left">
+                    <div className="login-truck-icon">
+                      <Truck size={18} color="#F58220" />
+                    </div>
+                    <div>
+                      <div className="login-widget-tracking-num">SDP7845621</div>
+                      <div className="login-widget-route">Colombo Hub → Kandy Central</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="login-widget-tracking-num">SDP7845621</div>
-                    <div className="login-widget-route">Colombo 05 → Kandy</div>
-                  </div>
+                  <span className="login-status-pill">In Transit</span>
                 </div>
-                <span className="login-status-pill">In Transit</span>
-              </div>
 
-              <div className="login-widget-progress-bar">
-                <div className="login-widget-progress-fill"></div>
-              </div>
+                <div className="login-widget-progress-bar">
+                  <motion.div 
+                    className="login-widget-progress-fill"
+                    initial={{ width: '0%' }}
+                    animate={{ width: '65%' }}
+                    transition={{ duration: 1.2, delay: 0.3 }}
+                  />
+                </div>
 
-              <div className="login-widget-footer">
-                <span>
-                  <MapPin size={12} style={{ display: 'inline', marginRight: 4 }} />
-                  Current Location: Kadawatha
-                </span>
-                <span style={{ fontWeight: 600 }}>ETA: 2:30 PM</span>
+                <div className="login-widget-footer">
+                  <span>
+                    <MapPin size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                    Kadawatha Junction
+                  </span>
+                  <span style={{ fontWeight: 600 }}>ETA: 2:30 PM</span>
+                </div>
               </div>
             </div>
 
@@ -116,20 +133,20 @@ export default function LoginPage() {
             <div className="login-feature-list">
               <div className="login-feature-item">
                 <CheckCircle2 size={16} color="#16A34A" />
-                <span>Real-time live WebSocket parcel status</span>
+                <span>Live GPS parcel tracking with instant SMS alerts</span>
               </div>
               <div className="login-feature-item">
                 <CheckCircle2 size={16} color="#16A34A" />
-                <span>Secured JWT & OAuth 2.0 authorization</span>
+                <span>Next-day doorstep delivery to all 25 districts</span>
               </div>
               <div className="login-feature-item">
                 <CheckCircle2 size={16} color="#16A34A" />
-                <span>Automated webhooks with retry policy</span>
+                <span>Reliable Cash on Delivery (COD) payouts for sellers</span>
               </div>
             </div>
           </div>
 
-          {/* Right Form Panel */}
+          {/* Right Form Panel (Surface White) */}
           <div className="login-right-panel">
             <div className="login-form-container">
               <div className="login-form-header">
@@ -137,66 +154,47 @@ export default function LoginPage() {
                 <p className="login-form-subtitle">Sign in to access your SwiftDrop account</p>
               </div>
 
-              {/* Google OAuth 2.0 Button */}
-              <button
-                type="button"
-                className="login-google-btn"
-                onClick={handleGoogleLogin}
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <path
-                    fill="#4285F4"
-                    d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"
-                  />
-                </svg>
-                Continue with Google
-              </button>
-
-              {/* Divider */}
-              <div className="login-divider">
-                <div className="login-divider-line"></div>
-                <span className="login-divider-text">or sign in with email</span>
-                <div className="login-divider-line"></div>
-              </div>
-
               {/* Error Alert */}
-              {errorMessage && (
-                <div className="login-alert-error">
-                  <span>{errorMessage}</span>
-                </div>
-              )}
+              <AnimatePresence>
+                {errorMessage && (
+                  <motion.div 
+                    className="login-alert-error"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                  >
+                    <AlertCircle size={18} color="#DC2626" />
+                    <span>{errorMessage}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Success Alert */}
-              {successUser && (
-                <div className="login-alert-success">
-                  <CheckCircle2 size={18} color="#16A34A" />
-                  <span>
-                    Authenticated as <strong>{successUser.fullName || successUser.email}</strong> ({successUser.role})
-                  </span>
-                </div>
-              )}
+              <AnimatePresence>
+                {successUser && (
+                  <motion.div 
+                    className="login-alert-success"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                  >
+                    <CheckCircle2 size={18} color="#16A34A" />
+                    <span>
+                      Authenticated as <strong>{successUser.fullName || successUser.email}</strong> ({successUser.role})
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Login Form */}
               <form onSubmit={handleSubmit} className="login-form">
                 <div className="login-input-group">
                   <label className="login-label">Email Address</label>
                   <div className="login-input-wrapper">
-                    <Mail size={18} color="#64748B" className="login-input-icon" />
+                    <Mail size={18} className="login-input-icon" />
                     <input
                       type="email"
-                      placeholder="e.g. name@swiftdrop.lk"
+                      placeholder="e.g. customer@swiftdrop.lk"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -211,7 +209,7 @@ export default function LoginPage() {
                     <a href="#forgot" className="login-forgot-link">Forgot password?</a>
                   </div>
                   <div className="login-input-wrapper">
-                    <Lock size={18} color="#64748B" className="login-input-icon" />
+                    <Lock size={18} className="login-input-icon" />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your password"
@@ -239,18 +237,20 @@ export default function LoginPage() {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="login-checkbox"
                     />
-                    Keep me signed in
+                    <span>Keep me signed in</span>
                   </label>
                 </div>
 
-                <button
+                <motion.button
                   type="submit"
                   disabled={loading}
                   className="login-submit-btn"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   {loading ? 'Authenticating...' : 'Sign In'}
                   <ArrowRight size={18} style={{ marginLeft: 8 }} />
-                </button>
+                </motion.button>
               </form>
 
               {/* Register Callout */}
@@ -262,8 +262,20 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </main>
+
+      {/* 3. Footer (matching Landing Page) */}
+      <footer className="login-footer">
+        <div className="login-footer-inner">
+          <p>© {new Date().getFullYear()} SwiftDrop Logistics • IN3101: Enterprise Application Development</p>
+          <div className="login-footer-links">
+            <Link to="/">Home</Link>
+            <Link to="/#tracking-dashboard">Track Parcel</Link>
+            <Link to="/signup">Register Account</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

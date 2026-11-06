@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, 
   Truck, 
@@ -10,13 +11,10 @@ import {
   Calendar, 
   ArrowRight, 
   ShieldCheck, 
-  ChevronRight, 
   Layers, 
   CreditCard, 
   Navigation,
-  FileText,
-  PhoneCall,
-  Sparkles
+  FileText
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import DeliveryVanIllustration from '../components/common/DeliveryVanIllustration';
@@ -54,25 +52,44 @@ export default function LandingPage() {
 
           <div className="landing-nav-cta">
             <Link to="/login" className="btn-nav-login">Login</Link>
-            <Link to="/signup" className="btn-nav-get-started">Get Started</Link>
+            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
+              <Link to="/signup" className="btn-nav-get-started">Get Started</Link>
+            </motion.div>
           </div>
         </div>
       </header>
 
-      {/* 2. Hero Section (matching bottom-left 'Track Parcel' design template) */}
+      {/* 2. Hero Section (Track Your Parcel) */}
       <section id="hero" className="landing-hero-section">
         <div className="landing-hero-container">
           {/* Left Column: Heading, Subtitle & Integrated Search Pill */}
           <div className="hero-text-content">
-            <h1 className="hero-main-title">
+            <motion.h1 
+              className="hero-main-title"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
               Track Your <span className="title-highlight">Parcel</span>
-            </h1>
-            <p className="hero-subtitle-text">
-              Enter your tracking number to get real-time updates on your delivery.
-            </p>
+            </motion.h1>
 
-            {/* Hero Search Bar */}
-            <form onSubmit={handleTrackSubmit} className="hero-search-box">
+            <motion.p 
+              className="hero-subtitle-text"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.12, ease: "easeOut" }}
+            >
+              Enter your tracking number to get real-time updates on your delivery.
+            </motion.p>
+
+            {/* Hero Search Bar with Motion */}
+            <motion.form 
+              onSubmit={handleTrackSubmit} 
+              className="hero-search-box"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.22, ease: "easeOut" }}
+            >
               <Search size={20} className="hero-search-icon" />
               <input
                 type="text"
@@ -81,23 +98,48 @@ export default function LandingPage() {
                 onChange={(e) => setTrackingInput(e.target.value)}
                 className="hero-search-input"
               />
-              <button type="submit" className="hero-search-button">
+              <motion.button 
+                type="submit" 
+                className="hero-search-button"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
                 Track Parcel
-              </button>
-            </form>
+              </motion.button>
+            </motion.form>
 
-            {searchNotification && (
-              <div className="hero-search-toast">
-                <CheckCircle2 size={16} />
-                <span>{searchNotification}</span>
-              </div>
-            )}
+            {/* Smooth Notification Banner */}
+            <AnimatePresence>
+              {searchNotification && (
+                <motion.div 
+                  className="hero-search-toast"
+                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{searchNotification}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Right Column: SwiftDrop Delivery Van & City Silhouette */}
-          <div className="hero-visual-content">
-            <DeliveryVanIllustration />
-          </div>
+          {/* Right Column: SwiftDrop Delivery Van with idle floating motion */}
+          <motion.div 
+            className="hero-visual-content"
+            initial={{ opacity: 0, x: 25 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+          >
+            <motion.div
+              animate={{ y: [0, -8, 0] }}
+              transition={{ repeat: Infinity, duration: 4.5, ease: "easeInOut" }}
+              style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
+            >
+              <DeliveryVanIllustration />
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
@@ -110,7 +152,13 @@ export default function LandingPage() {
             <div className="dashboard-left-col">
               
               {/* Card 1: Shipment Status */}
-              <div className="sd-card shipment-status-card">
+              <motion.div 
+                className="sd-card shipment-status-card"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              >
                 <div className="sd-card-header">
                   <div className="sd-card-icon-square">
                     <Package size={20} color="#F58220" />
@@ -121,29 +169,53 @@ export default function LandingPage() {
                 {/* 5-Step Horizontal Timeline matching template */}
                 <div className="sd-stepper-wrapper">
                   <div className="sd-stepper-line">
-                    <div className="sd-stepper-progress-fill"></div>
+                    <motion.div 
+                      className="sd-stepper-progress-fill"
+                      initial={{ width: "0%" }}
+                      whileInView={{ width: "50%" }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
+                    />
                   </div>
 
                   <div className="sd-step completed">
-                    <div className="sd-step-circle">
+                    <motion.div 
+                      className="sd-step-circle"
+                      initial={{ scale: 0 }}
+                      whileInView={{ scale: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ type: "spring", stiffness: 350, damping: 20, delay: 0.1 }}
+                    >
                       <CheckCircle2 size={16} />
-                    </div>
+                    </motion.div>
                     <span className="sd-step-name">Order Created</span>
                     <span className="sd-step-date">Oct 30, 10:14 AM</span>
                   </div>
 
                   <div className="sd-step completed">
-                    <div className="sd-step-circle">
+                    <motion.div 
+                      className="sd-step-circle"
+                      initial={{ scale: 0 }}
+                      whileInView={{ scale: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ type: "spring", stiffness: 350, damping: 20, delay: 0.25 }}
+                    >
                       <CheckCircle2 size={16} />
-                    </div>
+                    </motion.div>
                     <span className="sd-step-name">Picked Up</span>
                     <span className="sd-step-date">Oct 30, 02:37 PM</span>
                   </div>
 
                   <div className="sd-step active">
-                    <div className="sd-step-circle active-pulse">
+                    <motion.div 
+                      className="sd-step-circle active-pulse"
+                      initial={{ scale: 0 }}
+                      whileInView={{ scale: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ type: "spring", stiffness: 350, damping: 20, delay: 0.4 }}
+                    >
                       <Truck size={15} />
-                    </div>
+                    </motion.div>
                     <span className="sd-step-name">In Transit</span>
                     <span className="sd-step-date">Oct 31, 09:20 AM</span>
                   </div>
@@ -160,10 +232,16 @@ export default function LandingPage() {
                     <span className="sd-step-date">Pending</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Card 2: Parcel Details */}
-              <div className="sd-card parcel-details-card">
+              <motion.div 
+                className="sd-card parcel-details-card"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.12, ease: "easeOut" }}
+              >
                 <div className="sd-card-header">
                   <div className="sd-card-icon-square">
                     <FileText size={20} color="#F58220" />
@@ -192,7 +270,11 @@ export default function LandingPage() {
                   </div>
 
                   <div className="parcel-estimate-column">
-                    <div className="estimate-box">
+                    <motion.div 
+                      className="estimate-box"
+                      whileHover={{ scale: 1.015 }}
+                      transition={{ duration: 0.2 }}
+                    >
                       <div className="estimate-header-row">
                         <Calendar size={18} color="#F58220" />
                         <span className="estimate-title">Estimated Delivery</span>
@@ -202,16 +284,22 @@ export default function LandingPage() {
                         <span className="sd-status-pill in-transit">In Transit</span>
                         <span className="estimate-subtext">On Schedule</span>
                       </div>
-                    </div>
+                    </motion.div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
             </div>
 
             {/* Right Column: Live Route Map */}
             <div className="dashboard-right-col">
-              <div className="sd-card live-map-card">
+              <motion.div 
+                className="sd-card live-map-card"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+              >
                 <div className="sd-card-header">
                   <div className="sd-card-icon-square">
                     <Navigation size={20} color="#F58220" />
@@ -221,7 +309,6 @@ export default function LandingPage() {
 
                 {/* Visual Map Representation matching template */}
                 <div className="live-map-surface">
-                  {/* Decorative Map Roads Background SVG */}
                   <svg className="map-roads-svg" viewBox="0 0 500 360" fill="none">
                     <rect width="500" height="360" fill="#F8FAFC" />
                     {/* Background secondary roads */}
@@ -231,7 +318,7 @@ export default function LandingPage() {
                     <path d="M340 -20 Q 360 200 420 380" stroke="#E2E8F0" strokeWidth="6" />
                     <path d="M-20 320 L 520 280" stroke="#E2E8F0" strokeWidth="4" />
 
-                    {/* Active Transit Route Line (Colombo to Dehiwala via Kadawatha) */}
+                    {/* Active Transit Route Line */}
                     <path 
                       d="M 90 270 Q 190 140 280 160 T 420 80" 
                       stroke="#CBD5E1" 
@@ -252,13 +339,18 @@ export default function LandingPage() {
                     <span className="pin-label">Rajagiriya</span>
                   </div>
 
-                  {/* Delivery Van Moving Pin */}
-                  <div className="map-van-pin" style={{ left: '56%', top: '44%' }}>
+                  {/* Delivery Van Moving Pin with Motion Pulse */}
+                  <motion.div 
+                    className="map-van-pin" 
+                    style={{ left: '56%', top: '44%' }}
+                    animate={{ y: [0, -3, 0] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                  >
                     <div className="van-pulsing-aura"></div>
                     <div className="van-icon-bubble">
                       <Truck size={16} color="#FFFFFF" />
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Destination Pin: Dehiwala */}
                   <div className="map-pin-destination" style={{ right: '16%', top: '22%' }}>
@@ -268,8 +360,14 @@ export default function LandingPage() {
                     <span className="pin-label">Dehiwala</span>
                   </div>
 
-                  {/* Floating Telemetry Info Pill at bottom of map */}
-                  <div className="map-telemetry-overlay">
+                  {/* Floating Telemetry Info Pill */}
+                  <motion.div 
+                    className="map-telemetry-overlay"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    whileHover={{ scale: 1.015 }}
+                  >
                     <div className="telemetry-van-avatar">
                       <Truck size={18} color="#F58220" />
                     </div>
@@ -278,66 +376,71 @@ export default function LandingPage() {
                       <div className="telemetry-eta">ETA: Today, 2:30 PM</div>
                     </div>
                     <span className="sd-status-pill in-transit">In Transit</span>
-                  </div>
+                  </motion.div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
           </div>
         </div>
       </section>
 
-      {/* 4. Enterprise Services / Features Grid */}
+      {/* 4. Customer-Focused Services / Features Grid with Staggered Motion */}
       <section id="services" className="landing-services-section">
         <div className="landing-services-container">
-          <div className="section-title-group">
-            <span className="section-eyebrow">Enterprise Logistics Network</span>
-            <h2 className="section-heading">Built for High-Growth Businesses & Senders</h2>
+          <motion.div 
+            className="section-title-group"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <span className="section-eyebrow">Why Sri Lanka Chooses SwiftDrop</span>
+            <h2 className="section-heading">Simple, Reliable & Caring Delivery Services</h2>
             <p className="section-description">
-              Streamlining parcel distribution with automated sorting, courier mobile workflows, and enterprise API webhooks.
+              From sending personal gifts to managing daily customer orders for online shops, we make delivery fast, affordable, and stress-free.
             </p>
-          </div>
+          </motion.div>
 
           <div className="services-card-grid">
-            <div className="service-bento-card">
-              <div className="service-icon-container">
-                <Truck size={24} color="#F58220" />
-              </div>
-              <h3 className="service-bento-title">Island-Wide 25 Districts</h3>
-              <p className="service-bento-text">
-                Scheduled daily long-haul connections between Colombo, Kandy, Galle, Jaffna, and Kurunegala regional hubs.
-              </p>
-            </div>
-
-            <div className="service-bento-card">
-              <div className="service-icon-container">
-                <CreditCard size={24} color="#F58220" />
-              </div>
-              <h3 className="service-bento-title">Automated COD Settlements</h3>
-              <p className="service-bento-text">
-                Fast cash collections deposited directly to your bank account with complete automated reconciliation receipts.
-              </p>
-            </div>
-
-            <div className="service-bento-card">
-              <div className="service-icon-container">
-                <Layers size={24} color="#F58220" />
-              </div>
-              <h3 className="service-bento-title">Developer & Merchant APIs</h3>
-              <p className="service-bento-text">
-                Ready-to-use REST APIs and real-time webhook endpoints for WooCommerce, Shopify, or custom warehouse systems.
-              </p>
-            </div>
-
-            <div className="service-bento-card">
-              <div className="service-icon-container">
-                <ShieldCheck size={24} color="#F58220" />
-              </div>
-              <h3 className="service-bento-title">Secured RBAC Architecture</h3>
-              <p className="service-bento-text">
-                Enterprise role-based security separating Customer orders, Merchant stores, Courier tasks, and Admin operations.
-              </p>
-            </div>
+            {[
+              {
+                icon: <Truck size={24} color="#F58220" />,
+                title: "Guaranteed Next-Day Delivery",
+                text: "Fast, dependable courier service connecting Colombo, Kandy, Galle, Jaffna, and all 25 districts with daily scheduled runs."
+              },
+              {
+                icon: <CreditCard size={24} color="#F58220" />,
+                title: "Hassle-Free Cash on Delivery (COD)",
+                text: "Safe doorstep cash collection for online sellers with fast next-day bank transfers and complete payout summaries."
+              },
+              {
+                icon: <Package size={24} color="#F58220" />,
+                title: "Free Doorstep Parcel Pickup",
+                text: "Schedule a parcel pickup right from your home, boutique, or warehouse without ever waiting in line at a courier branch."
+              },
+              {
+                icon: <ShieldCheck size={24} color="#F58220" />,
+                title: "Live SMS Alerts & Safe Transit",
+                text: "Real-time SMS status notifications sent to you and your recipient, tamper-proof packaging, and photo proof of delivery."
+              }
+            ].map((service, idx) => (
+              <motion.div
+                key={service.title}
+                className="service-bento-card"
+                initial={{ opacity: 0, y: 25 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45, delay: idx * 0.1 }}
+                whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              >
+                <div className="service-icon-container">
+                  {service.icon}
+                </div>
+                <h3 className="service-bento-title">{service.title}</h3>
+                <p className="service-bento-text">{service.text}</p>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
@@ -345,45 +448,57 @@ export default function LandingPage() {
       {/* 5. Island-Wide Performance Statistics Strip */}
       <section className="landing-stats-strip">
         <div className="landing-stats-container">
-          <div className="stat-metric-block">
-            <span className="metric-number">25</span>
-            <span className="metric-description">Districts Covered Island-Wide</span>
-          </div>
-          <div className="stat-metric-block">
-            <span className="metric-number">99.4%</span>
-            <span className="metric-description">On-Time Delivery Success</span>
-          </div>
-          <div className="stat-metric-block">
-            <span className="metric-number">&lt; 12 Hrs</span>
-            <span className="metric-description">Colombo Express Dispatch</span>
-          </div>
-          <div className="stat-metric-block">
-            <span className="metric-number">100%</span>
-            <span className="metric-description">Insured Transit Protection</span>
-          </div>
+          {[
+            { num: "25", label: "Districts Covered Island-Wide" },
+            { num: "99.4%", label: "Safe On-Time Deliveries" },
+            { num: "< 24 Hrs", label: "Express Doorstep Delivery" },
+            { num: "100%", label: "Insured Transit Protection" }
+          ].map((stat, idx) => (
+            <motion.div 
+              key={stat.label} 
+              className="stat-metric-block"
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: idx * 0.08 }}
+            >
+              <span className="metric-number">{stat.num}</span>
+              <span className="metric-description">{stat.label}</span>
+            </motion.div>
+          ))}
         </div>
       </section>
 
       {/* 6. Onboarding CTA Banner */}
       <section className="landing-cta-banner-section">
         <div className="landing-cta-banner-container">
-          <div className="cta-banner-card">
+          <motion.div 
+            className="cta-banner-card"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
             <div className="cta-banner-content">
-              <h2 className="cta-banner-title">Ready to streamline your deliveries?</h2>
+              <h2 className="cta-banner-title">Ready to send your first parcel?</h2>
               <p className="cta-banner-subtitle">
-                Join over 2,500 Sri Lankan merchants who trust SwiftDrop for fast, secure, and reliable island-wide fulfillment.
+                Experience island-wide express delivery with convenient doorstep pickup, live SMS tracking, and transparent rates.
               </p>
             </div>
             <div className="cta-banner-buttons">
-              <Link to="/signup" className="btn-cta-primary">
-                Create Free Account
-                <ArrowRight size={18} />
-              </Link>
-              <Link to="/login" className="btn-cta-secondary">
-                Sign In to Portal
-              </Link>
+              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                <Link to="/signup" className="btn-cta-primary">
+                  Get Started Free
+                  <ArrowRight size={18} />
+                </Link>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                <Link to="/login" className="btn-cta-secondary">
+                  Sign In to Portal
+                </Link>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -406,8 +521,8 @@ export default function LandingPage() {
             <ul className="footer-nav-list">
               <li><a href="#tracking-dashboard">Public Parcel Tracking</a></li>
               <li><a href="#services">Next-Day Island Delivery</a></li>
+              <li><a href="#services">Doorstep Pickup Service</a></li>
               <li><a href="#services">Cash on Delivery (COD)</a></li>
-              <li><a href="#services">Merchant REST API</a></li>
             </ul>
           </div>
 

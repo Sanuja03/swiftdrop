@@ -63,13 +63,13 @@ body {
   flex-direction: column;
 }
 
-a {
+a:not([class*="btn"]) {
   color: var(--brand-orange);
   text-decoration: none;
   transition: color 0.2s ease;
 }
 
-a:hover {
+a:not([class*="btn"]):hover {
   color: var(--orange-hover);
 }
 

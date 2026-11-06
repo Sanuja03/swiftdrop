@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, 
   Mail, 
@@ -85,7 +86,7 @@ export default function SignupPage() {
       setSuccessInfo({
         role,
         message: role === 'ROLE_MERCHANT'
-          ? 'Merchant account submitted successfully! Your account is pending administrative verification.'
+          ? 'Merchant application submitted! Our team will verify your store and activate your daily COD payouts within 24 hours.'
           : 'Customer account created successfully! You can now log in to manage your shipments.'
       });
       // Clear sensitive fields
@@ -95,7 +96,7 @@ export default function SignupPage() {
       if (role === 'ROLE_CUSTOMER') {
         setTimeout(() => {
           navigate('/login');
-        }, 2500);
+        }, 2200);
       }
     } else {
       setErrorMessage(res.error || 'Failed to register account. Please check your inputs.');
@@ -104,67 +105,82 @@ export default function SignupPage() {
 
   return (
     <div className="signup-page-container">
-      {/* Top Header */}
+      {/* 1. Dark Navy Header (matching Landing Page) */}
       <header className="signup-header">
         <div className="signup-header-inner">
-          <Link to="/" style={{ textDecoration: 'none' }}>
-            <Logo size="medium" />
+          <Link to="/" className="signup-brand-link">
+            <Logo size="medium" dark={true} />
           </Link>
-          <div className="signup-header-links">
-            <Link to="/" className="signup-header-link">Track Parcel</Link>
-            <span className="signup-header-badge">Island-Wide Delivery</span>
+          
+          <nav className="signup-nav-links">
+            <Link to="/" className="signup-nav-item">Home</Link>
+            <Link to="/#tracking-dashboard" className="signup-nav-item">Track Parcel</Link>
+            <Link to="/#services" className="signup-nav-item">Services</Link>
+          </nav>
+
+          <div className="signup-header-actions">
+            <Link to="/login" className="btn-signup-login">
+              Sign In
+            </Link>
           </div>
         </div>
       </header>
 
-      {/* Main Container */}
+      {/* 2. Main Registration Card Area */}
       <main className="signup-main">
-        <div className="signup-card">
-          {/* Left Brand Panel */}
+        <motion.div 
+          className="signup-card"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          {/* Left Brand Panel (Deep Navy Gradient) */}
           <div className="signup-left-panel">
-            <div className="signup-badge-pill">
-              <span className="signup-badge-dot"></span>
-              Join SwiftDrop Network
-            </div>
-
-            <h1 className="signup-left-title">
-              Start Delivering Across Sri Lanka Today
-            </h1>
-            <p className="signup-left-subtitle">
-              Whether you need fast doorstep delivery or automated merchant logistics, SwiftDrop provides modern, reliable end-to-end fulfillment.
-            </p>
-
-            <div className="signup-feature-list">
-              <div className="signup-feature-item">
-                <CheckCircle2 size={18} color="#16A34A" />
-                <div>
-                  <strong>Instant Tracking Codes</strong>
-                  <p>Every parcel receives live tracking updates and SMS notifications.</p>
-                </div>
+            <div>
+              <div className="signup-badge-pill">
+                <span className="signup-badge-dot"></span>
+                Join SwiftDrop Network
               </div>
-              <div className="signup-feature-item">
-                <CheckCircle2 size={18} color="#16A34A" />
-                <div>
-                  <strong>Automated COD Remittance</strong>
-                  <p>Fast Cash On Delivery settlements directly to your bank account.</p>
+
+              <h1 className="signup-left-title">
+                Start Delivering Across Sri Lanka Today
+              </h1>
+              <p className="signup-left-subtitle">
+                Whether you're sending a personal gift or running an online store, SwiftDrop makes island-wide parcel delivery effortless.
+              </p>
+
+              <div className="signup-feature-list">
+                <div className="signup-feature-item">
+                  <CheckCircle2 size={18} color="#16A34A" />
+                  <div>
+                    <strong>Instant Tracking & SMS Alerts</strong>
+                    <p>Live tracking links and automated SMS updates for sender and recipient.</p>
+                  </div>
                 </div>
-              </div>
-              <div className="signup-feature-item">
-                <CheckCircle2 size={18} color="#16A34A" />
-                <div>
-                  <strong>Modern Developer APIs</strong>
-                  <p>Seamlessly integrate Shopify, WooCommerce, or custom platforms.</p>
+                <div className="signup-feature-item">
+                  <CheckCircle2 size={18} color="#16A34A" />
+                  <div>
+                    <strong>Hassle-Free Cash on Delivery</strong>
+                    <p>Reliable doorstep cash collection with daily direct bank payouts for sellers.</p>
+                  </div>
+                </div>
+                <div className="signup-feature-item">
+                  <CheckCircle2 size={18} color="#16A34A" />
+                  <div>
+                    <strong>Free Doorstep Pickup</strong>
+                    <p>Schedule parcel pickups directly from your home, boutique, or shop.</p>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="signup-security-note">
               <ShieldCheck size={20} color="#F58220" />
-              <span>Encrypted JWT authorization and role-based data security.</span>
+              <span>Safe, insured transit and photo proof of delivery at drop-off.</span>
             </div>
           </div>
 
-          {/* Right Form Panel */}
+          {/* Right Form Panel (Surface White) */}
           <div className="signup-right-panel">
             <div className="signup-form-container">
               <div className="signup-form-header">
@@ -172,7 +188,7 @@ export default function SignupPage() {
                 <p className="signup-form-subtitle">Choose your account type to get started</p>
               </div>
 
-              {/* Account Type Toggle */}
+              {/* Account Type Toggle with Motion */}
               <div className="signup-role-toggle">
                 <button
                   type="button"
@@ -193,36 +209,57 @@ export default function SignupPage() {
               </div>
 
               {/* Merchant Note Callout */}
-              {role === 'ROLE_MERCHANT' && (
-                <div className="signup-merchant-notice">
-                  <AlertCircle size={18} color="#102A4C" />
-                  <span>
-                    <strong>Administrative Review Required:</strong> Merchant accounts are created in <em>Pending Approval</em> status and verified by Dispatcher / Admin before activation.
-                  </span>
-                </div>
-              )}
+              <AnimatePresence>
+                {role === 'ROLE_MERCHANT' && (
+                  <motion.div 
+                    className="signup-merchant-notice"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <ShieldCheck size={18} color="#0369A1" style={{ flexShrink: 0, marginTop: 2 }} />
+                    <span>
+                      <strong>Quick Store Verification:</strong> To safeguard your store and set up daily Cash-on-Delivery (COD) bank payouts, our onboarding team reviews and activates business accounts within 24 hours.
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Error Alert */}
-              {errorMessage && (
-                <div className="signup-alert-error">
-                  <AlertCircle size={18} color="#EF4444" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
+              <AnimatePresence>
+                {errorMessage && (
+                  <motion.div 
+                    className="signup-alert-error"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                  >
+                    <AlertCircle size={18} color="#DC2626" />
+                    <span>{errorMessage}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Success Alert */}
-              {successInfo && (
-                <div className="signup-alert-success">
-                  <CheckCircle2 size={20} color="#16A34A" />
-                  <div>
-                    <strong>Registration Complete!</strong>
-                    <p>{successInfo.message}</p>
-                    {successInfo.role === 'ROLE_CUSTOMER' && (
-                      <span className="signup-redirect-hint">Redirecting to login in a moment...</span>
-                    )}
-                  </div>
-                </div>
-              )}
+              <AnimatePresence>
+                {successInfo && (
+                  <motion.div 
+                    className="signup-alert-success"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                  >
+                    <CheckCircle2 size={20} color="#16A34A" style={{ flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <strong>Registration Complete!</strong>
+                      <p>{successInfo.message}</p>
+                      {successInfo.role === 'ROLE_CUSTOMER' && (
+                        <span className="signup-redirect-hint">Redirecting to login in a moment...</span>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Registration Form */}
               <form onSubmit={handleSubmit} className="signup-form">
@@ -231,7 +268,7 @@ export default function SignupPage() {
                     <div className="signup-input-group">
                       <label className="signup-label">Business / Shop Name</label>
                       <div className="signup-input-wrapper">
-                        <Building size={18} color="#64748B" className="signup-input-icon" />
+                        <Building size={18} className="signup-input-icon" />
                         <input
                           type="text"
                           placeholder="e.g. Colombo Tech Store"
@@ -246,7 +283,7 @@ export default function SignupPage() {
                     <div className="signup-input-group">
                       <label className="signup-label">Contact Person Full Name</label>
                       <div className="signup-input-wrapper">
-                        <User size={18} color="#64748B" className="signup-input-icon" />
+                        <User size={18} className="signup-input-icon" />
                         <input
                           type="text"
                           placeholder="e.g. Kasun Perera"
@@ -262,7 +299,7 @@ export default function SignupPage() {
                   <div className="signup-input-group">
                     <label className="signup-label">Full Name</label>
                     <div className="signup-input-wrapper">
-                      <User size={18} color="#64748B" className="signup-input-icon" />
+                      <User size={18} className="signup-input-icon" />
                       <input
                         type="text"
                         placeholder="e.g. Kasun Perera"
@@ -279,7 +316,7 @@ export default function SignupPage() {
                   <div className="signup-input-group">
                     <label className="signup-label">Email Address</label>
                     <div className="signup-input-wrapper">
-                      <Mail size={18} color="#64748B" className="signup-input-icon" />
+                      <Mail size={18} className="signup-input-icon" />
                       <input
                         type="email"
                         placeholder="name@example.com"
@@ -294,7 +331,7 @@ export default function SignupPage() {
                   <div className="signup-input-group">
                     <label className="signup-label">Phone Number</label>
                     <div className="signup-input-wrapper">
-                      <Phone size={18} color="#64748B" className="signup-input-icon" />
+                      <Phone size={18} className="signup-input-icon" />
                       <input
                         type="tel"
                         placeholder="077 123 4567"
@@ -311,7 +348,7 @@ export default function SignupPage() {
                   <div className="signup-input-group">
                     <label className="signup-label">Password</label>
                     <div className="signup-input-wrapper">
-                      <Lock size={18} color="#64748B" className="signup-input-icon" />
+                      <Lock size={18} className="signup-input-icon" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Min 6 characters"
@@ -334,7 +371,7 @@ export default function SignupPage() {
                   <div className="signup-input-group">
                     <label className="signup-label">Confirm Password</label>
                     <div className="signup-input-wrapper">
-                      <Lock size={18} color="#64748B" className="signup-input-icon" />
+                      <Lock size={18} className="signup-input-icon" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Repeat password"
@@ -361,14 +398,16 @@ export default function SignupPage() {
                   </label>
                 </div>
 
-                <button
+                <motion.button
                   type="submit"
                   disabled={loading}
                   className="signup-submit-btn"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   {loading ? 'Creating Account...' : (role === 'ROLE_MERCHANT' ? 'Register Merchant Account' : 'Create Customer Account')}
                   <ArrowRight size={18} style={{ marginLeft: 8 }} />
-                </button>
+                </motion.button>
               </form>
 
               {/* Login Callout */}
@@ -380,9 +419,20 @@ export default function SignupPage() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </main>
+
+      {/* 3. Footer (matching Landing Page) */}
+      <footer className="signup-footer">
+        <div className="signup-footer-inner">
+          <p>© {new Date().getFullYear()} SwiftDrop Logistics • IN3101: Enterprise Application Development</p>
+          <div className="signup-footer-links">
+            <Link to="/">Home</Link>
+            <Link to="/#tracking-dashboard">Track Parcel</Link>
+            <Link to="/login">Sign In</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
-
