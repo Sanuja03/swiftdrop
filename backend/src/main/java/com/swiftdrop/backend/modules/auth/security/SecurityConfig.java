@@ -28,6 +28,8 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
 
     @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
     private String allowedOrigins;
@@ -48,13 +50,27 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
                 .authorizeHttpRequests(auth -> auth
+                        // Public endpoints
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/actuator/**",
                                 "/error",
                                 "/api/v1/tracking/public/**"
                         ).permitAll()
+
+                        // Role-Based Access Control (RBAC) URL boundaries
+                        .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers("/api/v1/dispatcher/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers("/api/v1/merchant/**").hasRole("MERCHANT")
+                        .requestMatchers("/api/v1/courier/**").hasRole("COURIER")
+                        .requestMatchers("/api/v1/customer/**").hasRole("CUSTOMER")
+
+                        // All other endpoints require authentication
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -77,4 +93,3 @@ public class SecurityConfig {
         return source;
     }
 }
-

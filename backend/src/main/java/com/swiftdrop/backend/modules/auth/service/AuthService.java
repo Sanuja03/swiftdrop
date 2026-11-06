@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -141,6 +142,22 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
         return UserProfileDto.fromEntity(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserProfileDto> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(UserProfileDto::fromEntity)
+                .toList();
+    }
+
+    @Transactional
+    public UserProfileDto updateUserStatus(UUID userId, AccountStatus newStatus) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userId));
+        user.setStatus(newStatus);
+        User updated = userRepository.save(user);
+        return UserProfileDto.fromEntity(updated);
     }
 
     @Transactional

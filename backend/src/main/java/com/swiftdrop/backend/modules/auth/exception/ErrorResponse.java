@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Map;
 
 @Data
@@ -17,7 +17,7 @@ import java.util.Map;
 public class ErrorResponse {
 
     @Builder.Default
-    private LocalDateTime timestamp = LocalDateTime.now();
+    private String timestamp = Instant.now().toString();
 
     private int status;
     private String error;
@@ -25,4 +25,3 @@ public class ErrorResponse {
     private String path;
     private Map<String, String> validationErrors;
 }
-
