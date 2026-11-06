@@ -50,6 +50,31 @@ export async function signupUser(userData) {
   }
 }
 
+export async function loginWithGoogle(idToken) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ idToken }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Google authentication failed.');
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message || 'Unable to connect to SwiftDrop authentication server.',
+    };
+  }
+}
+
 export async function getCurrentUser(token) {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -68,4 +93,29 @@ export async function getCurrentUser(token) {
     return null;
   }
 }
+
+export async function testEndpoint(endpoint, token) {
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    return {
+      status: response.status,
+      ok: response.ok,
+      data,
+    };
+  } catch (error) {
+    return {
+      status: 500,
+      ok: false,
+      error: error.message,
+    };
+  }
+}
+
 
