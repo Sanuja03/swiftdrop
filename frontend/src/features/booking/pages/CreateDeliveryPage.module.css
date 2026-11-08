@@ -54,6 +54,23 @@
   gap: var(--space-5);
 }
 
+.addressRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(160px, 1fr);
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.fieldError {
+  margin-top: -16px;
+  color: var(--color-error);
+  font-size: 13px;
+}
+
+.confirmText {
+  color: var(--color-muted);
+}
+
 .row {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
@@ -226,6 +243,7 @@
 
 @media (max-width: 600px) {
   .row,
+  .addressRow,
   .optionGrid {
     grid-template-columns: minmax(0, 1fr);
   }
