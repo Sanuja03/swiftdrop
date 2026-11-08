@@ -7,6 +7,7 @@ export const ROUTES = {
   shipments: '/app/shipments',
   shipment: (trackingNumber) => `/app/shipments/${encodeURIComponent(trackingNumber)}`,
   createDelivery: '/app/create',
+  bookingConfirmation: (trackingNumber) => `/app/bookings/${encodeURIComponent(trackingNumber)}`,
   history: '/app/history',
   settings: '/app/settings',
 }
