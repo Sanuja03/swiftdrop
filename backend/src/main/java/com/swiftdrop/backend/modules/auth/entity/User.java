@@ -48,6 +48,10 @@ public class User {
     @Builder.Default
     private AuthProvider provider = AuthProvider.LOCAL;
 
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private boolean emailVerified = false;
+
     @Column(name = "provider_id")
     private String providerId;
 

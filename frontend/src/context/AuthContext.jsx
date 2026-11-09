@@ -57,8 +57,17 @@ export function AuthProvider({ children }) {
     localStorage.setItem('swiftdrop_user', JSON.stringify(updatedProfile));
   };
 
+  const setSession = (authData) => {
+    if (authData && authData.accessToken) {
+      setToken(authData.accessToken);
+      setUser(authData.user);
+      localStorage.setItem('swiftdrop_token', authData.accessToken);
+      localStorage.setItem('swiftdrop_user', JSON.stringify(authData.user));
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, loading, login, loginWithGoogle, logout, updateUserSession }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, loading, login, loginWithGoogle, logout, updateUserSession, setSession }}>
       {children}
     </AuthContext.Provider>
   );

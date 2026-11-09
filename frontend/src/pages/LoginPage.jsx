@@ -200,9 +200,20 @@ export default function LoginPage() {
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}
                   >
-                    <AlertCircle size={18} color="#DC2626" />
-                    <span>{errorMessage}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <AlertCircle size={18} color="#DC2626" style={{ flexShrink: 0 }} />
+                      <span>{errorMessage}</span>
+                    </div>
+                    {errorMessage.toLowerCase().includes('not verified') && (
+                      <Link 
+                        to={`/verify-email?email=${encodeURIComponent(email)}`}
+                        style={{ color: '#F58220', fontWeight: 600, fontSize: '13px', marginLeft: '28px', textDecoration: 'underline' }}
+                      >
+                        Click here to verify your email now →
+                      </Link>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -244,7 +255,7 @@ export default function LoginPage() {
                 <div className="login-input-group">
                   <div className="login-password-header">
                     <label className="login-label">Password</label>
-                    <a href="#forgot" className="login-forgot-link">Forgot password?</a>
+                    <Link to="/forgot-password" className="login-forgot-link">Forgot password?</Link>
                   </div>
                   <div className="login-input-wrapper">
                     <Lock size={18} className="login-input-icon" />

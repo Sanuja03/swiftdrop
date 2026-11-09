@@ -86,21 +86,18 @@ export default function SignupPage() {
     setLoading(false);
 
     if (res.success) {
+      const trimmedEmail = email.trim().toLowerCase();
       setSuccessInfo({
         role,
-        message: role === 'ROLE_MERCHANT'
-          ? 'Merchant application submitted! Our team will verify your store and activate your daily COD payouts within 24 hours.'
-          : 'Customer account created successfully! You can now log in to manage your shipments.'
+        message: `Account created successfully! We have sent a 6-digit verification code to ${trimmedEmail}. Redirecting to verification...`
       });
       // Clear sensitive fields
       setPassword('');
       setConfirmPassword('');
 
-      if (role === 'ROLE_CUSTOMER') {
-        setTimeout(() => {
-          navigate('/login');
-        }, 2200);
-      }
+      setTimeout(() => {
+        navigate(`/verify-email?email=${encodeURIComponent(trimmedEmail)}`);
+      }, 1600);
     } else {
       setErrorMessage(res.error || 'Failed to register account. Please check your inputs.');
     }

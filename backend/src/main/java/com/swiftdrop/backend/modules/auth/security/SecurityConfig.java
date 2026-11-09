@@ -60,7 +60,10 @@ public class SecurityConfig {
                                 "/api/v1/auth/**",
                                 "/actuator/**",
                                 "/error",
-                                "/api/v1/tracking/public/**"
+                                "/api/v1/tracking/public/**",
+                                "/*.png",
+                                "/*.ico",
+                                "/static/**"
                         ).permitAll()
 
                         // Role-Based Access Control (RBAC) URL boundaries

@@ -24,6 +24,7 @@ public class UserProfileDto {
     private Role role;
     private AccountStatus status;
     private AuthProvider provider;
+    private boolean emailVerified;
 
     public static UserProfileDto fromEntity(User user) {
         return UserProfileDto.builder()
@@ -34,6 +35,7 @@ public class UserProfileDto {
                 .role(user.getRole())
                 .status(user.getStatus())
                 .provider(user.getProvider())
+                .emailVerified(user.isEmailVerified())
                 .build();
     }
 }
