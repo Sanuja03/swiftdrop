@@ -1,0 +1,717 @@
+
+/* ========================================
+   SwiftDrop Reports Dashboard
+======================================== */
+
+.reports-dashboard {
+  --reports-navy: #102a4c;
+  --reports-orange: #f58220;
+  --reports-orange-hover: #e66d0a;
+  --reports-background: #f5f7fa;
+  --reports-white: #ffffff;
+  --reports-text: #172b4d;
+  --reports-muted: #64748b;
+  --reports-border: #e2e8f0;
+  --reports-success: #16a34a;
+  --reports-error: #dc2626;
+
+  min-height: 100vh;
+  width: 100%;
+  padding: 28px;
+  background: var(--reports-background);
+  color: var(--reports-text);
+  font-family: "Inter", Arial, sans-serif;
+  text-align: left;
+}
+
+.reports-dashboard *,
+.reports-dashboard *::before,
+.reports-dashboard *::after {
+  box-sizing: border-box;
+}
+
+/* ========================================
+   Page Header
+======================================== */
+
+.reports-header {
+  margin-bottom: 24px;
+}
+
+.reports-header h1 {
+  margin: 0 0 6px;
+  color: var(--reports-navy);
+  font-size: clamp(24px, 3vw, 30px);
+  line-height: 1.2;
+}
+
+.reports-header p {
+  margin: 0;
+  color: var(--reports-muted);
+  font-size: 14px;
+}
+
+/* ========================================
+   Sections
+======================================== */
+
+.reports-section {
+  margin-bottom: 26px;
+}
+
+.reports-section h2 {
+  margin: 0 0 14px;
+  color: var(--reports-navy);
+  font-size: 19px;
+}
+
+/* ========================================
+   Overview Cards
+======================================== */
+
+.reports-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.reports-card {
+  min-width: 0;
+  padding: 18px;
+  background: var(--reports-white);
+  border: 1px solid var(--reports-border);
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(16, 42, 76, 0.05);
+}
+
+.reports-card h3 {
+  margin: 0 0 10px;
+  color: var(--reports-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.reports-value {
+  margin: 0;
+  color: var(--reports-navy);
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.reports-card.total {
+  border-top: 4px solid var(--reports-orange);
+}
+
+.reports-card.delivered {
+  border-top: 4px solid var(--reports-success);
+}
+
+.reports-card.in-transit {
+  border-top: 4px solid #2563eb;
+}
+
+.reports-card.failed {
+  border-top: 4px solid var(--reports-error);
+}
+
+/* ========================================
+   Chart Panels
+======================================== */
+
+.reports-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.reports-panel {
+  min-width: 0;
+  padding: 20px;
+  background: var(--reports-white);
+  border: 1px solid var(--reports-border);
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(16, 42, 76, 0.05);
+}
+
+.reports-panel h3 {
+  margin: 0 0 16px;
+  color: var(--reports-navy);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ========================================
+   Chart Headers and Actions
+======================================== */
+
+.reports-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.reports-chart-header h3 {
+  margin: 0;
+}
+
+.reports-chart-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reports-period-select {
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--reports-border);
+  border-radius: 8px;
+  background: var(--reports-white);
+  color: var(--reports-navy);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.reports-period-select:hover {
+  border-color: var(--reports-orange);
+}
+
+.reports-period-select:focus-visible {
+  outline: 2px solid var(--reports-orange);
+  outline-offset: 2px;
+}
+
+/* ========================================
+   View Report Button
+======================================== */
+
+.reports-view-button {
+  padding: 9px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--reports-orange);
+  color: var(--reports-white);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.reports-view-button:hover {
+  background: var(--reports-orange-hover);
+}
+
+.reports-view-button:focus-visible {
+  outline: 2px solid var(--reports-navy);
+  outline-offset: 2px;
+}
+
+/* ========================================
+   Success & Failure Doughnut Chart
+======================================== */
+
+.reports-donut-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 100px;
+}
+
+.reports-donut {
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.reports-donut-center {
+  width: 105px;
+  height: 105px;
+  border-radius: 50%;
+  background: var(--reports-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.reports-donut-center strong {
+  color: var(--reports-navy);
+  font-size: 26px;
+}
+
+.reports-donut-center span {
+  color: var(--reports-muted);
+  font-size: 12px;
+}
+
+.reports-donut-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.reports-donut-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reports-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--reports-muted);
+  font-size: 13px;
+}
+
+.reports-legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.delivered-dot {
+  background: var(--reports-success);
+}
+
+.failed-dot {
+  background: var(--reports-error);
+}
+
+.reports-donut-stat strong {
+  font-size: 22px;
+}
+
+.reports-success-text {
+  color: var(--reports-success);
+}
+
+.reports-failure-text {
+  color: var(--reports-error);
+}
+
+.reports-donut-stat small {
+  color: var(--reports-muted);
+  font-size: 12px;
+}
+
+/* ========================================
+   Daily Deliveries Bar Chart
+======================================== */
+
+.reports-mini-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  min-height: 170px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.reports-mini-chart-item {
+  display: flex;
+  flex: 1 0 38px;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 38px;
+}
+
+.reports-mini-chart-count {
+  color: var(--reports-navy);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.reports-mini-chart-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 115px;
+}
+
+.reports-mini-chart-bar {
+  width: min(100%, 35px);
+  background: var(--reports-orange);
+  border-radius: 5px 5px 0 0;
+  transition: height 0.2s ease;
+}
+
+.reports-mini-chart-label {
+  color: var(--reports-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ========================================
+   Expanded Report
+======================================== */
+
+.reports-detail {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--reports-border);
+}
+
+/* ========================================
+   Expanded Report Header
+======================================== */
+
+.reports-detail-heading {
+  padding: 14px 16px;
+  background: var(--reports-navy);
+  border-radius: 8px;
+}
+
+.reports-detail-heading h4 {
+  margin: 0 0 5px;
+  color: var(--reports-white);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.reports-detail-heading p {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+/* ========================================
+   Expanded Report Information
+======================================== */
+
+.reports-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.reports-detail-meta p {
+  margin: 0;
+  color: var(--reports-text);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.reports-detail-meta strong {
+  color: var(--reports-navy);
+}
+
+.reports-detail-subtitle {
+  margin: 18px 0 12px;
+  color: var(--reports-navy);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ========================================
+   Expanded Report Table
+======================================== */
+
+.reports-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--reports-border);
+  border-radius: 8px;
+}
+
+.reports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.reports-table th {
+  padding: 11px 12px;
+  background: var(--reports-background);
+  color: var(--reports-navy);
+  font-weight: 700;
+  border-bottom: 1px solid var(--reports-border);
+}
+
+.reports-table td {
+  padding: 10px 12px;
+  color: var(--reports-text);
+  border-bottom: 1px solid var(--reports-border);
+}
+
+.reports-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.reports-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* ========================================
+   PDF and CSV Download Buttons
+======================================== */
+
+.reports-download-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.reports-export-button {
+  padding: 9px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--reports-orange);
+  color: var(--reports-white);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.reports-export-button:hover:not(:disabled) {
+  background: var(--reports-orange-hover);
+}
+
+.reports-export-button:focus-visible {
+  outline: 2px solid var(--reports-navy);
+  outline-offset: 2px;
+}
+
+.reports-export-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.reports-secondary-button {
+  padding: 9px 14px;
+  border: 1px solid var(--reports-orange);
+  border-radius: 8px;
+  background: var(--reports-white);
+  color: var(--reports-orange);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.reports-secondary-button:hover {
+  background: #fff7ed;
+}
+
+.reports-secondary-button:focus-visible {
+  outline: 2px solid var(--reports-navy);
+  outline-offset: 2px;
+}
+
+/* ========================================
+   Report Notes
+======================================== */
+
+.reports-note {
+  margin: 14px 0 0;
+  color: var(--reports-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ========================================
+   Recorded Parcel Fees
+======================================== */
+
+.reports-fees-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.reports-fees-panel h3 {
+  margin: 0;
+}
+
+/* Reduced font size for the fee amount. */
+.reports-fees-value {
+  margin: 0;
+  color: var(--reports-navy);
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ========================================
+   Loading and Error Messages
+======================================== */
+
+.reports-loading {
+  color: var(--reports-muted);
+}
+
+.reports-error {
+  padding: 14px;
+  background: #fef2f2;
+  border-radius: 8px;
+  color: var(--reports-error);
+}
+
+/* ========================================
+   Tablet Responsive Layout
+======================================== */
+
+@media (max-width: 1000px) {
+  .reports-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reports-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-donut-layout {
+    gap: 48px;
+  }
+}
+
+/* ========================================
+   Mobile Responsive Layout
+======================================== */
+
+@media (max-width: 600px) {
+  .reports-dashboard {
+    padding: 18px 14px;
+  }
+
+  .reports-card-grid {
+    gap: 10px;
+  }
+
+  .reports-card {
+    padding: 14px;
+  }
+
+  .reports-value {
+    font-size: 25px;
+  }
+
+  .reports-panel {
+    padding: 16px;
+  }
+
+  .reports-donut-layout {
+    gap: 16px;
+  }
+
+  .reports-donut {
+    width: 125px;
+    height: 125px;
+  }
+
+  .reports-donut-center {
+    width: 88px;
+    height: 88px;
+  }
+
+  .reports-donut-center strong {
+    font-size: 22px;
+  }
+
+  .reports-chart-header {
+    align-items: flex-start;
+  }
+
+  .reports-chart-actions {
+    width: 100%;
+  }
+
+  .reports-period-select {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .reports-view-button,
+  .reports-export-button,
+  .reports-secondary-button {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .reports-mini-chart {
+    min-height: 165px;
+  }
+
+  .reports-detail {
+    margin-top: 16px;
+    padding-top: 16px;
+  }
+
+  .reports-detail-meta {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .reports-table {
+    font-size: 11px;
+  }
+
+  .reports-table th,
+  .reports-table td {
+    padding: 9px 10px;
+  }
+
+  .reports-download-actions {
+    justify-content: flex-start;
+  }
+
+  .reports-fees-panel {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Smaller fee amount on mobile. */
+  .reports-fees-value {
+    font-size: 16px;
+  }
+}
+
+/* ========================================
+   Small Mobile Screens
+======================================== */
+
+@media (max-width: 380px) {
+  .reports-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-donut-layout {
+    flex-direction: column;
+  }
+
+  .reports-donut-details {
+    flex-direction: row;
+    gap: 28px;
+  }
+
+  .reports-chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
