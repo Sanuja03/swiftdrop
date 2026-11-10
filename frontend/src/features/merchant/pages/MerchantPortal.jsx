@@ -454,7 +454,7 @@ export default function MerchantPortal() {
                           <td style={{ fontWeight: 600 }}>{parseFloat(ord.fee).toFixed(2)}</td>
                           <td>
                             <span className={`badge badge-${ord.status.toLowerCase().replace(/_/g, '-')}`}>
-                              {ord.statusLabel}
+                              {ord.statusLabel || ord.status.replace(/_/g, ' ')}
                             </span>
                           </td>
                           <td>
@@ -572,7 +572,7 @@ export default function MerchantPortal() {
                           </td>
                           <td>
                             <span className={`badge badge-${ord.status.toLowerCase().replace(/_/g, '-')}`}>
-                              {ord.statusLabel}
+                              {ord.statusLabel || ord.status.replace(/_/g, ' ')}
                             </span>
                           </td>
                           <td style={{ fontSize: '0.8rem', color: 'var(--sd-muted)' }}>
@@ -1185,7 +1185,7 @@ export default function MerchantPortal() {
               <div className="modal-body">
                 <div style={{ marginBottom: '1rem' }}>
                   <span className={`badge badge-${selectedOrderDetails.status.toLowerCase().replace(/_/g, '-')}`}>
-                    {selectedOrderDetails.statusLabel}
+                    {selectedOrderDetails.statusLabel || selectedOrderDetails.status.replace(/_/g, ' ')}
                   </span>
                 </div>
 
