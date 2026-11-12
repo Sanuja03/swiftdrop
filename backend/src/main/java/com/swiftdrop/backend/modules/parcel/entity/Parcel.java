@@ -74,8 +74,31 @@ public class Parcel {
     @Column(name = "weight_kg", nullable = false, precision = 8, scale = 2)
     private BigDecimal weightKg;
 
+    /** Total fee charged; the columns below hold how it was made up. */
     @Column(name = "fee", nullable = false, precision = 12, scale = 2)
     private BigDecimal fee;
+
+    @Column(name = "pickup_zone_id")
+    private UUID pickupZoneId;
+
+    @Column(name = "dropoff_zone_id")
+    private UUID dropoffZoneId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "parcel_size", length = 20)
+    private ParcelSize parcelSize;
+
+    @Column(name = "base_fee", precision = 12, scale = 2)
+    private BigDecimal baseFee;
+
+    @Column(name = "weight_charge", precision = 12, scale = 2)
+    private BigDecimal weightCharge;
+
+    @Column(name = "zone_charge", precision = 12, scale = 2)
+    private BigDecimal zoneCharge;
+
+    @Column(name = "recipient_phone", length = 30)
+    private String recipientPhone;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

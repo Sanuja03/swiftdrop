@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -33,15 +34,17 @@ class PricingControllerTest {
 
     @Test void validEstimateReturnsBreakdown() throws Exception {
         when(pricingService.estimate(any())).thenReturn(new FeeBreakdown(new BigDecimal("590.00"),
-                new BigDecimal("100.00"), new BigDecimal("250.00"), new BigDecimal("940.00"), "LKR"));
+                new BigDecimal("0.00"), new BigDecimal("250.00"), new BigDecimal("840.00"), "LKR",
+                Instant.parse("2026-11-18T12:30:00Z")));
         mockMvc.perform(post("/api/v1/parcels/estimate").contentType("application/json")
                         .content(request("1", "2", "SMALL", "1", "STANDARD")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.baseFee").value(590.00))
-                .andExpect(jsonPath("$.weightCharge").value(100.00))
+                .andExpect(jsonPath("$.weightCharge").value(0.00))
                 .andExpect(jsonPath("$.zoneCharge").value(250.00))
-                .andExpect(jsonPath("$.totalFee").value(940.00))
-                .andExpect(jsonPath("$.currency").value("LKR"));
+                .andExpect(jsonPath("$.totalFee").value(840.00))
+                .andExpect(jsonPath("$.currency").value("LKR"))
+                .andExpect(jsonPath("$.estimatedDeliveryAt").value("2026-11-18T12:30:00Z"));
     }
 
     @Test void invalidWeightReturnsBadRequest() throws Exception {

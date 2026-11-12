@@ -97,3 +97,22 @@ ON CONFLICT (service_type) DO UPDATE SET
     inter_zone_fee = EXCLUDED.inter_zone_fee,
     active = EXCLUDED.active,
     updated_at = now();
+
+-- =====================================================================
+-- Booking & Pricing: parcel booking columns            (added 2026-11-13)
+-- Run manually on Supabase. Additive and idempotent: every new column is
+-- nullable, so existing parcels and the tracking/receipt code are untouched.
+-- parcels.fee stays the TOTAL fee; the three *_fee/*_charge columns are its
+-- breakdown. parcels.tracking_number is already NOT NULL UNIQUE (see above).
+-- =====================================================================
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS pickup_zone_id  UUID REFERENCES zones (id);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS dropoff_zone_id UUID REFERENCES zones (id);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS parcel_size     VARCHAR(20);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS base_fee        NUMERIC(12, 2);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS weight_charge   NUMERIC(12, 2);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS zone_charge     NUMERIC(12, 2);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(30);
+
+CREATE INDEX IF NOT EXISTS idx_parcels_pickup_zone_id  ON parcels (pickup_zone_id);
+CREATE INDEX IF NOT EXISTS idx_parcels_dropoff_zone_id ON parcels (dropoff_zone_id);
+-- ===================== end Booking & Pricing section =====================

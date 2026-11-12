@@ -1,4 +1,4 @@
-package com.swiftdrop.backend.modules.pricing.dto;
+package com.swiftdrop.backend.modules.parcel.entity;
 
 import java.math.BigDecimal;
 

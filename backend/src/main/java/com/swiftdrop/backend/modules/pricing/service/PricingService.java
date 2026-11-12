@@ -1,6 +1,8 @@
 package com.swiftdrop.backend.modules.pricing.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -15,6 +17,7 @@ import com.swiftdrop.backend.modules.pricing.dto.FeeBreakdown;
 import com.swiftdrop.backend.modules.pricing.dto.PricingContext;
 import com.swiftdrop.backend.modules.pricing.exception.PricingException;
 import com.swiftdrop.backend.modules.pricing.repository.PricingRuleRepository;
+import com.swiftdrop.backend.modules.pricing.strategy.DeliveryCalendar;
 import com.swiftdrop.backend.modules.pricing.strategy.PricingStrategy;
 import com.swiftdrop.backend.modules.zone.repository.ZoneRepository;
 
@@ -24,11 +27,13 @@ public class PricingService {
     private final PricingRuleRepository pricingRuleRepository;
     private final ZoneRepository zoneRepository;
     private final Map<ServiceType, PricingStrategy> strategies;
+    private final Clock clock;
 
     public PricingService(PricingRuleRepository pricingRuleRepository, ZoneRepository zoneRepository,
-                          List<PricingStrategy> pricingStrategies) {
+                          List<PricingStrategy> pricingStrategies, Clock clock) {
         this.pricingRuleRepository = pricingRuleRepository;
         this.zoneRepository = zoneRepository;
+        this.clock = clock;
         this.strategies = pricingStrategies.stream().collect(Collectors.toUnmodifiableMap(
                 PricingStrategy::supports, Function.identity()));
     }
@@ -44,7 +49,8 @@ public class PricingService {
                 .orElseThrow(() -> PricingException.inactiveRule(request.serviceType()));
         var strategy = strategies.get(request.serviceType());
         if (strategy == null) throw PricingException.inactiveRule(request.serviceType());
-        return strategy.calculate(new PricingContext(rule, pickupZone, dropoffZone, request.weightKg()));
+        var bookedOn = LocalDate.now(clock.withZone(DeliveryCalendar.BUSINESS_ZONE));
+        return strategy.calculate(new PricingContext(rule, pickupZone, dropoffZone, request.weightKg(), bookedOn));
     }
 
     private static void validateWeight(EstimateRequest request) {

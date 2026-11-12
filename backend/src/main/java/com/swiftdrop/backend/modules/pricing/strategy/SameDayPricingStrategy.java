@@ -1,6 +1,7 @@
 package com.swiftdrop.backend.modules.pricing.strategy;
 
-import org.springframework.http.HttpStatus;
+import java.time.LocalDate;
+
 import org.springframework.stereotype.Component;
 
 import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
@@ -17,4 +18,5 @@ public class SameDayPricingStrategy extends AbstractPricingStrategy {
         }
         return breakdown(context);
     }
+    @Override public LocalDate estimateDeliveryDate(LocalDate bookedOn) { return bookedOn; }
 }

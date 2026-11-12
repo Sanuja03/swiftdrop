@@ -3,6 +3,7 @@ package com.swiftdrop.backend.modules.pricing.dto;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import com.swiftdrop.backend.modules.parcel.entity.ParcelSize;
 import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
 
 import jakarta.validation.constraints.DecimalMin;
