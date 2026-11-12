@@ -49,3 +49,51 @@ CREATE TABLE IF NOT EXISTS receipts (
     currency       VARCHAR(3)     NOT NULL,
     issued_at      TIMESTAMPTZ    NOT NULL
 );
+
+-- Zones and service pricing used by booking estimates.
+CREATE TABLE IF NOT EXISTS zones (
+    id UUID PRIMARY KEY,
+    code VARCHAR(40) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    surcharge NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS pricing_rules (
+    id UUID PRIMARY KEY,
+    service_type VARCHAR(20) NOT NULL UNIQUE,
+    base_fee NUMERIC(12, 2) NOT NULL,
+    per_kg_fee NUMERIC(12, 2) NOT NULL,
+    inter_zone_fee NUMERIC(12, 2) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO zones (id, code, name, surcharge, active) VALUES
+    ('10000000-0000-4000-8000-000000000001', 'COLOMBO', 'Colombo', 0, TRUE),
+    ('10000000-0000-4000-8000-000000000002', 'GAMPAHA', 'Gampaha', 0, TRUE),
+    ('10000000-0000-4000-8000-000000000003', 'KALUTARA', 'Kalutara', 0, TRUE),
+    ('10000000-0000-4000-8000-000000000004', 'KANDY', 'Kandy', 150, TRUE),
+    ('10000000-0000-4000-8000-000000000005', 'GALLE', 'Galle', 150, TRUE),
+    ('10000000-0000-4000-8000-000000000006', 'MATARA', 'Matara', 150, TRUE),
+    ('10000000-0000-4000-8000-000000000007', 'KURUNEGALA', 'Kurunegala', 150, TRUE),
+    ('10000000-0000-4000-8000-000000000008', 'JAFFNA', 'Jaffna', 350, TRUE)
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    surcharge = EXCLUDED.surcharge,
+    active = EXCLUDED.active,
+    updated_at = now();
+
+INSERT INTO pricing_rules (id, service_type, base_fee, per_kg_fee, inter_zone_fee, active) VALUES
+    ('20000000-0000-4000-8000-000000000001', 'STANDARD', 590, 100, 250, TRUE),
+    ('20000000-0000-4000-8000-000000000002', 'EXPRESS', 990, 100, 400, TRUE),
+    ('20000000-0000-4000-8000-000000000003', 'SAME_DAY', 1490, 100, 600, TRUE)
+ON CONFLICT (service_type) DO UPDATE SET
+    base_fee = EXCLUDED.base_fee,
+    per_kg_fee = EXCLUDED.per_kg_fee,
+    inter_zone_fee = EXCLUDED.inter_zone_fee,
+    active = EXCLUDED.active,
+    updated_at = now();
