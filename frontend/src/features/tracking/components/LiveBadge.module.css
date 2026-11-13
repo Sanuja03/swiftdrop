@@ -1,0 +1,36 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.live {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.live .dot {
+  animation: blink 1.6s ease-in-out infinite;
+}
+
+.offline {
+  background: #eef2f6;
+  color: var(--color-muted);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}

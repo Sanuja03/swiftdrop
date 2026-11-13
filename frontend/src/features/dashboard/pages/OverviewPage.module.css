@@ -1,0 +1,83 @@
+.welcome {
+  margin-bottom: var(--space-6);
+}
+
+.welcome h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.welcome p {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.wave {
+  color: var(--color-warning);
+}
+
+.alert {
+  margin-bottom: var(--space-5);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.liveCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.liveLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition);
+}
+
+.liveLink:hover {
+  border-color: var(--color-orange);
+}
+
+.liveLink > div {
+  flex: 1;
+}
+
+.liveNumber {
+  font-weight: 700;
+}
+
+.liveMeta {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

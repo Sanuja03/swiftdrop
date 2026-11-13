@@ -1,0 +1,128 @@
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 0 4px;
+}
+
+/* connector line to the next step */
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+.done:not(:last-child)::after {
+  background: var(--color-success);
+}
+
+.dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: #fff;
+}
+
+.done .dot {
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.current .dot {
+  border-color: var(--color-orange);
+  background: var(--color-orange-soft);
+}
+
+.failed .dot {
+  background: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-orange);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    transform: scale(0.6);
+    opacity: 0.6;
+  }
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.upcoming .label {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.current .label {
+  color: var(--color-orange);
+}
+
+.failed .label {
+  color: var(--color-error);
+}
+
+.time {
+  min-height: 1.3em;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .stepper {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    column-gap: 12px;
+    text-align: left;
+    align-items: center;
+  }
+
+  .dot {
+    grid-row: span 2;
+    margin: 0;
+  }
+
+  .step:not(:last-child)::after {
+    top: 30px;
+    left: 16px;
+    right: auto;
+    width: 3px;
+    height: 16px;
+  }
+}

@@ -1,0 +1,51 @@
+.wrapper {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-5);
+  align-items: center;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 24px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.list dt {
+  color: var(--color-muted);
+}
+
+.list dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.eta {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+}
+
+.etaIcon {
+  color: var(--color-navy);
+  flex: none;
+}
+
+.etaLabel {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.etaValue {
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .wrapper {
+    grid-template-columns: 1fr;
+  }
+}

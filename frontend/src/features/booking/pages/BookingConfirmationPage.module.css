@@ -1,0 +1,105 @@
+.successIcon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: var(--space-4);
+  border-radius: 50%;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.confirmation {
+  max-width: 960px;
+}
+
+.trackingLabel {
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.trackingNumber {
+  margin: var(--space-1) 0 var(--space-6);
+  color: var(--color-navy);
+  font-size: clamp(26px, 4vw, 36px);
+  letter-spacing: 0.04em;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
+}
+
+.details {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: 14px;
+}
+
+.details div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.details dt {
+  color: var(--color-muted);
+}
+
+.details dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+}
+
+.total dt,
+.total dd {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.total dd {
+  color: var(--color-orange);
+}
+
+.missing {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.textLink {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.textLink:hover {
+  color: var(--color-orange);
+}
+
+@media (max-width: 720px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+
+  .textLink {
+    margin-left: 0;
+  }
+}
