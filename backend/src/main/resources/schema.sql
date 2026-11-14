@@ -190,3 +190,50 @@ ALTER TABLE parcels ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(30);
 CREATE INDEX IF NOT EXISTS idx_parcels_pickup_zone_id  ON parcels (pickup_zone_id);
 CREATE INDEX IF NOT EXISTS idx_parcels_dropoff_zone_id ON parcels (dropoff_zone_id);
 -- ===================== end Booking & Pricing section =====================
+
+-- =====================================================================
+-- Dispatch Management: courier assignments
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS courier_assignments (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    parcel_id     UUID         NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    courier_id    UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    dispatcher_id UUID         NOT NULL REFERENCES users(id),
+    status        VARCHAR(30)  NOT NULL DEFAULT 'ASSIGNED',
+    notes         VARCHAR(500),
+    assigned_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    version       BIGINT       NOT NULL DEFAULT 0
+);
+
+-- Unique index prevents duplicate active assignments for the same parcel
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_courier_assignment
+    ON courier_assignments (parcel_id)
+    WHERE status IN ('ASSIGNED', 'ACCEPTED');
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_courier_status
+    ON courier_assignments (courier_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_parcel
+    ON courier_assignments (parcel_id);
+
+-- =====================================================================
+-- AI Assistant: chat conversation messages
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id     VARCHAR(64)  NOT NULL,
+    user_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
+    sender         VARCHAR(20)  NOT NULL,
+    content        TEXT         NOT NULL,
+    tool_name      VARCHAR(50),
+    tool_arguments TEXT,
+    tool_result    TEXT,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+    ON chat_messages (session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user
+    ON chat_messages (user_id);
