@@ -43,6 +43,21 @@ export function formatFullDate(value) {
   return value ? fullDateFormat.format(new Date(value)) : ''
 }
 
+/** "Test Customer" -> "TC" */
+export function initialsOf(fullName) {
+  return (fullName ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('')
+}
+
+/** "Test Customer" -> "Test" */
+export function firstNameOf(fullName) {
+  return (fullName ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
 export function formatMoney(amount, currency = 'LKR') {
   return `${currency} ${Number(amount).toLocaleString(LOCALE)}`
 }
