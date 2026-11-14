@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -6,12 +6,10 @@ import {
   Truck, 
   MapPin, 
   Package, 
-  CheckCircle2, 
-  Clock, 
+  CheckCircle2,  
   Calendar, 
   ArrowRight, 
-  ShieldCheck, 
-  Layers, 
+  ShieldCheck,  
   CreditCard, 
   Navigation,
   FileText,

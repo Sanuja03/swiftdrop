@@ -1,17 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  Truck, 
-  ArrowRight, 
-  MapPin, 
-  CheckCircle2, 
-  AlertCircle,
-  ShieldCheck
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Truck,
+  ArrowRight,
+  MapPin,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { useAuth } from '../context/AuthContext';

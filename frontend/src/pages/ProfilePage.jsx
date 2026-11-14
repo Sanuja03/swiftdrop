@@ -1,18 +1,15 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  ShieldCheck, 
-  Key, 
-  LogOut, 
-  CheckCircle2, 
-  Clock, 
-  Home, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  User,
+  Phone,
+  ShieldCheck,
+  LogOut,
+  CheckCircle2,
+  Home,
+  ChevronDown,
+  ChevronUp,
   Terminal,
   Edit2,
   Save,

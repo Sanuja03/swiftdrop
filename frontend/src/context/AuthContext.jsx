@@ -60,6 +60,8 @@ export function AuthProvider({ children }) {
   );
 }
 
+// The hook belongs next to its provider; splitting it out would change every import of useAuth.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

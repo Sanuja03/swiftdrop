@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Mail, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowLeft, 
-  ArrowRight, 
-  RefreshCw, 
-  ShieldCheck,
-  Building,
-  UserCheck
+import {
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { verifyEmailCode, resendVerificationEmail } from '../services/api';
@@ -25,12 +22,14 @@ export default function VerifyEmailPage() {
 
   const urlEmail = searchParams.get('email') || '';
   const urlCode = searchParams.get('code') || '';
+  // Opened from the email link: verify straight away, so start in the loading state.
+  const autoVerify = Boolean(urlEmail && urlCode.length === 6);
 
   const [email, setEmail] = useState(urlEmail);
   const [isEditingEmail, setIsEditingEmail] = useState(!urlEmail);
   const [code, setCode] = useState(urlCode);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(autoVerify);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
@@ -47,19 +46,11 @@ export default function VerifyEmailPage() {
     }
   }, [cooldown]);
 
-  // Auto-verify if both email and 6-digit code are in query parameters (from clicking email link)
-  useEffect(() => {
-    if (urlEmail && urlCode && urlCode.length === 6) {
-      performVerification(urlEmail, urlCode);
-    }
-  }, [urlEmail, urlCode]);
+  const requestVerification = (targetEmail, targetCode) =>
+    verifyEmailCode(targetEmail.trim().toLowerCase(), targetCode.trim());
 
-  const performVerification = async (targetEmail, targetCode) => {
-    setErrorMessage('');
-    setInfoMessage('');
-    setLoading(true);
-
-    const res = await verifyEmailCode(targetEmail.trim().toLowerCase(), targetCode.trim());
+  // Shows the server's answer to a verification request.
+  const showResult = (res) => {
     setLoading(false);
 
     if (res.success) {
@@ -76,6 +67,21 @@ export default function VerifyEmailPage() {
       setErrorMessage(res.error || 'Verification failed. Please check the code or request a new one.');
     }
   };
+
+  const performVerification = async (targetEmail, targetCode) => {
+    setErrorMessage('');
+    setInfoMessage('');
+    setLoading(true);
+    showResult(await requestVerification(targetEmail, targetCode));
+  };
+
+  // Auto-verify if both email and 6-digit code are in query parameters (from clicking email link).
+  // The page already starts in the loading state, so state only changes once the server answers.
+  useEffect(() => {
+    if (autoVerify) {
+      requestVerification(urlEmail, urlCode).then(showResult);
+    }
+  }, [urlEmail, urlCode]);
 
   const handleManualSubmit = (e) => {
     e.preventDefault();
