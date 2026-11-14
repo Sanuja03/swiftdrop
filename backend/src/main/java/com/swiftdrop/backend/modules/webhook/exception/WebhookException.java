@@ -36,4 +36,10 @@ public class WebhookException extends RuntimeException {
         return new WebhookException(HttpStatus.CONFLICT, "Delivery cannot be retried",
                 "Only deliveries that have failed every attempt can be retried manually.");
     }
+
+    public static WebhookException invalidDestination() {
+        return new WebhookException(HttpStatus.BAD_REQUEST, "Invalid webhook destination",
+                "Use an absolute public HTTP(S) URL without credentials or a fragment. "
+                        + "The host must resolve only to public addresses.");
+    }
 }

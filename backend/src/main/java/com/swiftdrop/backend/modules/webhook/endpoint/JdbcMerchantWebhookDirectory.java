@@ -8,19 +8,21 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import com.swiftdrop.backend.modules.webhook.exception.WebhookException;
+import com.swiftdrop.backend.modules.webhook.validation.WebhookUrlValidator;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Reads merchant data with plain SQL, because the merchant entities live on another
- * branch (feature/merchant-api). Uses the columns that branch adds: parcels.merchant_id,
+ * Reads the shared merchant mapping with plain SQL. Uses parcels.merchant_id,
  * merchants.user_id, merchants.webhook_url and merchants.webhook_secret.
  *
  * <p>If those tables or columns do not exist yet, every lookup returns empty, so parcels
  * simply produce no webhooks instead of failing.
  *
- * <p>TODO(webhook-setup): read the URL and secret from webhook_endpoints via
- * getWebhookEndpoint() once that module is merged.
+ * <p>WebhookConfigurationService writes these same columns. Destinations are checked again
+ * on every lookup, including retries and configurations saved outside the API.
  */
 @Slf4j
 @Component
@@ -41,6 +43,7 @@ public class JdbcMerchantWebhookDirectory implements MerchantWebhookDirectory {
             """;
 
     private final JdbcTemplate jdbcTemplate;
+    private final WebhookUrlValidator urlValidator;
 
     @Override
     public Optional<UUID> findMerchantIdForParcel(UUID parcelId) {
@@ -55,10 +58,21 @@ public class JdbcMerchantWebhookDirectory implements MerchantWebhookDirectory {
                                     rs.getString("webhook_secret")),
                             merchantId)
                     .stream()
-                    .findFirst();
+                    .findFirst()
+                    .filter(endpoint -> isAllowed(endpoint.url()));
         } catch (DataAccessException ex) {
             logMissingSchema(ex);
             return Optional.empty();
+        }
+    }
+
+    private boolean isAllowed(String url) {
+        try {
+            urlValidator.validate(url);
+            return true;
+        } catch (WebhookException ex) {
+            log.warn("Merchant webhook destination rejected by public-address policy");
+            return false;
         }
     }
 

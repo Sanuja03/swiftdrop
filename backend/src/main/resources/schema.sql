@@ -250,3 +250,7 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_merchant
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status
     ON webhook_deliveries (status);
 -- ================= end Messaging & Webhook Engine section =================
+
+-- Merchant webhook configuration is an additive migration, applied separately:
+-- db/scripts/merchant_webhook_setup.sql (run after this file).
+-- Courier tables likewise use db/scripts/courier_setup.sql.

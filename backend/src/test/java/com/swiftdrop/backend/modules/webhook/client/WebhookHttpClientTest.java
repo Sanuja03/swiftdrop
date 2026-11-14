@@ -115,6 +115,16 @@ class WebhookHttpClientTest {
         assertThat(client.post("not a url", "{}", Map.of()).error()).isEqualTo("Webhook URL is not valid");
     }
 
+    @Test
+    void invalidRequestConstructionReturnsFailureWithoutLeakingInput() {
+        assertThat(client.post("http:/missing-host", "{}", Map.of()).error())
+                .isEqualTo("Webhook request is not valid");
+        assertThat(client.post(url(), "{}", Map.of("Bad Header", "sensitive-value")).error())
+                .isEqualTo("Webhook request is not valid");
+        assertThat(client.post(url(), "{}", Map.of("Host", "internal")).error())
+                .isEqualTo("Webhook request is not valid");
+    }
+
     private String url() {
         return "http://127.0.0.1:" + server.getAddress().getPort() + "/hook";
     }

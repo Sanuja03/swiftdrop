@@ -3,6 +3,11 @@ package com.swiftdrop.backend.modules.webhook.endpoint;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
+import com.swiftdrop.backend.modules.webhook.validation.WebhookAddressResolver;
+import com.swiftdrop.backend.modules.webhook.validation.WebhookUrlValidator;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,12 +34,18 @@ class JdbcMerchantWebhookDirectoryTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:directory-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE", "sa", "");
         jdbcTemplate = new JdbcTemplate(dataSource);
-        directory = new JdbcMerchantWebhookDirectory(jdbcTemplate);
+        directory = new JdbcMerchantWebhookDirectory(jdbcTemplate, new WebhookUrlValidator(new WebhookAddressResolver() {
+            @Override
+            public InetAddress[] resolve(String host) throws UnknownHostException {
+                return new InetAddress[]{InetAddress.getByName("8.8.8.8")};
+            }
+        }));
     }
 
     @AfterEach
     void tearDown() {
-        jdbcTemplate.execute("SHUTDOWN");
+        // Close this isolated in-memory database when JdbcTemplate releases the connection.
+        jdbcTemplate.execute("SET DB_CLOSE_DELAY 0");
     }
 
     @Test
@@ -77,6 +88,14 @@ class JdbcMerchantWebhookDirectoryTest {
         assertThat(new WebhookEndpoint(MERCHANT_ID, "https://x", "whsec_super_secret").toString())
                 .doesNotContain("whsec_super_secret")
                 .contains("***");
+    }
+
+    @Test
+    void legacyLocalConfigurationIsBlocked() {
+        createMerchantSchema();
+        jdbcTemplate.update("UPDATE merchants SET webhook_url = ? WHERE id = ?", "http://localhost/hook", MERCHANT_ID);
+
+        assertThat(directory.findEndpoint(MERCHANT_ID)).isEmpty();
     }
 
     private void createMerchantSchema() {

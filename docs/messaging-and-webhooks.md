@@ -81,13 +81,15 @@ The payload has no addresses or phone numbers; load contact details by `parcelId
 
 ### Merchant data (Hasindu, Janani)
 
-The engine reads merchants through `MerchantWebhookDirectory`. The current
+The engine reads merchants through `MerchantWebhookDirectory`.
 `JdbcMerchantWebhookDirectory` uses `parcels.merchant_id`, `merchants.user_id`,
-`merchants.webhook_url` and `merchants.webhook_secret` (from `feature/merchant-api`), and simply
-sends nothing if those don't exist yet.
+`merchants.webhook_url` and `merchants.webhook_secret`. The merchant configuration API
+now writes that same contract; apply its additive migration before deploying.
+See [Merchant webhook configuration](merchant-webhook-configuration.md) for setup,
+GET/PUT endpoints, secret handling, parcel association and destination restrictions.
 
-- **Janani**: when `webhook_endpoints` / `getWebhookEndpoint()` land, change `findEndpoint()` to use them.
-  Your delivery-log page can use the API below.
+- The current configuration uses the merchant columns directly; no separate
+  `webhook_endpoints` table is required. Delivery-log pages can use the API below.
 - **Hasindu**: `MerchantWebhookService` on your branch sends webhooks directly. Once merged, webhook
   sending should go through this engine (status changes already do, automatically), so merchants
   don't get every update twice.

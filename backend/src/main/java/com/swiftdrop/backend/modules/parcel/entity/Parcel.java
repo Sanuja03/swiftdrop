@@ -49,6 +49,10 @@ public class Parcel {
     @Column(name = "customer_id")
     private UUID customerId;
 
+    /** Optional merchant owner. Existing customer bookings remain unlinked (NULL). */
+    @Column(name = "merchant_id")
+    private UUID merchantId;
+
     @Column(name = "sender_name", nullable = false, length = 120)
     private String senderName;
 
