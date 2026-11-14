@@ -30,6 +30,9 @@ public class PricingException extends RuntimeException {
     public static PricingException ruleNotFound(Object type) {
         return new PricingException(HttpStatus.NOT_FOUND, "Pricing rule not found", "No pricing rule exists for %s.".formatted(type));
     }
+    public static PricingException lastActiveZone() {
+        return new PricingException(HttpStatus.CONFLICT, "At least one zone must stay active", "Activate another zone before deactivating this one.");
+    }
     public static PricingException lastActiveService() {
         return new PricingException(HttpStatus.CONFLICT, "At least one service must stay active", "Activate another service before deactivating this one.");
     }

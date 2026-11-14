@@ -13,4 +13,5 @@ public interface ZoneRepository extends JpaRepository<Zone, UUID> {
     Optional<Zone> findByIdAndActiveTrue(UUID id);
     List<Zone> findAllByOrderByNameAsc();
     boolean existsByCode(String code);
+    long countByActiveTrue();
 }

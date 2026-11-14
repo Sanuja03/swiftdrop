@@ -114,6 +114,14 @@ class AdminZoneControllerTest {
                 .andExpect(jsonPath("$.active").value(false));
     }
 
+    @Test void deactivatingLastActiveZoneIsConflict() throws Exception {
+        when(zoneAdminService.setActive(ZONE_ID, false)).thenThrow(PricingException.lastActiveZone());
+        mockMvc.perform(patch("/api/v1/admin/zones/" + ZONE_ID + "/active").contentType("application/json")
+                        .content("{\"active\":false}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("At least one zone must stay active"));
+    }
+
     @Test void missingActiveFlagIsRejected() throws Exception {
         mockMvc.perform(patch("/api/v1/admin/zones/" + ZONE_ID + "/active").contentType("application/json")
                         .content("{}"))

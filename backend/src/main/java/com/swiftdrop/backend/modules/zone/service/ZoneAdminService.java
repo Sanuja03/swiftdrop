@@ -55,9 +55,18 @@ public class ZoneAdminService {
         return AdminZoneResponse.from(zoneRepository.saveAndFlush(zone));
     }
 
-    /** @throws PricingException 404 if there is no such zone */
+    /**
+     * Customers can only book while at least one zone is active, so the last active zone
+     * cannot be switched off (same rule as for pricing services).
+     *
+     * @throws PricingException 404 if there is no such zone, 409 if it is the last active zone
+     */
     public AdminZoneResponse setActive(UUID id, boolean active) {
         Zone zone = find(id);
+        boolean deactivating = zone.isActive() && !active;
+        if (deactivating && zoneRepository.countByActiveTrue() <= 1) {
+            throw PricingException.lastActiveZone();
+        }
         zone.setActive(active);
         return AdminZoneResponse.from(zoneRepository.saveAndFlush(zone));
     }

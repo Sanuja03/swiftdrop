@@ -94,10 +94,45 @@ class ZoneAdminServiceTest {
     void deactivatesAndReactivatesWithoutDeleting() {
         var zone = Zone.create("NORTH_1", "North Zone", BigDecimal.ZERO);
         when(repository.findById(zone.getId())).thenReturn(Optional.of(zone));
+        when(repository.countByActiveTrue()).thenReturn(2L);
 
         assertThat(service.setActive(zone.getId(), false).active()).isFalse();
         assertThat(service.setActive(zone.getId(), true).active()).isTrue();
         verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void lastActiveZoneCannotBeDeactivated() {
+        var zone = Zone.create("NORTH_1", "North Zone", BigDecimal.ZERO);
+        when(repository.findById(zone.getId())).thenReturn(Optional.of(zone));
+        when(repository.countByActiveTrue()).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.setActive(zone.getId(), false))
+                .isInstanceOfSatisfying(PricingException.class,
+                        ex -> assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(zone.isActive()).isTrue();
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void lastActiveZoneCanStillBeEditedAndConfirmedActive() {
+        var zone = Zone.create("NORTH_1", "North Zone", BigDecimal.ZERO);
+        when(repository.findById(zone.getId())).thenReturn(Optional.of(zone));
+        when(repository.countByActiveTrue()).thenReturn(1L);
+
+        assertThat(service.update(zone.getId(), new UpdateZoneRequest("North Zone", BigDecimal.TEN)).surcharge())
+                .isEqualByComparingTo("10");
+        assertThat(service.setActive(zone.getId(), true).active()).isTrue();
+    }
+
+    @Test
+    void inactiveZoneCanBeReactivatedWhenNoneAreActive() {
+        var zone = Zone.create("NORTH_1", "North Zone", BigDecimal.ZERO);
+        zone.setActive(false);
+        when(repository.findById(zone.getId())).thenReturn(Optional.of(zone));
+        when(repository.countByActiveTrue()).thenReturn(0L);
+
+        assertThat(service.setActive(zone.getId(), true).active()).isTrue();
     }
 
     @Test
