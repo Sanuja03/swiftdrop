@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -66,8 +67,17 @@ public class SecurityConfig {
                                 "/static/**"
                         ).permitAll()
 
+                        // Public booking & pricing reads (landing page, price estimate before login)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/zones", "/api/v1/pricing/services").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/parcels/estimate").permitAll()
+
+                        // Creating and viewing own bookings
+                        .requestMatchers("/api/v1/parcels", "/api/v1/parcels/**").hasRole("CUSTOMER")
+
                         // Role-Based Access Control (RBAC) URL boundaries
-                        .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        // User management stays open to dispatchers; every other admin API is admin-only.
+                        .requestMatchers("/api/v1/admin/users/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/dispatcher/**").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers("/api/v1/merchant/**").hasRole("MERCHANT")
                         .requestMatchers("/api/v1/courier/**").hasRole("COURIER")

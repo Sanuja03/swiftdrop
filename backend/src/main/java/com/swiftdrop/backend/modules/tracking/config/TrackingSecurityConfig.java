@@ -1,6 +1,7 @@
 package com.swiftdrop.backend.modules.tracking.config;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -28,6 +29,8 @@ public class TrackingSecurityConfig {
     public SecurityFilterChain publicTrackingSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .securityMatcher(PUBLIC_PATHS)
+                // Same allowed origins as the main chain (the app's CorsConfigurationSource bean).
+                .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .csrf(AbstractHttpConfigurer::disable)
                 .requestCache(AbstractHttpConfigurer::disable)
