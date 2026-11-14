@@ -1,0 +1,30 @@
+.shell {
+  min-height: 100vh;
+  background-color: var(--color-background, #f8fafc);
+}
+
+.content {
+  margin-left: var(--sidebar-width, 260px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-6, 24px) var(--space-8, 32px) var(--space-10, 40px);
+}
+
+@media (max-width: 960px) {
+  .content {
+    margin-left: 0;
+  }
+
+  .main {
+    padding: var(--space-4, 16px) var(--space-4, 16px) var(--space-8, 32px);
+  }
+}

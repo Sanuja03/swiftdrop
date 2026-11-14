@@ -21,6 +21,8 @@ public interface CourierAssignmentRepository extends JpaRepository<CourierAssign
 
     List<CourierAssignment> findByCourierIdAndStatusIn(UUID courierId, Collection<AssignmentStatus> statuses);
 
+    List<CourierAssignment> findByCourierIdOrderByAssignedAtDesc(UUID courierId);
+
     long countByCourierIdAndStatusIn(UUID courierId, Collection<AssignmentStatus> statuses);
 
     List<CourierAssignment> findByParcelIdOrderByAssignedAtDesc(UUID parcelId);

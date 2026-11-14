@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from '@/shared/layouts/components/Sidebar'
 import Topbar from '@/shared/layouts/components/Topbar'
+import { ChatWidget } from '@/features/assistant'
 import styles from './CustomerLayout.module.css'
 
 /** Signed-in customer area: sidebar, top bar and the current page. */
@@ -16,6 +17,7 @@ export default function CustomerLayout() {
           <Outlet />
         </main>
       </div>
+      <ChatWidget />
     </div>
   )
 }
