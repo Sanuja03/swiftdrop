@@ -34,9 +34,19 @@ Delivery is at-least-once, so consumers must ignore an `eventId` they have alrea
 1. Apply the "Messaging & Webhook Engine" section at the end of `backend/src/main/resources/schema.sql`
    in the Supabase SQL editor (creates `outbox_events` and `webhook_deliveries`).
    **Do this before running this branch**: status updates write an outbox row, so they fail if the table is missing.
-2. RabbitMQ on `localhost:5672` with `guest/guest` works with no config. Otherwise set
-   `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST`.
-3. Exchanges and queues are created automatically on startup. Watch them at http://localhost:15672.
+2. Start the broker from the repository root: set `RABBITMQ_USERNAME` and `RABBITMQ_PASSWORD` in `.env`
+   (see `.env.example`), then run `docker compose up -d rabbitmq`. Compose creates that user in the broker.
+3. Give the backend the **same** `RABBITMQ_USERNAME` and `RABBITMQ_PASSWORD`. The backend in docker-compose
+   gets them automatically; a backend run outside Docker needs them in its environment or `backend/.env`.
+   Do not rely on the `guest/guest` defaults in `application.properties`: RabbitMQ refuses the built-in
+   `guest` user for any connection that does not come from inside the broker's own container, and that
+   includes a backend on your machine connecting to the Docker broker through `localhost:5672`.
+   `RABBITMQ_HOST`, `RABBITMQ_PORT` and `RABBITMQ_VHOST` default to `localhost`, `5672` and `/`.
+4. Exchanges and queues are created automatically on startup. Watch them at http://localhost:15672
+   (log in with the same username and password).
+
+The broker creates the user only the first time its data volume is created. After changing the
+credentials, run `docker compose down` and `docker volume rm swiftdrop_rabbitmq_data` once.
 
 Optional: `WEBHOOK_RETRY_DELAYS` (default `10s,30s,2m,10m,30m`), `OUTBOX_POLL_INTERVAL_MS` (default `2000`).
 For a demo, `WEBHOOK_RETRY_DELAYS=5s,10s` makes retries visible quickly.
@@ -135,3 +145,8 @@ Any 2xx answer counts as delivered; redirects are not followed.
 | `WebhookSignerTest`, `WebhookHttpClientTest`, `JdbcMerchantWebhookDirectoryTest`, `RetryPolicyTest` | Signing (checked against openssl), HTTP behaviour, SQL lookups. |
 
 Run only these: `./mvnw test -Dtest='Outbox*Test,Webhook*Test,RetryPolicyTest,EventFlowIntegrationTest,JdbcMerchant*Test'`
+
+The shared test properties (`src/test/resources/application.properties`) set
+`spring.rabbitmq.listener.simple.auto-startup=false`, so full-application tests start even when a broker
+with other credentials (or no broker) is running on `localhost:5672`. `EventFlowIntegrationTest` turns
+listeners back on for its own Testcontainers broker.
