@@ -20,6 +20,10 @@ import { DeliveryHistoryPage, LiveTrackingPage, MyShipmentsPage, TrackParcelPage
 import { OverviewPage } from '@/features/dashboard'
 import { SettingsPage } from '@/features/account'
 
+// Admin area (zones and pricing)
+import AdminLayout from '@/shared/layouts/AdminLayout'
+import { AdminPricingPage, AdminZonesPage } from '@/features/admin'
+
 export default function App() {
   return (
     <AuthProvider>
@@ -65,6 +69,20 @@ export default function App() {
             <Route path="bookings/:trackingNumber" element={<BookingConfirmationPage />} />
             <Route path="history" element={<DeliveryHistoryPage />} />
             <Route path="settings" element={<SettingsPage />} />
+          </Route>
+
+          {/* Logged-in admins only: anyone else is sent to their own home page */}
+          <Route
+            path={ROUTES.admin}
+            element={
+              <ProtectedRoute roles={['ROLE_ADMIN']}>
+                <AdminLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to={ROUTES.adminZones} replace />} />
+            <Route path="zones" element={<AdminZonesPage />} />
+            <Route path="pricing" element={<AdminPricingPage />} />
           </Route>
 
           <Route path="/home" element={<Navigate to="/" replace />} />
