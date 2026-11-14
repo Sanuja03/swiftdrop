@@ -27,6 +27,9 @@ import com.swiftdrop.backend.modules.tracking.controller.TrackingExceptionHandle
 @Import({DefaultSecurityConfig.class, TrackingExceptionHandler.class})
 class ReceiptControllerTest {
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.swiftdrop.backend.modules.auth.security.JwtTokenProvider jwtTokenProvider;
+
     @Autowired
     private MockMvc mockMvc;
 

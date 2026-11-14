@@ -29,6 +29,9 @@ import com.swiftdrop.backend.modules.pricing.service.PricingService;
 @AutoConfigureMockMvc(addFilters = false)
 @Import(PricingExceptionHandler.class)
 class PricingControllerTest {
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.swiftdrop.backend.modules.auth.security.JwtTokenProvider jwtTokenProvider;
     @Autowired private MockMvc mockMvc;
     @MockitoBean private PricingService pricingService;
 

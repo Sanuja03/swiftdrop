@@ -8,6 +8,7 @@ import java.util.UUID;
 public record DeliveryProofResponse(
         UUID id,
         UUID parcelId,
+        UUID courierId,
         String recipientName,
         boolean hasPhoto,
         Instant createdAt,
@@ -21,6 +22,7 @@ public record DeliveryProofResponse(
         return new DeliveryProofResponse(
                 proof.getId(),
                 proof.getParcelId(),
+                proof.getCourierId(),
                 proof.getRecipientName(),
                 photoKey != null && !photoKey.isBlank(),
                 proof.getCreatedAt(),

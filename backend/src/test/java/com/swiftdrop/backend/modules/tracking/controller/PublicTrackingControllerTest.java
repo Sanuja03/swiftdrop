@@ -30,6 +30,9 @@ import com.swiftdrop.backend.modules.tracking.service.TrackingQueryService;
 @Import({TrackingSecurityConfig.class, DefaultSecurityConfig.class})
 class PublicTrackingControllerTest {
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.swiftdrop.backend.modules.auth.security.JwtTokenProvider jwtTokenProvider;
+
     @Autowired
     private MockMvc mockMvc;
 
