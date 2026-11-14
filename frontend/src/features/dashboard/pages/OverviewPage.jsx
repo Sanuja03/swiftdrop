@@ -1,6 +1,7 @@
 import { ArrowRight, CircleCheck, Clock, Hand, Package, Truck } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { RouteMap, ShipmentsTable, sortByLatestUpdate, useShipments } from '@/features/tracking'
+import { useAuth } from '@/context/AuthContext'
+import { RouteMap, ShipmentsTable, sortByLatestUpdate, useMyShipments } from '@/features/tracking'
 import Alert from '@/shared/components/ui/Alert'
 import Button from '@/shared/components/ui/Button'
 import Card, { CardHeader } from '@/shared/components/ui/Card'
@@ -9,9 +10,8 @@ import Spinner from '@/shared/components/ui/Spinner'
 import StatCard from '@/shared/components/ui/StatCard'
 import StatusBadge from '@/shared/components/ui/StatusBadge'
 import { ROUTES } from '@/shared/config/routes'
-import { CURRENT_CUSTOMER, CUSTOMER_TRACKING_NUMBERS } from '@/shared/data/currentCustomer'
 import { isActive, PARCEL_STATUS } from '@/shared/domain/parcelStatus'
-import { formatDayTime } from '@/shared/utils/format'
+import { firstNameOf, formatDayTime } from '@/shared/utils/format'
 import styles from './OverviewPage.module.css'
 
 const RECENT_LIMIT = 5
@@ -47,7 +47,9 @@ function LiveShipmentCard({ shipment }) {
 }
 
 export default function OverviewPage() {
-  const { shipments, isLoading, error } = useShipments(CUSTOMER_TRACKING_NUMBERS)
+  const { user } = useAuth()
+  const firstName = firstNameOf(user?.fullName)
+  const { shipments, isLoading, error } = useMyShipments()
   const sorted = sortByLatestUpdate(shipments)
   const active = sorted.filter((shipment) => isActive(shipment.status))
   const delivered = sorted.filter((shipment) => shipment.status === PARCEL_STATUS.DELIVERED)
@@ -57,14 +59,14 @@ export default function OverviewPage() {
     <>
       <div className={styles.welcome}>
         <h1>
-          Welcome back, {CURRENT_CUSTOMER.firstName}! <Hand size={24} className={styles.wave} aria-hidden="true" />
+          Welcome back{firstName ? `, ${firstName}` : ''}! <Hand size={24} className={styles.wave} aria-hidden="true" />
         </h1>
         <p>Track, send and manage your deliveries in one place.</p>
       </div>
 
       {error && (
         <div className={styles.alert}>
-          <Alert tone="error" title="Some shipments could not be loaded">
+          <Alert tone="error" title="Your shipments could not be loaded">
             {error.message}
           </Alert>
         </div>

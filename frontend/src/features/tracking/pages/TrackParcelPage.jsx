@@ -9,6 +9,7 @@ import TrackingSearchForm from '../components/TrackingSearchForm'
 import { ROUTES } from '@/shared/config/routes'
 import { SERVICE_OPTIONS } from '@/shared/domain/serviceOptions'
 import { useParcelTracking } from '../hooks/useParcelTracking'
+import { useServicePrices } from '@/features/booking'
 import { formatMoney } from '@/shared/utils/format'
 import styles from './TrackParcelPage.module.css'
 
@@ -30,6 +31,7 @@ export default function TrackParcelPage() {
   const { trackingNumber } = useParams()
   const navigate = useNavigate()
   const { data, error, isLoading, isLive } = useParcelTracking(trackingNumber)
+  const prices = useServicePrices()
   useScrollToHash()
 
   return (
@@ -64,14 +66,15 @@ export default function TrackParcelPage() {
       <section id="services" className={styles.section}>
         <h2 className={styles.sectionTitle}>Our Services</h2>
         <div className={styles.cards}>
-          {SERVICE_OPTIONS.map(({ value, name, description, fromPrice }) => {
+          {SERVICE_OPTIONS.map(({ value, name, description }) => {
             const Icon = SERVICE_ICONS[value]
+            const price = prices[value]
             return (
               <article key={value} className={styles.card}>
                 <Icon className={styles.cardIcon} size={26} aria-hidden="true" />
                 <h3>{name}</h3>
                 <p>{description}</p>
-                <p className={styles.price}>From {formatMoney(fromPrice)}</p>
+                {price && <p className={styles.price}>From {formatMoney(price.fromPrice, price.currency)}</p>}
               </article>
             )
           })}

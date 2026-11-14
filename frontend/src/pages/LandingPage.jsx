@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, 
@@ -21,21 +21,23 @@ import {
 import Logo from '../components/common/Logo';
 import DeliveryVanIllustration from '../components/common/DeliveryVanIllustration';
 import { useAuth } from '../context/AuthContext';
+import { ROUTES } from '@/shared/config/routes';
 import './LandingPage.css';
 
 export default function LandingPage() {
   const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
   const [trackingInput, setTrackingInput] = useState('');
-  const [currentTrackingNo, setCurrentTrackingNo] = useState('SDP7845621');
-  const [searchNotification, setSearchNotification] = useState('');
+  // The dashboard section below is an illustration with sample values, not live data.
+  // Real tracking happens on the public tracking page the search form opens.
+  const currentTrackingNo = 'SDP0000000';
+  const searchNotification = '';
 
   const handleTrackSubmit = (e) => {
     e.preventDefault();
     const query = trackingInput.trim().toUpperCase();
     if (!query) return;
-    setCurrentTrackingNo(query);
-    setSearchNotification(`Showing live status for parcel ${query}`);
-    setTimeout(() => setSearchNotification(''), 4000);
+    navigate(ROUTES.trackParcel(query));
   };
 
   return (
@@ -112,7 +114,7 @@ export default function LandingPage() {
               <Search size={20} className="hero-search-icon" />
               <input
                 type="text"
-                placeholder="SDP7845621"
+                placeholder="Enter tracking number"
                 value={trackingInput}
                 onChange={(e) => setTrackingInput(e.target.value)}
                 className="hero-search-input"
