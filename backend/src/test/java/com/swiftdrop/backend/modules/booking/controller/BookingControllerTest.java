@@ -40,6 +40,9 @@ import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
 @Import({BookingExceptionHandler.class, PricingExceptionHandler.class, TrackingExceptionHandler.class,
         NotSignedInExceptionHandler.class})
 class BookingControllerTest {
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.swiftdrop.backend.modules.auth.security.JwtTokenProvider jwtTokenProvider;
     private static final UUID PARCEL_ID = UUID.fromString("60000000-0000-4000-8000-000000000001");
     private static final UUID ZONE_ID = UUID.fromString("40000000-0000-4000-8000-000000000001");
 

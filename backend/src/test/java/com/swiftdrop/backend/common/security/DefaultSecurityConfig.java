@@ -3,7 +3,7 @@ package com.swiftdrop.backend.common.security;
 import static org.springframework.security.config.Customizer.withDefaults;
 
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -13,10 +13,9 @@ import org.springframework.security.web.SecurityFilterChain;
  * Keeps every non-public URL locked, as Spring Boot's own default would.
  *
  * <p>Spring Boot drops its default chain as soon as any SecurityFilterChain bean
- * exists, so this restores it. Delete this class when the JWT SecurityConfig from
- * the auth module is merged, since that chain replaces it.
+ * exists, so controller slices can explicitly import this fallback.
  */
-@Configuration
+@TestConfiguration
 public class DefaultSecurityConfig {
 
     @Bean

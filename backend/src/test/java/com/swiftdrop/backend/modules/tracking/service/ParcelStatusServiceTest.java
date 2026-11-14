@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
+import com.swiftdrop.backend.modules.courier.repository.DeliveryProofRepository;
 import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
@@ -44,6 +45,8 @@ class ParcelStatusServiceTest {
     private ParcelStatusHistoryRepository historyRepository;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private DeliveryProofRepository deliveryProofs;
 
     private ParcelStatusService service;
     private Parcel parcel;
@@ -51,7 +54,7 @@ class ParcelStatusServiceTest {
     @BeforeEach
     void setUp() {
         service = new ParcelStatusService(parcelRepository, historyRepository, eventPublisher,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC), deliveryProofs);
         parcel = TestParcels.withId(PARCEL_ID);
     }
 

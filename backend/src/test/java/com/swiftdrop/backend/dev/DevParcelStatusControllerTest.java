@@ -34,9 +34,8 @@ import com.swiftdrop.backend.support.TestParcels;
 @Import({DevSecurityConfig.class, DefaultSecurityConfig.class, TrackingExceptionHandler.class})
 class DevParcelStatusControllerTest {
 
-    /** The auth module's JWT filter is part of every web test slice and needs this bean. */
-    @MockitoBean
-    private JwtTokenProvider jwtTokenProvider;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.swiftdrop.backend.modules.auth.security.JwtTokenProvider jwtTokenProvider;
 
     private static final UUID PARCEL_ID = UUID.randomUUID();
 
