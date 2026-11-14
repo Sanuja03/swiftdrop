@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Mail, 
@@ -15,11 +15,18 @@ import {
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { useAuth } from '../context/AuthContext';
+import { homePathFor } from '@/shared/auth/session';
 import { GoogleLogin } from '@react-oauth/google';
 import './LoginPage.css';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Back to the page that asked for sign-in, otherwise the user's home (customers: /app).
+  const afterLoginPath = (signedInUser) => {
+    const from = location.state?.from;
+    return from?.pathname && from.pathname !== '/login' ? `${from.pathname}${from.search ?? ''}` : homePathFor(signedInUser);
+  };
   const { login, loginWithGoogle, loading } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -43,7 +50,7 @@ export default function LoginPage() {
     if (res.success) {
       setSuccessUser(res.user);
       setTimeout(() => {
-        navigate('/profile');
+        navigate(afterLoginPath(res.user));
       }, 700);
     } else {
       setErrorMessage(res.error || 'Invalid credentials or service offline.');
@@ -61,7 +68,7 @@ export default function LoginPage() {
     if (res.success) {
       setSuccessUser(res.user);
       setTimeout(() => {
-        navigate('/profile');
+        navigate(afterLoginPath(res.user));
       }, 700);
     } else {
       setErrorMessage(res.error || 'Google authentication failed.');

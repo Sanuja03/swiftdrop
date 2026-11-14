@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { verifyEmailCode, resendVerificationEmail } from '../services/api';
+import { homePathFor } from '@/shared/auth/session';
 import { useAuth } from '../context/AuthContext';
 import './VerifyEmailPage.css';
 
@@ -68,7 +69,7 @@ export default function VerifyEmailPage() {
       if (res.data?.accessToken) {
         setSession(res.data);
         setTimeout(() => {
-          navigate('/profile');
+          navigate(homePathFor(res.data.user));
         }, 2000);
       }
     } else {
@@ -290,7 +291,7 @@ export default function VerifyEmailPage() {
 
                   <button
                     type="button"
-                    onClick={() => navigate('/profile')}
+                    onClick={() => navigate(homePathFor(successData?.user))}
                     className="verify-submit-btn"
                   >
                     Go to Dashboard Now

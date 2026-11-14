@@ -234,7 +234,7 @@ export default function ProfilePage() {
                         type="text"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        placeholder="e.g. Kasun Perera"
+                        placeholder="Your full name"
                         required
                         className="profile-input"
                       />
