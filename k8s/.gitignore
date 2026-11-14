@@ -1,0 +1,3 @@
+.generated/
+.local/
+__pycache__/
