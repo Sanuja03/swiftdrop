@@ -17,6 +17,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.swiftdrop.backend.modules.auth.security.JwtTokenProvider;
 import com.swiftdrop.backend.common.security.DefaultSecurityConfig;
 import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.receipt.dto.ReceiptFile;
@@ -26,6 +27,10 @@ import com.swiftdrop.backend.modules.tracking.controller.TrackingExceptionHandle
 @WebMvcTest(ReceiptController.class)
 @Import({DefaultSecurityConfig.class, TrackingExceptionHandler.class})
 class ReceiptControllerTest {
+
+    /** The auth module's JWT filter is part of every web test slice and needs this bean. */
+    @MockitoBean
+    private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
     private MockMvc mockMvc;
