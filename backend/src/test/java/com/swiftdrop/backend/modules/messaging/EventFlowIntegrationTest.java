@@ -33,11 +33,13 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.rabbitmq.RabbitMQContainer;
 
 import com.sun.net.httpserver.HttpServer;
+import com.swiftdrop.backend.modules.courier.repository.DeliveryProofRepository;
 import com.swiftdrop.backend.common.config.ClockConfig;
 import com.swiftdrop.backend.modules.messaging.config.MessagingTopology;
 import com.swiftdrop.backend.modules.messaging.config.RabbitMqConfig;
@@ -83,6 +85,8 @@ import tools.jackson.databind.json.JsonMapper;
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = {
                 "spring.rabbitmq.publisher-confirm-type=simple",
+                // The shared test properties keep listeners stopped; this test needs them running.
+                "spring.rabbitmq.listener.simple.auto-startup=true",
                 "app.messaging.outbox.poll-interval-ms=100",
                 "app.messaging.webhook.retry-delays=300ms,600ms",
                 "app.messaging.webhook.request-timeout=2s"
@@ -99,6 +103,13 @@ class EventFlowIntegrationTest {
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4.4.0-management");
 
     static final FakeMerchant MERCHANT = FakeMerchant.start();
+
+    /**
+     * ParcelStatusService checks for delivery proof before DELIVERED (courier module). These
+     * tests never reach a valid DELIVERED change, so an empty mock is enough.
+     */
+    @MockitoBean
+    private DeliveryProofRepository deliveryProofRepository;
 
     @Autowired
     private ParcelStatusService parcelStatusService;

@@ -1,10 +1,11 @@
 import { Client } from '@stomp/stompjs'
+import { webSocketUrl } from '@/shared/api/httpClient'
 
 const RECONNECT_DELAY_MS = 5000
 
+/** Same host as the API (VITE_API_BASE_URL), or this page's host when that is empty. */
 function brokerUrl() {
-  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${protocol}://${window.location.host}/ws`
+  return webSocketUrl('/ws')
 }
 
 /**

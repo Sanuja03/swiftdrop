@@ -1,45 +1,58 @@
-const MOCK_DELAY_MS = 250
+import { request } from '@/shared/api/httpClient'
 
-const ZONES = [
-  'Colombo',
-  'Gampaha',
-  'Kalutara',
-  'Kandy',
-  'Galle',
-  'Matara',
-  'Kurunegala',
-  'Jaffna',
-].map((name, index) => ({ id: `ZONE_${index + 1}`, name }))
-
-const BASE_FEES = { STANDARD: 590, EXPRESS: 990, SAME_DAY: 1490 }
-const ZONE_FEES = { STANDARD: 250, EXPRESS: 400, SAME_DAY: 600 }
-
-const delay = (value) => new Promise((resolve) => setTimeout(() => resolve(value), MOCK_DELAY_MS))
-
-function calculateFee({ pickupZoneId, dropoffZoneId, weightKg, serviceType }) {
-  const baseFee = BASE_FEES[serviceType] ?? BASE_FEES.STANDARD
-  const weightCharge = Math.ceil(Number(weightKg) * 100)
-  const zoneCharge = pickupZoneId !== dropoffZoneId ? ZONE_FEES[serviceType] ?? ZONE_FEES.STANDARD : 0
-  return { baseFee, weightCharge, zoneCharge, totalFee: baseFee + weightCharge + zoneCharge, currency: 'LKR' }
+/** Active delivery zones: [{ id, code, name, surcharge }]. Public. */
+export function getZones({ signal } = {}) {
+  return request('/zones', { signal })
 }
 
-export function getZones() {
-  return delay(ZONES.map((zone) => ({ ...zone })))
-}
-
-export function estimateFee(request) {
-  return delay(calculateFee(request))
-}
-
-export async function createParcel(request) {
-  const fee = calculateFee(request)
-  const trackingNumber = `SDP${String(Math.floor(1000000 + Math.random() * 9000000))}`
-  return delay({
-    parcelId: `PARCEL-${Date.now()}`,
-    trackingNumber,
-    status: 'CREATED',
-    totalFee: fee.totalFee,
-    currency: 'LKR',
-    createdAt: new Date().toISOString(),
+/**
+ * Fee estimate from the pricing service. Public.
+ * @returns {Promise<{ baseFee, weightCharge, zoneCharge, totalFee, currency, estimatedDeliveryAt }>}
+ */
+export function estimateFee({ pickupZoneId, dropoffZoneId, parcelSize, weightKg, serviceType }, { signal } = {}) {
+  return request('/parcels/estimate', {
+    signal,
+    json: { pickupZoneId, dropoffZoneId, parcelSize, weightKg, serviceType },
   })
+}
+
+/**
+ * Books a delivery for the signed-in customer.
+ * @returns {Promise<{ parcelId, trackingNumber, status, totalFee, currency, createdAt, estimatedDeliveryAt }>}
+ */
+export function createParcel(booking) {
+  const {
+    pickupZoneId,
+    dropoffZoneId,
+    parcelSize,
+    weightKg,
+    serviceType,
+    pickupAddress,
+    dropoffAddress,
+    recipientName,
+    recipientPhone,
+  } = booking
+  return request('/parcels', {
+    json: {
+      pickupZoneId,
+      dropoffZoneId,
+      parcelSize,
+      weightKg,
+      serviceType,
+      pickupAddress,
+      dropoffAddress,
+      recipientName,
+      recipientPhone,
+    },
+  })
+}
+
+/** One of the signed-in customer's bookings, with addresses and fee breakdown. */
+export function getBooking(trackingNumber, { signal } = {}) {
+  return request(`/parcels/${encodeURIComponent(trackingNumber)}`, { signal })
+}
+
+/** Starting price of each active service: [{ serviceType, fromPrice, currency }]. Public. */
+export function getServicePrices({ signal } = {}) {
+  return request('/pricing/services', { signal })
 }

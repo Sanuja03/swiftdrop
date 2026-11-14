@@ -3,6 +3,7 @@ package com.swiftdrop.backend.modules.pricing.service;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -15,10 +16,13 @@ import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
 import com.swiftdrop.backend.modules.pricing.dto.EstimateRequest;
 import com.swiftdrop.backend.modules.pricing.dto.FeeBreakdown;
 import com.swiftdrop.backend.modules.pricing.dto.PricingContext;
+import com.swiftdrop.backend.modules.pricing.dto.ServicePriceResponse;
+import com.swiftdrop.backend.modules.pricing.entity.PricingRule;
 import com.swiftdrop.backend.modules.pricing.exception.PricingException;
 import com.swiftdrop.backend.modules.pricing.repository.PricingRuleRepository;
 import com.swiftdrop.backend.modules.pricing.strategy.DeliveryCalendar;
 import com.swiftdrop.backend.modules.pricing.strategy.PricingStrategy;
+import com.swiftdrop.backend.modules.zone.entity.Zone;
 import com.swiftdrop.backend.modules.zone.repository.ZoneRepository;
 
 @Service
@@ -36,6 +40,28 @@ public class PricingService {
         this.clock = clock;
         this.strategies = pricingStrategies.stream().collect(Collectors.toUnmodifiableMap(
                 PricingStrategy::supports, Function.identity()));
+    }
+
+    /**
+     * Starting price of every active service, worked out by its own strategy for the cheapest
+     * possible booking: the included weight, within the active zone with the lowest surcharge.
+     * Empty when no zone is active.
+     */
+    public List<ServicePriceResponse> servicePrices() {
+        var cheapestZone = zoneRepository.findAllByActiveTrueOrderByNameAsc().stream()
+                .min(Comparator.comparing(Zone::getSurcharge));
+        if (cheapestZone.isEmpty()) return List.of();
+        var zone = cheapestZone.get();
+        var bookedOn = LocalDate.now(clock.withZone(DeliveryCalendar.BUSINESS_ZONE));
+        return pricingRuleRepository.findAllByActiveTrue().stream()
+                .filter(rule -> strategies.containsKey(rule.getServiceType()))
+                .sorted(Comparator.comparing(PricingRule::getServiceType))
+                .map(rule -> {
+                    var fee = strategies.get(rule.getServiceType()).calculate(
+                            new PricingContext(rule, zone, zone, PricingStrategy.INCLUDED_WEIGHT_KG, bookedOn));
+                    return new ServicePriceResponse(rule.getServiceType(), fee.totalFee(), fee.currency());
+                })
+                .toList();
     }
 
     public FeeBreakdown estimate(EstimateRequest request) {

@@ -5,12 +5,15 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.swiftdrop.backend.modules.booking.customer.BookingCustomer;
-import com.swiftdrop.backend.modules.booking.customer.CurrentCustomerProvider;
+import com.swiftdrop.backend.common.security.CurrentCustomer;
+import com.swiftdrop.backend.common.security.CurrentCustomerProvider;
 import com.swiftdrop.backend.modules.booking.dto.CreateParcelRequest;
+import com.swiftdrop.backend.modules.booking.dto.BookingDetailsResponse;
 import com.swiftdrop.backend.modules.booking.dto.CreateParcelResponse;
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
+import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
+import com.swiftdrop.backend.modules.parcel.service.ParcelLookupService;
 import com.swiftdrop.backend.modules.pricing.dto.FeeBreakdown;
 import com.swiftdrop.backend.modules.pricing.exception.PricingException;
 import com.swiftdrop.backend.modules.pricing.service.PricingService;
@@ -38,20 +41,22 @@ public class BookingService {
     private final TrackingNumberGenerator trackingNumberGenerator;
     private final CurrentCustomerProvider currentCustomerProvider;
     private final ParcelStatusService parcelStatusService;
+    private final ParcelLookupService parcelLookupService;
 
     /**
      * Saves the parcel, its fee breakdown and its first status entry in one transaction.
      *
      * @throws PricingException if a zone is unknown or inactive, or the service cannot be priced
-     * @throws com.swiftdrop.backend.modules.booking.exception.BookingException if no customer
-     *         or tracking number is available
+     * @throws com.swiftdrop.backend.modules.booking.exception.BookingException if no tracking
+     *         number is available
+     * @throws com.swiftdrop.backend.common.security.NotSignedInException if nobody is signed in
      */
     @Transactional
     public CreateParcelResponse createParcel(CreateParcelRequest request) {
         Zone pickupZone = activeZone(request.pickupZoneId());
         Zone dropoffZone = activeZone(request.dropoffZoneId());
         FeeBreakdown fee = pricingService.estimate(request.toEstimateRequest());
-        BookingCustomer customer = currentCustomerProvider.currentCustomer();
+        CurrentCustomer customer = currentCustomerProvider.currentCustomer();
 
         Parcel parcel = parcelRepository.save(Parcel.builder()
                 .trackingNumber(trackingNumberGenerator.next())
@@ -80,12 +85,25 @@ public class BookingService {
         return CreateParcelResponse.from(parcel, fee.currency());
     }
 
+    /**
+     * One of the signed-in customer's own bookings. Someone else's parcel is reported as
+     * not found, so tracking numbers cannot be probed for other people's details.
+     *
+     * @throws ParcelNotFoundException if the customer has no parcel with this tracking number
+     */
+    @Transactional(readOnly = true)
+    public BookingDetailsResponse getBooking(String trackingNumber) {
+        CurrentCustomer customer = currentCustomerProvider.currentCustomer();
+        Parcel parcel = parcelLookupService.getOwnedByCustomer(trackingNumber, customer.id());
+        return BookingDetailsResponse.from(parcel, FeeBreakdown.CURRENCY);
+    }
+
     private Zone activeZone(UUID zoneId) {
         return zoneRepository.findByIdAndActiveTrue(zoneId)
                 .orElseThrow(() -> PricingException.unknownZone(zoneId));
     }
 
-    private static String senderName(BookingCustomer customer) {
+    private static String senderName(CurrentCustomer customer) {
         String name = customer.fullName() == null ? "" : customer.fullName().strip();
         return name.length() > SENDER_NAME_MAX_LENGTH ? name.substring(0, SENDER_NAME_MAX_LENGTH) : name;
     }

@@ -5,9 +5,8 @@ import Card from '@/shared/components/ui/Card'
 import EmptyState from '@/shared/components/ui/EmptyState'
 import PageHeader from '@/shared/components/ui/PageHeader'
 import Spinner from '@/shared/components/ui/Spinner'
-import { CUSTOMER_TRACKING_NUMBERS } from '@/shared/data/currentCustomer'
 import { sortByLatestUpdate } from '../domain/shipments'
-import { useShipments } from '../hooks/useShipments'
+import { useMyShipments } from '../hooks/useMyShipments'
 import styles from './ShipmentListPage.module.css'
 
 /**
@@ -15,7 +14,7 @@ import styles from './ShipmentListPage.module.css'
  * loads the customer's shipments and shows the ones matching `filter`.
  */
 export default function ShipmentListPage({ title, subtitle, filter, toolbar, emptyTitle, emptyText, tableProps }) {
-  const { shipments, isLoading, error } = useShipments(CUSTOMER_TRACKING_NUMBERS)
+  const { shipments, isLoading, error } = useMyShipments()
   const visible = sortByLatestUpdate(shipments.filter(filter))
 
   return (
@@ -23,7 +22,7 @@ export default function ShipmentListPage({ title, subtitle, filter, toolbar, emp
       <PageHeader title={title} subtitle={subtitle} action={toolbar} />
       {error && (
         <div className={styles.alert}>
-          <Alert tone="error" title="Some shipments could not be loaded">
+          <Alert tone="error" title="Your shipments could not be loaded">
             {error.message}
           </Alert>
         </div>

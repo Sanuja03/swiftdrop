@@ -1,247 +1,107 @@
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+import { request } from '@/shared/api/httpClient';
 
-export async function loginUser(email, password) {
+/**
+ * Auth module API calls. They all go through the shared HTTP client (base URL from
+ * VITE_API_BASE_URL, JWT attached, refresh on 401) and keep their original return shapes:
+ * { success: true, data } or { success: false, error }.
+ *
+ * Sign-in style calls pass redirectOnUnauthorized: false, because there a 401 means
+ * "wrong credentials or code", not "session expired".
+ */
+const PUBLIC_CALL = { redirectOnUnauthorized: false };
+
+async function attempt(call, fallbackError) {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Login failed. Please check your credentials.');
-    }
-
-    return { success: true, data };
+    return { success: true, data: await call() };
   } catch (error) {
+    const offline = error.status === 0;
     return {
       success: false,
-      error: error.message || 'Unable to connect to SwiftDrop authentication server.',
+      error: offline ? 'Unable to connect to SwiftDrop authentication server.' : error.message || fallbackError,
     };
   }
 }
 
-export async function signupUser(userData) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Registration failed.');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unable to connect to authentication server.',
-    };
-  }
+export function loginUser(email, password) {
+  return attempt(
+    () => request('/auth/login', { json: { email, password }, ...PUBLIC_CALL }),
+    'Login failed. Please check your credentials.',
+  );
 }
 
-export async function loginWithGoogle(idToken) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/google`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ idToken }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Google authentication failed.');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unable to connect to SwiftDrop authentication server.',
-    };
-  }
+export function signupUser(userData) {
+  return attempt(() => request('/auth/signup', { json: userData, ...PUBLIC_CALL }), 'Registration failed.');
 }
 
+export function loginWithGoogle(idToken) {
+  return attempt(
+    () => request('/auth/google', { json: { idToken }, ...PUBLIC_CALL }),
+    'Google authentication failed.',
+  );
+}
+
+/** The signed-in user's profile, or null. The token argument is kept for compatibility; the client sends the JWT. */
+// eslint-disable-next-line no-unused-vars
 export async function getCurrentUser(token) {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch user profile');
-    }
-
-    return await response.json();
-  } catch (error) {
+    return await request('/auth/me');
+  } catch {
     return null;
   }
 }
 
-export async function updateUserProfile(profileData, token) {
+// eslint-disable-next-line no-unused-vars
+export function updateUserProfile(profileData, token) {
+  return attempt(
+    () => request('/auth/profile', { method: 'PUT', json: profileData }),
+    'Failed to update profile details.',
+  );
+}
+
+/** Revokes the user's refresh tokens on the server. Never throws. */
+export async function logoutUser() {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(profileData),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to update profile details.');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unable to connect to authentication server.',
-    };
+    await request('/auth/logout', { method: 'POST', ...PUBLIC_CALL });
+  } catch {
+    // Signing out locally still works if the server cannot be reached.
   }
 }
 
-export async function requestPasswordReset(email) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to request password reset code.');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unable to connect to authentication server.',
-    };
-  }
+export function requestPasswordReset(email) {
+  return attempt(
+    () => request('/auth/forgot-password', { json: { email }, ...PUBLIC_CALL }),
+    'Failed to request password reset code.',
+  );
 }
 
-export async function resetUserPassword(token, newPassword) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ token, newPassword }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to reset password.');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unable to connect to authentication server.',
-    };
-  }
+export function resetUserPassword(token, newPassword) {
+  return attempt(
+    () => request('/auth/reset-password', { json: { token, newPassword }, ...PUBLIC_CALL }),
+    'Failed to reset password.',
+  );
 }
 
-export async function verifyEmailCode(email, code) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, code }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Email verification failed. Please check your code.');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unable to connect to authentication server.',
-    };
-  }
+export function verifyEmailCode(email, code) {
+  return attempt(
+    () => request('/auth/verify-email', { json: { email, code }, ...PUBLIC_CALL }),
+    'Email verification failed. Please check your code.',
+  );
 }
 
-export async function resendVerificationEmail(email) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to resend verification code.');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unable to connect to authentication server.',
-    };
-  }
+export function resendVerificationEmail(email) {
+  return attempt(
+    () => request('/auth/resend-verification', { json: { email }, ...PUBLIC_CALL }),
+    'Failed to resend verification code.',
+  );
 }
 
+/** Role test helper used by the profile page: reports the status instead of throwing. */
+// eslint-disable-next-line no-unused-vars
 export async function testEndpoint(endpoint, token) {
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    const data = await response.json();
-    return {
-      status: response.status,
-      ok: response.ok,
-      data,
-    };
+    const data = await request(endpoint, PUBLIC_CALL);
+    return { status: 200, ok: true, data };
   } catch (error) {
-    return {
-      status: 500,
-      ok: false,
-      error: error.message,
-    };
+    return { status: error.status || 500, ok: false, data: error.body, error: error.message };
   }
 }
-
-

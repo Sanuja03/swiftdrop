@@ -22,13 +22,15 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.swiftdrop.backend.modules.booking.customer.BookingCustomer;
-import com.swiftdrop.backend.modules.booking.customer.CurrentCustomerProvider;
+import com.swiftdrop.backend.common.security.CurrentCustomer;
+import com.swiftdrop.backend.common.security.CurrentCustomerProvider;
 import com.swiftdrop.backend.modules.booking.dto.CreateParcelRequest;
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
 import com.swiftdrop.backend.modules.parcel.entity.ParcelSize;
 import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
+import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
+import com.swiftdrop.backend.modules.parcel.service.ParcelLookupService;
 import com.swiftdrop.backend.modules.pricing.entity.PricingRule;
 import com.swiftdrop.backend.modules.pricing.exception.PricingException;
 import com.swiftdrop.backend.modules.pricing.repository.PricingRuleRepository;
@@ -81,7 +83,7 @@ class BookingServiceTest {
         when(pricingRules.findByServiceType(ServiceType.STANDARD)).thenReturn(Optional.of(standardRule));
         when(pricingRules.findByServiceType(ServiceType.SAME_DAY)).thenReturn(Optional.of(sameDayRule));
         when(trackingNumbers.next()).thenReturn(TRACKING_NUMBER);
-        when(customerProvider.currentCustomer()).thenReturn(new BookingCustomer(CUSTOMER_ID, "Test Customer"));
+        when(customerProvider.currentCustomer()).thenReturn(new CurrentCustomer(CUSTOMER_ID, "Test Customer"));
         when(parcelRepository.save(any(Parcel.class))).thenAnswer(invocation -> {
             Parcel parcel = invocation.getArgument(0);
             ReflectionTestUtils.setField(parcel, "id", PARCEL_ID);
@@ -93,7 +95,7 @@ class BookingServiceTest {
                 List.of(new StandardPricingStrategy(), new ExpressPricingStrategy(), new SameDayPricingStrategy()),
                 Clock.fixed(NOW, ZoneOffset.UTC));
         service = new BookingService(zoneRepository, pricingService, parcelRepository, trackingNumbers,
-                customerProvider, parcelStatusService);
+                customerProvider, parcelStatusService, new ParcelLookupService(parcelRepository));
     }
 
     @Test
@@ -171,6 +173,59 @@ class BookingServiceTest {
 
         verify(parcelRepository, never()).save(any());
         verifyNoInteractions(parcelStatusService);
+    }
+
+    @Test
+    void ownBookingIsReturnedWithItsFeeBreakdown() {
+        when(parcelRepository.findByTrackingNumber(TRACKING_NUMBER)).thenReturn(Optional.of(bookedParcel(CUSTOMER_ID)));
+
+        var booking = service.getBooking(" sdp0000001 ");
+
+        assertThat(booking.trackingNumber()).isEqualTo(TRACKING_NUMBER);
+        assertThat(booking.pickupZoneName()).isEqualTo("Pickup Zone");
+        assertThat(booking.dropoffZoneName()).isEqualTo("Dropoff Zone");
+        assertThat(booking.recipientName()).isEqualTo("Test Recipient");
+        assertThat(booking.totalFee()).isEqualByComparingTo("1140.00");
+        assertThat(booking.weightCharge()).isEqualByComparingTo("150.00");
+        assertThat(booking.currency()).isEqualTo("LKR");
+    }
+
+    @Test
+    void anotherCustomersBookingIsReportedAsNotFound() {
+        var otherCustomer = UUID.fromString("50000000-0000-4000-8000-000000000002");
+        when(parcelRepository.findByTrackingNumber(TRACKING_NUMBER)).thenReturn(Optional.of(bookedParcel(otherCustomer)));
+
+        assertThatThrownBy(() -> service.getBooking(TRACKING_NUMBER)).isInstanceOf(ParcelNotFoundException.class);
+    }
+
+    @Test
+    void unknownTrackingNumberIsReportedAsNotFound() {
+        when(parcelRepository.findByTrackingNumber(TRACKING_NUMBER)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getBooking(TRACKING_NUMBER)).isInstanceOf(ParcelNotFoundException.class);
+    }
+
+    private static Parcel bookedParcel(UUID customerId) {
+        return Parcel.builder()
+                .trackingNumber(TRACKING_NUMBER)
+                .customerId(customerId)
+                .senderName("Test Customer")
+                .recipientName("Test Recipient")
+                .recipientPhone("0700000000")
+                .pickupAddress("1 Sample Street")
+                .pickupCity("Pickup Zone")
+                .pickupZoneId(PICKUP_ZONE_ID)
+                .dropoffAddress("2 Example Avenue")
+                .dropoffCity("Dropoff Zone")
+                .dropoffZoneId(DROPOFF_ZONE_ID)
+                .parcelSize(ParcelSize.MEDIUM)
+                .serviceType(ServiceType.STANDARD)
+                .weightKg(new BigDecimal("2.50"))
+                .baseFee(new BigDecimal("590.00"))
+                .weightCharge(new BigDecimal("150.00"))
+                .zoneCharge(new BigDecimal("400.00"))
+                .fee(new BigDecimal("1140.00"))
+                .build();
     }
 
     private static CreateParcelRequest request(UUID pickupZoneId, UUID dropoffZoneId, ServiceType serviceType) {

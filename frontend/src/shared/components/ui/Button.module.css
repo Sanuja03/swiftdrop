@@ -79,3 +79,24 @@
 .outlineLight:hover {
   background: rgb(255 255 255 / 0.1);
 }
+
+/* Link versions (<a>) restate their colours with :any-link so a page-wide `a { color }` rule cannot override them. */
+.primary:any-link,
+.primary:any-link:hover,
+.outlineLight:any-link,
+.outlineLight:any-link:hover {
+  color: #fff;
+}
+
+.secondary:any-link {
+  color: var(--color-text);
+}
+
+.secondary:any-link:hover,
+.ghost:any-link {
+  color: var(--color-orange);
+}
+
+.ghost:any-link:hover {
+  color: var(--color-orange-hover);
+}
