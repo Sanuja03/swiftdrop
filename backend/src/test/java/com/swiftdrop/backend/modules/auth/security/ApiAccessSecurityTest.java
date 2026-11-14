@@ -1,8 +1,11 @@
 package com.swiftdrop.backend.modules.auth.security;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,7 +34,14 @@ import com.swiftdrop.backend.modules.pricing.service.PricingService;
 import com.swiftdrop.backend.modules.tracking.controller.CustomerShipmentController;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
 import com.swiftdrop.backend.modules.tracking.service.CustomerShipmentQueryService;
+import com.swiftdrop.backend.modules.zone.controller.AdminZoneController;
 import com.swiftdrop.backend.modules.zone.controller.ZoneController;
+import com.swiftdrop.backend.modules.zone.dto.AdminZoneResponse;
+import com.swiftdrop.backend.modules.zone.service.ZoneAdminService;
+import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
+import com.swiftdrop.backend.modules.pricing.controller.AdminPricingRuleController;
+import com.swiftdrop.backend.modules.pricing.dto.AdminPricingRuleResponse;
+import com.swiftdrop.backend.modules.pricing.service.PricingRuleAdminService;
 import com.swiftdrop.backend.modules.zone.service.ZoneService;
 
 /**
@@ -39,7 +49,8 @@ import com.swiftdrop.backend.modules.zone.service.ZoneService;
  * public catalogue and estimate, customer-only bookings and shipment lists, admin-only admin APIs.
  */
 @WebMvcTest(controllers = {BookingController.class, PricingController.class, ServicePriceController.class,
-        ZoneController.class, CustomerShipmentController.class})
+        ZoneController.class, CustomerShipmentController.class, AdminZoneController.class,
+        AdminPricingRuleController.class})
 @Import({SecurityConfig.class, CustomAccessDeniedHandler.class, CustomAuthenticationEntryPoint.class,
         JwtAuthenticationFilter.class})
 class ApiAccessSecurityTest {
@@ -52,6 +63,8 @@ class ApiAccessSecurityTest {
     @MockitoBean private ZoneService zoneService;
     @MockitoBean private CustomerShipmentQueryService customerShipmentQueryService;
     @MockitoBean private CurrentCustomerProvider currentCustomerProvider;
+    @MockitoBean private ZoneAdminService zoneAdminService;
+    @MockitoBean private PricingRuleAdminService pricingRuleAdminService;
 
     @Test
     void zonesAndPricesArePublic() throws Exception {
@@ -113,6 +126,62 @@ class ApiAccessSecurityTest {
     @WithMockUser(roles = "DISPATCHER")
     void adminApisAreAdminOnly() throws Exception {
         mockMvc.perform(get("/api/v1/admin/zones")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void zoneAndPricingAdminNeedSignIn() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/zones")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/admin/zones").contentType("application/json").content(zoneBody()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/admin/pricing-rules")).andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/v1/admin/pricing-rules/STANDARD").contentType("application/json").content(ruleBody()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void customersCannotManageZonesOrPrices() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/zones")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/zones").contentType("application/json").content(zoneBody()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/pricing-rules")).andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/v1/admin/pricing-rules/STANDARD").contentType("application/json").content(ruleBody()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminsCanManageZonesAndPrices() throws Exception {
+        var zone = new AdminZoneResponse(ZONE_ID, "NORTH_1", "North Zone", BigDecimal.ZERO, true, null);
+        var rule = new AdminPricingRuleResponse(ServiceType.STANDARD, new BigDecimal("590.00"),
+                new BigDecimal("100.00"), new BigDecimal("250.00"), true, "LKR", null);
+        when(zoneAdminService.listAll()).thenReturn(List.of(zone));
+        when(zoneAdminService.create(any())).thenReturn(zone);
+        when(zoneAdminService.update(any(), any())).thenReturn(zone);
+        when(zoneAdminService.setActive(any(), anyBoolean())).thenReturn(zone);
+        when(pricingRuleAdminService.listAll()).thenReturn(List.of(rule));
+        when(pricingRuleAdminService.update(any(), any())).thenReturn(rule);
+
+        mockMvc.perform(get("/api/v1/admin/zones")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/admin/zones").contentType("application/json").content(zoneBody()))
+                .andExpect(status().isCreated());
+        mockMvc.perform(put("/api/v1/admin/zones/" + ZONE_ID).contentType("application/json")
+                        .content("{\"name\":\"North Zone\",\"surcharge\":0}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/v1/admin/zones/" + ZONE_ID + "/active").contentType("application/json")
+                        .content("{\"active\":false}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/admin/pricing-rules")).andExpect(status().isOk());
+        mockMvc.perform(put("/api/v1/admin/pricing-rules/STANDARD").contentType("application/json").content(ruleBody()))
+                .andExpect(status().isOk());
+    }
+
+    private static String zoneBody() {
+        return "{\"code\":\"NORTH_1\",\"name\":\"North Zone\",\"surcharge\":0}";
+    }
+
+    private static String ruleBody() {
+        return "{\"baseFee\":590,\"perKgFee\":100,\"interZoneFee\":250,\"active\":true}";
     }
 
     private static String estimateBody() {
