@@ -1,8 +1,9 @@
 # SwiftDrop CI/CD pipeline (GitHub Actions)
 #
 # CI  (every pull request into any branch, and every push to main):
-#     1. backend  : compile + run tests against a throwaway PostgreSQL,
-#                   then save test results and the JaCoCo coverage report
+#     1. backend  : compile + run tests (in-memory H2 database from
+#                   src/test/resources/application.properties), then save
+#                   test results and the JaCoCo coverage report
 #     2. frontend : install + lint + production build
 #     3. docker   : build both Docker images (proves the Dockerfiles still work)
 # CD  (only when code lands on main):
@@ -30,32 +31,9 @@ jobs:
       run:
         working-directory: backend
 
-    # A temporary PostgreSQL just for the tests. It is deleted after the job.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: swiftdrop
-          POSTGRES_USER: swiftdrop
-          POSTGRES_PASSWORD: ci_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U swiftdrop -d swiftdrop"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    # Overrides application.properties so tests use the CI database, not Supabase
-    env:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/swiftdrop
-      SPRING_DATASOURCE_USERNAME: swiftdrop
-      SPRING_DATASOURCE_PASSWORD: ci_password
-      # Hibernate creates the tables from the @Entity classes when tests start
-      # and drops them at the end. Safe ONLY because this database is thrown
-      # away after the job. NEVER use create-drop against Supabase: it deletes
-      # every table and all its data.
-      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+    # No database settings here on purpose: the tests use their own in-memory
+    # H2 database (src/test/resources/application.properties), so CI never
+    # touches Supabase and needs no database service.
 
     steps:
       - uses: actions/checkout@v5
