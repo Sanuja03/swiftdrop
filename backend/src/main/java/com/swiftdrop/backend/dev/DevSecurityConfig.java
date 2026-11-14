@@ -10,8 +10,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Local development only: opens the dev tools and receipt downloads so the
- * customer pages can be tried before accounts exist. Never active outside the "dev" profile.
+ * Local development only: opens the dev status tool so live tracking can be tried
+ * without the courier app. Never active outside the "dev" profile.
  */
 @Profile(DevProfile.NAME)
 @Configuration
@@ -21,7 +21,7 @@ public class DevSecurityConfig {
     @Order(2)
     public SecurityFilterChain devSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .securityMatcher(DevParcelStatusController.BASE_PATH + "/**", "/api/v1/receipts/**")
+                .securityMatcher(DevParcelStatusController.BASE_PATH + "/**")
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
