@@ -75,8 +75,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/parcels", "/api/v1/parcels/**").hasRole("CUSTOMER")
 
                         // Role-Based Access Control (RBAC) URL boundaries
-                        // User management stays open to dispatchers; every other admin API is admin-only.
+                        // User management and webhook delivery logs stay open to dispatchers;
+                        // every other admin API is admin-only. Specific rules must come first.
                         .requestMatchers("/api/v1/admin/users/**").hasAnyRole("ADMIN", "DISPATCHER")
+                        .requestMatchers("/api/v1/admin/webhooks/**").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/dispatcher/**").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers("/api/v1/merchant/**").hasRole("MERCHANT")
