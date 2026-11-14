@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.swiftdrop.backend.modules.auth.security.JwtTokenProvider;
 import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
 import com.swiftdrop.backend.modules.pricing.dto.FeeBreakdown;
 import com.swiftdrop.backend.modules.pricing.exception.PricingException;
@@ -29,6 +30,10 @@ import com.swiftdrop.backend.modules.pricing.service.PricingService;
 @AutoConfigureMockMvc(addFilters = false)
 @Import(PricingExceptionHandler.class)
 class PricingControllerTest {
+
+    /** The auth module's JWT filter is part of every web test slice and needs this bean. */
+    @MockitoBean
+    private JwtTokenProvider jwtTokenProvider;
     @Autowired private MockMvc mockMvc;
     @MockitoBean private PricingService pricingService;
 
