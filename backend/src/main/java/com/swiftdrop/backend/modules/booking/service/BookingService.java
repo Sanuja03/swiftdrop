@@ -41,6 +41,7 @@ public class BookingService {
     private final TrackingNumberGenerator trackingNumberGenerator;
     private final CurrentCustomerProvider currentCustomerProvider;
     private final ParcelStatusService parcelStatusService;
+    private final ParcelLookupService parcelLookupService;
 
     /**
      * Saves the parcel, its fee breakdown and its first status entry in one transaction.
@@ -92,12 +93,9 @@ public class BookingService {
      */
     @Transactional(readOnly = true)
     public BookingDetailsResponse getBooking(String trackingNumber) {
-        String normalised = ParcelLookupService.normalise(trackingNumber);
         CurrentCustomer customer = currentCustomerProvider.currentCustomer();
-        return parcelRepository.findByTrackingNumber(normalised)
-                .filter(parcel -> customer.id().equals(parcel.getCustomerId()))
-                .map(parcel -> BookingDetailsResponse.from(parcel, FeeBreakdown.CURRENCY))
-                .orElseThrow(() -> new ParcelNotFoundException(normalised));
+        Parcel parcel = parcelLookupService.getOwnedByCustomer(trackingNumber, customer.id());
+        return BookingDetailsResponse.from(parcel, FeeBreakdown.CURRENCY);
     }
 
     private Zone activeZone(UUID zoneId) {

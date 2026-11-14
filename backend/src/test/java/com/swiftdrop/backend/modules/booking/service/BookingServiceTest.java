@@ -30,6 +30,7 @@ import com.swiftdrop.backend.modules.parcel.entity.ParcelSize;
 import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
 import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
+import com.swiftdrop.backend.modules.parcel.service.ParcelLookupService;
 import com.swiftdrop.backend.modules.pricing.entity.PricingRule;
 import com.swiftdrop.backend.modules.pricing.exception.PricingException;
 import com.swiftdrop.backend.modules.pricing.repository.PricingRuleRepository;
@@ -94,7 +95,7 @@ class BookingServiceTest {
                 List.of(new StandardPricingStrategy(), new ExpressPricingStrategy(), new SameDayPricingStrategy()),
                 Clock.fixed(NOW, ZoneOffset.UTC));
         service = new BookingService(zoneRepository, pricingService, parcelRepository, trackingNumbers,
-                customerProvider, parcelStatusService);
+                customerProvider, parcelStatusService, new ParcelLookupService(parcelRepository));
     }
 
     @Test
