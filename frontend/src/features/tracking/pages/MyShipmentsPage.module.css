@@ -1,0 +1,22 @@
+.tabs {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.tab {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.selected {
+  background: var(--color-navy);
+  color: #fff;
+}
