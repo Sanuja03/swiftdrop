@@ -1,7 +1,6 @@
 package com.swiftdrop.backend.modules.courier.service;
 
 import com.swiftdrop.backend.modules.courier.dto.CourierDeliveryResponse;
-import com.swiftdrop.backend.modules.courier.entity.Courier;
 import com.swiftdrop.backend.modules.courier.entity.CourierAssignment;
 import com.swiftdrop.backend.modules.courier.repository.CourierAssignmentRepository;
 import com.swiftdrop.backend.modules.courier.repository.DeliveryProofRepository;
@@ -37,37 +36,37 @@ public class CourierDeliveryService {
 
     @Transactional(readOnly = true)
     public List<CourierDeliveryResponse> today(Principal principal) {
-        var courier = couriers.requireCurrentCourier(principal);
-        return assignments.findByCourierIdAndScheduledDateOrderByParcelId(courier.getId(),
+        UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
+        return assignments.findToday(courierUserId,
                         LocalDate.now(clock.withZone(DELIVERY_ZONE)))
                 .stream().map(CourierDeliveryResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public CourierDeliveryResponse details(UUID parcelId, Principal principal) {
-        var courier = couriers.requireCurrentCourier(principal);
-        return CourierDeliveryResponse.from(requireAssignment(assignments.findById(parcelId), courier));
+        UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
+        return CourierDeliveryResponse.from(requireAssignment(assignments.findActiveByParcelId(parcelId), courierUserId));
     }
 
     @Transactional
     public void updateStatus(UUID parcelId, ParcelStatus status, String note, Principal principal) {
-        var courier = couriers.requireCurrentCourier(principal);
+        UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
         parcels.lockById(parcelId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned parcel not found"));
-        lockAssignment(parcelId, courier);
+        lockAssignment(parcelId, courierUserId);
         if (status == ParcelStatus.DELIVERED && proofs.findCurrentByParcelId(parcelId)
-                .filter(proof -> courier.getId().equals(proof.getCourierId())).isEmpty()) {
+                .filter(proof -> courierUserId.equals(proof.getCourierId())).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Save delivery proof first");
         }
-        statuses.updateStatus(parcelId, status, note, courier.getUserId());
+        statuses.updateStatus(parcelId, status, note, courierUserId);
     }
 
-    CourierAssignment lockAssignment(UUID parcelId, Courier courier) {
-        return requireAssignment(assignments.lockByParcelId(parcelId), courier);
+    CourierAssignment lockAssignment(UUID parcelId, UUID courierUserId) {
+        return requireAssignment(assignments.lockByParcelId(parcelId), courierUserId);
     }
 
-    private CourierAssignment requireAssignment(Optional<CourierAssignment> assignment, Courier courier) {
-        return assignment.filter(value -> value.getCourierId().equals(courier.getId()))
+    private CourierAssignment requireAssignment(Optional<CourierAssignment> assignment, UUID courierUserId) {
+        return assignment.filter(value -> value.getCourierId().equals(courierUserId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned parcel not found"));
     }
 }

@@ -4,8 +4,6 @@ import com.swiftdrop.backend.modules.auth.entity.Role;
 import com.swiftdrop.backend.modules.auth.entity.User;
 import com.swiftdrop.backend.modules.auth.repository.UserRepository;
 import com.swiftdrop.backend.modules.courier.dto.CourierDeliveryResponse;
-import com.swiftdrop.backend.modules.courier.entity.Courier;
-import com.swiftdrop.backend.modules.courier.repository.CourierRepository;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
 import com.swiftdrop.backend.modules.tracking.exception.ParcelStatusRequirementException;
@@ -39,7 +37,6 @@ class CourierFlowTest {
     @Autowired DeliveryProofService proofs;
     @Autowired ParcelStatusService statuses;
     @Autowired UserRepository users;
-    @Autowired CourierRepository couriers;
     @Autowired ParcelRepository parcels;
     @Autowired JdbcTemplate jdbc;
     @Autowired Clock clock;
@@ -48,15 +45,18 @@ class CourierFlowTest {
     private final Principal courier = () -> "first@courier.test";
     private final Principal other = () -> "second@courier.test";
     private UUID parcelId;
+    private UUID courierUserId;
 
     @BeforeEach
     void setUp() {
-        UUID courierId = createCourier(courier);
+        courierUserId = createCourier(courier);
         UUID otherId = createCourier(other);
         LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
-        parcelId = assignedParcel(courierId, today, "SDP-TODAY");
-        assignedParcel(courierId, today.minusDays(1), "SDP-OVERDUE");
+        parcelId = assignedParcel(courierUserId, today, "SDP-TODAY");
+        assignedParcel(courierUserId, today.minusDays(1), "SDP-OVERDUE");
         assignedParcel(otherId, today, "SDP-OTHER");
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, scheduled_date, status)"
+                + " values (?, ?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId, today);
     }
 
     @Test
@@ -109,6 +109,7 @@ class CourierFlowTest {
     void proofPermitsDeliveryAndCorrectionKeepsOriginal() {
         goOutForDelivery();
         var initial = proofs.save(parcelId, courier, "Original name", null, null);
+        assertThat(initial.courierId()).isEqualTo(courierUserId);
         deliveries.updateStatus(parcelId, ParcelStatus.DELIVERED, null, courier);
         var correction = proofs.save(parcelId, courier, "Corrected name", null, "Spelling");
 
@@ -127,15 +128,15 @@ class CourierFlowTest {
     private UUID createCourier(Principal principal) {
         User user = users.save(User.builder().email(principal.getName())
                 .fullName("Test courier").role(Role.ROLE_COURIER).build());
-        return couriers.save(new Courier(user.getId())).getId();
+        return user.getId();
     }
 
     private UUID assignedParcel(UUID courierId, LocalDate date, String trackingNumber) {
         var parcel = TestParcels.withId(null);
         org.springframework.test.util.ReflectionTestUtils.setField(parcel, "trackingNumber", trackingNumber);
         UUID id = parcels.saveAndFlush(parcel).getId();
-        jdbc.update("insert into courier_assignments (parcel_id, courier_id, scheduled_date) values (?, ?, ?)",
-                id, courierId, java.sql.Date.valueOf(date));
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, scheduled_date, status)"
+                + " values (?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId, date);
         return id;
     }
 }
