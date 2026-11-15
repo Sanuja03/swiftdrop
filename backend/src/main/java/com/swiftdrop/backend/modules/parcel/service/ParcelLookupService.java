@@ -1,6 +1,7 @@
 package com.swiftdrop.backend.modules.parcel.service;
 
 import java.util.Locale;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,20 @@ public class ParcelLookupService {
     public Parcel getByTrackingNumber(String trackingNumber) {
         String normalised = normalise(trackingNumber);
         return parcelRepository.findByTrackingNumber(normalised)
+                .orElseThrow(() -> new ParcelNotFoundException(normalised));
+    }
+
+    /**
+     * Finds a parcel only if it belongs to this customer. Someone else's parcel is reported
+     * as not found, so a tracking number never reveals that another customer's parcel exists.
+     *
+     * @throws ParcelNotFoundException if no parcel has this tracking number or it belongs to someone else
+     */
+    @Transactional(readOnly = true)
+    public Parcel getOwnedByCustomer(String trackingNumber, UUID customerId) {
+        String normalised = normalise(trackingNumber);
+        return parcelRepository.findByTrackingNumber(normalised)
+                .filter(parcel -> customerId != null && customerId.equals(parcel.getCustomerId()))
                 .orElseThrow(() -> new ParcelNotFoundException(normalised));
     }
 

@@ -1,8 +1,19 @@
-import { Bell, ChevronDown, Menu } from 'lucide-react'
-import { CURRENT_CUSTOMER } from '@/shared/data/currentCustomer'
+import { Bell, LogOut, Menu } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
+import { initialsOf } from '@/shared/utils/format'
 import styles from './Topbar.module.css'
 
 export default function Topbar({ onOpenMenu, isMenuOpen }) {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const fullName = user?.fullName ?? ''
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <header className={styles.topbar}>
       <button
@@ -21,11 +32,13 @@ export default function Topbar({ onOpenMenu, isMenuOpen }) {
         </button>
         <div className={styles.account}>
           <span className={styles.avatar} aria-hidden="true">
-            {CURRENT_CUSTOMER.initials}
+            {initialsOf(fullName)}
           </span>
-          <span className={styles.name}>{CURRENT_CUSTOMER.fullName}</span>
-          <ChevronDown size={16} aria-hidden="true" />
+          <span className={styles.name}>{fullName}</span>
         </div>
+        <button type="button" className={styles.iconButton} onClick={handleLogout} aria-label="Sign out" title="Sign out">
+          <LogOut size={20} />
+        </button>
       </div>
     </header>
   )

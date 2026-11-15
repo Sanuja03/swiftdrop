@@ -19,7 +19,13 @@ public final class TestParcels {
     }
 
     public static Parcel withId(UUID id) {
+        return ownedBy(id, null);
+    }
+
+    /** A parcel booked by the given customer. */
+    public static Parcel ownedBy(UUID id, UUID customerId) {
         Parcel parcel = Parcel.builder()
+                .customerId(customerId)
                 .trackingNumber(TRACKING_NUMBER)
                 .senderName("Sanuja Perera")
                 .recipientName("Nimal Silva")

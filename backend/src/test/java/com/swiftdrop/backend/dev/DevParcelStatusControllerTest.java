@@ -20,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.swiftdrop.backend.modules.auth.security.JwtTokenProvider;
 import com.swiftdrop.backend.common.security.DefaultSecurityConfig;
 import com.swiftdrop.backend.modules.parcel.service.ParcelLookupService;
 import com.swiftdrop.backend.modules.tracking.controller.TrackingExceptionHandler;

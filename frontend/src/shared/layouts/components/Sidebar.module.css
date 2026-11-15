@@ -85,3 +85,14 @@
     background: rgb(8 27 50 / 0.45);
   }
 }
+
+/* Link versions (<a>) restate their colours with :any-link so a page-wide `a { color }` rule cannot override them. */
+.link:any-link {
+  color: var(--color-sidebar-text);
+}
+
+.link:any-link:hover,
+.active:any-link,
+.active:any-link:hover {
+  color: #fff;
+}

@@ -190,3 +190,63 @@ ALTER TABLE parcels ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(30);
 CREATE INDEX IF NOT EXISTS idx_parcels_pickup_zone_id  ON parcels (pickup_zone_id);
 CREATE INDEX IF NOT EXISTS idx_parcels_dropoff_zone_id ON parcels (dropoff_zone_id);
 -- ===================== end Booking & Pricing section =====================
+
+-- =====================================================================
+-- Messaging & Webhook Engine: transactional outbox and webhook deliveries
+-- Additive and idempotent. merchant_id / parcel_id are plain UUIDs (no FK)
+-- so this section can be applied before the merchant tables exist.
+-- =====================================================================
+
+-- Events written in the same transaction as the business change, then
+-- relayed to RabbitMQ (exchange "swiftdrop.events") by OutboxPublisher.
+CREATE TABLE IF NOT EXISTS outbox_events (
+    id                UUID          PRIMARY KEY,
+    aggregate_type    VARCHAR(50)   NOT NULL,
+    aggregate_id      UUID          NOT NULL,
+    event_type        VARCHAR(100)  NOT NULL,
+    routing_key       VARCHAR(150)  NOT NULL,
+    payload           TEXT          NOT NULL,
+    status            VARCHAR(20)   NOT NULL,
+    publish_attempts  INT           NOT NULL DEFAULT 0,
+    last_error        VARCHAR(500),
+    created_at        TIMESTAMPTZ   NOT NULL,
+    available_at      TIMESTAMPTZ   NOT NULL,
+    published_at      TIMESTAMPTZ
+);
+
+-- The relay only ever looks for pending rows that are due.
+CREATE INDEX IF NOT EXISTS idx_outbox_events_pending
+    ON outbox_events (available_at) WHERE status = 'PENDING';
+CREATE INDEX IF NOT EXISTS idx_outbox_events_aggregate
+    ON outbox_events (aggregate_type, aggregate_id);
+
+-- One row per (event, merchant): the signed body, its current state and the
+-- outcome of the latest attempt. Read by the delivery-attempts API.
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id                  UUID          PRIMARY KEY,
+    event_id            UUID          NOT NULL,
+    merchant_id         UUID          NOT NULL,
+    parcel_id           UUID,
+    tracking_number     VARCHAR(32),
+    event_type          VARCHAR(100)  NOT NULL,
+    endpoint_url        VARCHAR(500)  NOT NULL,
+    payload             TEXT          NOT NULL,
+    status              VARCHAR(20)   NOT NULL,
+    attempt_count       INT           NOT NULL DEFAULT 0,
+    max_attempts        INT           NOT NULL,
+    last_response_code  INT,
+    last_error          VARCHAR(500),
+    last_attempt_at     TIMESTAMPTZ,
+    next_attempt_at     TIMESTAMPTZ,
+    delivered_at        TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ   NOT NULL,
+    updated_at          TIMESTAMPTZ   NOT NULL,
+    version             BIGINT        NOT NULL DEFAULT 0,
+    CONSTRAINT uq_webhook_deliveries_event_merchant UNIQUE (event_id, merchant_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_merchant
+    ON webhook_deliveries (merchant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status
+    ON webhook_deliveries (status);
+-- ================= end Messaging & Webhook Engine section =================

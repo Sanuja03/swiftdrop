@@ -18,11 +18,6 @@ public class BookingException extends RuntimeException {
     public HttpStatus getStatus() { return status; }
     public String getTitle() { return title; }
 
-    public static BookingException customerUnavailable() {
-        return new BookingException(HttpStatus.SERVICE_UNAVAILABLE, "Customer account unavailable",
-                "No customer account is available to book this delivery.");
-    }
-
     public static BookingException trackingNumberUnavailable() {
         return new BookingException(HttpStatus.SERVICE_UNAVAILABLE, "Tracking number unavailable",
                 "A tracking number could not be assigned. Please try again.");
