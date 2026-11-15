@@ -19,9 +19,9 @@ public class PricingException extends RuntimeException {
         return new PricingException(HttpStatus.NOT_FOUND, "Zone not found", "Active zone %s was not found.".formatted(id));
     }
     public static PricingException inactiveRule(Object type) {
-        return new PricingException(HttpStatus.UNPROCESSABLE_ENTITY, "Pricing rule inactive", "No active pricing rule is available for %s.".formatted(type));
+        return new PricingException(HttpStatus.UNPROCESSABLE_CONTENT, "Pricing rule inactive", "No active pricing rule is available for %s.".formatted(type));
     }
     public static PricingException sameDayAcrossZones() {
-        return new PricingException(HttpStatus.UNPROCESSABLE_ENTITY, "Same Day unavailable", "Same Day delivery is available only when pickup and drop-off are in the same zone.");
+        return new PricingException(HttpStatus.UNPROCESSABLE_CONTENT, "Same Day unavailable", "Same Day delivery is available only when pickup and drop-off are in the same zone.");
     }
 }
