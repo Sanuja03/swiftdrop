@@ -74,7 +74,8 @@ export function onSessionChange(listener) {
   return () => listeners.delete(listener)
 }
 
-/** Where a user goes after signing in: customers to their dashboard, everyone else to their profile. */
+/** Default landing page after sign-in. */
 export function homePathFor(user) {
+  if (user?.role === 'ROLE_COURIER') return '/courier/deliveries'
   return user?.role === 'ROLE_CUSTOMER' ? '/app' : '/profile'
 }

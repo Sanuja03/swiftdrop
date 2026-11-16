@@ -6,7 +6,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity(name = "CourierAssignmentView")
@@ -27,9 +26,6 @@ public class CourierAssignment {
 
     @Column(name = "courier_id", nullable = false)
     private UUID courierId;
-
-    @Column(name = "scheduled_date")
-    private LocalDate scheduledDate;
 
     @Column(nullable = false, length = 30)
     private String status;

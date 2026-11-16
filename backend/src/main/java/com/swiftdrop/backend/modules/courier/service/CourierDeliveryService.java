@@ -37,15 +37,17 @@ public class CourierDeliveryService {
     @Transactional(readOnly = true)
     public List<CourierDeliveryResponse> today(Principal principal) {
         UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
-        return assignments.findToday(courierUserId,
-                        LocalDate.now(clock.withZone(DELIVERY_ZONE)))
-                .stream().map(CourierDeliveryResponse::from).toList();
+        LocalDate today = LocalDate.now(clock.withZone(DELIVERY_ZONE));
+        return assignments.findToday(courierUserId, today.atStartOfDay(DELIVERY_ZONE).toInstant(),
+                        today.plusDays(1).atStartOfDay(DELIVERY_ZONE).toInstant())
+                .stream().map(assignment -> CourierDeliveryResponse.from(assignment, DELIVERY_ZONE)).toList();
     }
 
     @Transactional(readOnly = true)
     public CourierDeliveryResponse details(UUID parcelId, Principal principal) {
         UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
-        return CourierDeliveryResponse.from(requireAssignment(assignments.findActiveByParcelId(parcelId), courierUserId));
+        var assignment = requireAssignment(assignments.findActiveByParcelId(parcelId), courierUserId);
+        return CourierDeliveryResponse.from(assignment, DELIVERY_ZONE, hasSavedProof(parcelId, courierUserId));
     }
 
     @Transactional
@@ -54,11 +56,15 @@ public class CourierDeliveryService {
         parcels.lockById(parcelId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned parcel not found"));
         lockAssignment(parcelId, courierUserId);
-        if (status == ParcelStatus.DELIVERED && proofs.findCurrentByParcelId(parcelId)
-                .filter(proof -> courierUserId.equals(proof.getCourierId())).isEmpty()) {
+        if (status == ParcelStatus.DELIVERED && !hasSavedProof(parcelId, courierUserId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Save delivery proof first");
         }
         statuses.updateStatus(parcelId, status, note, courierUserId);
+    }
+
+    private boolean hasSavedProof(UUID parcelId, UUID courierUserId) {
+        return proofs.findCurrentByParcelId(parcelId)
+                .filter(proof -> courierUserId.equals(proof.getCourierId())).isPresent();
     }
 
     CourierAssignment lockAssignment(UUID parcelId, UUID courierUserId) {

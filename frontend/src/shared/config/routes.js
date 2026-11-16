@@ -4,6 +4,8 @@ export const ROUTES = {
   track: '/track',
   trackParcel: (trackingNumber) => `/track/${encodeURIComponent(trackingNumber)}`,
   app: '/app',
+  courier: '/courier/deliveries',
+  courierParcel: (parcelId) => `/courier/deliveries/${encodeURIComponent(parcelId)}`,
   shipments: '/app/shipments',
   shipment: (trackingNumber) => `/app/shipments/${encodeURIComponent(trackingNumber)}`,
   createDelivery: '/app/create',

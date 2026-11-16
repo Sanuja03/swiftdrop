@@ -1,15 +1,10 @@
--- Run after the shared users, parcels and dispatch courier_assignments tables exist.
+-- Run after the shared users and parcels tables exist.
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.couriers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL UNIQUE REFERENCES public.users(id)
 );
-
-ALTER TABLE public.courier_assignments ADD COLUMN IF NOT EXISTS scheduled_date DATE;
-
-CREATE INDEX IF NOT EXISTS idx_courier_assignments_schedule
-    ON public.courier_assignments (courier_id, scheduled_date, parcel_id);
 
 CREATE TABLE IF NOT EXISTS public.delivery_proofs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

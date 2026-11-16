@@ -54,9 +54,11 @@ class CourierFlowTest {
         LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
         parcelId = assignedParcel(courierUserId, today, "SDP-TODAY");
         assignedParcel(courierUserId, today.minusDays(1), "SDP-OVERDUE");
+        assignedParcel(courierUserId, today.plusDays(1), "SDP-TOMORROW");
+        assignedParcel(courierUserId, null, "SDP-NO-ESTIMATE");
         assignedParcel(otherId, today, "SDP-OTHER");
-        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, scheduled_date, status)"
-                + " values (?, ?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId, today);
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, status)"
+                + " values (?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId);
     }
 
     @Test
@@ -108,7 +110,9 @@ class CourierFlowTest {
     @Test
     void proofPermitsDeliveryAndCorrectionKeepsOriginal() {
         goOutForDelivery();
+        assertThat(deliveries.details(parcelId, courier).hasSavedProof()).isFalse();
         var initial = proofs.save(parcelId, courier, "Original name", null, null);
+        assertThat(deliveries.details(parcelId, courier).hasSavedProof()).isTrue();
         assertThat(initial.courierId()).isEqualTo(courierUserId);
         deliveries.updateStatus(parcelId, ParcelStatus.DELIVERED, null, courier);
         var correction = proofs.save(parcelId, courier, "Corrected name", null, "Spelling");
@@ -134,9 +138,13 @@ class CourierFlowTest {
     private UUID assignedParcel(UUID courierId, LocalDate date, String trackingNumber) {
         var parcel = TestParcels.withId(null);
         org.springframework.test.util.ReflectionTestUtils.setField(parcel, "trackingNumber", trackingNumber);
+        if (date != null) {
+            org.springframework.test.util.ReflectionTestUtils.setField(parcel, "estimatedDeliveryAt",
+                    date.atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant());
+        }
         UUID id = parcels.saveAndFlush(parcel).getId();
-        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, scheduled_date, status)"
-                + " values (?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId, date);
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, status)"
+                + " values (?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId);
         return id;
     }
 }

@@ -19,6 +19,7 @@ import { BookingConfirmationPage, CreateDeliveryPage } from '@/features/booking'
 import { DeliveryHistoryPage, LiveTrackingPage, MyShipmentsPage, TrackParcelPage } from '@/features/tracking'
 import { OverviewPage } from '@/features/dashboard'
 import { SettingsPage } from '@/features/account'
+import CourierPage from '@/features/courier/pages/CourierPage'
 
 export default function App() {
   return (
@@ -67,6 +68,8 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
+          <Route path={ROUTES.courier} element={<ProtectedRoute><CourierPage /></ProtectedRoute>} />
+          <Route path={`${ROUTES.courier}/:parcelId`} element={<ProtectedRoute><CourierPage /></ProtectedRoute>} />
           <Route path="/home" element={<Navigate to="/" replace />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

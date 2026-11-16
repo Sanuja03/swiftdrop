@@ -38,8 +38,10 @@ public class DeliveryProofController {
     @PostMapping(path = COURIER + "/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public DeliveryProofResponse submitPhoto(@PathVariable UUID parcelId, Principal principal,
-                                             @RequestParam MultipartFile photo) {
-        return proofs.save(parcelId, principal, null, photo, null);
+                                             @RequestParam("photo") MultipartFile photo,
+                                             @RequestParam(name = "recipientName", required = false)
+                                             String recipientName) {
+        return proofs.save(parcelId, principal, recipientName, photo, null);
     }
 
     @PostMapping(path = COURIER + "/corrections", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -52,9 +54,11 @@ public class DeliveryProofController {
     @PostMapping(path = COURIER + "/corrections/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public DeliveryProofResponse correctPhoto(@PathVariable UUID parcelId, Principal principal,
-                                              @RequestParam MultipartFile photo,
-                                              @RequestParam String changeReason) {
-        return proofs.save(parcelId, principal, null, photo, changeReason);
+                                              @RequestParam("photo") MultipartFile photo,
+                                              @RequestParam(name = "recipientName", required = false)
+                                              String recipientName,
+                                              @RequestParam("changeReason") String changeReason) {
+        return proofs.save(parcelId, principal, recipientName, photo, changeReason);
     }
 
     @GetMapping(ADMIN)
