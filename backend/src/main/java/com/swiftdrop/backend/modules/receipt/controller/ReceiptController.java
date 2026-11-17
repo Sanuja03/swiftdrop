@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.swiftdrop.backend.common.security.CurrentCustomerProvider;
 import com.swiftdrop.backend.modules.parcel.service.ParcelLookupService;
 import com.swiftdrop.backend.modules.receipt.dto.ReceiptFile;
 import com.swiftdrop.backend.modules.receipt.service.ReceiptService;
@@ -17,9 +18,9 @@ import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Receipt download for signed-in customers. Receipts hold names and addresses,
- * so this endpoint is never public. Once accounts exist it must also check that
- * the parcel belongs to the current user.
+ * Receipt download. Receipts hold names and addresses, so only the customer who
+ * booked the parcel can download its receipt. The customer always comes from the
+ * JWT, never from the request.
  */
 @RestController
 @RequestMapping("/api/v1/receipts")
@@ -27,12 +28,13 @@ import lombok.RequiredArgsConstructor;
 public class ReceiptController {
 
     private final ReceiptService receiptService;
+    private final CurrentCustomerProvider currentCustomerProvider;
 
     @GetMapping("/{trackingNumber}")
     public ResponseEntity<byte[]> download(
             @PathVariable @Pattern(regexp = ParcelLookupService.TRACKING_NUMBER_PATTERN)
             String trackingNumber) {
-        ReceiptFile receipt = receiptService.getReceipt(trackingNumber);
+        ReceiptFile receipt = receiptService.getReceipt(trackingNumber, currentCustomerProvider.currentCustomer().id());
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION,

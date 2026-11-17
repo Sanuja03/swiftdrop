@@ -15,7 +15,7 @@ export default function TrackingSearchForm({ initialValue = '', onSearch, size =
     event.preventDefault()
     const trackingNumber = value.trim().toUpperCase()
     if (!TRACKING_NUMBER_PATTERN.test(trackingNumber)) {
-      setError('Enter a valid tracking number, for example SDP7845621.')
+      setError('Enter a valid tracking number, for example SDP1234567.')
       return
     }
     setError('')

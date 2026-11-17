@@ -20,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.swiftdrop.backend.modules.auth.security.JwtTokenProvider;
 import com.swiftdrop.backend.common.security.DefaultSecurityConfig;
 import com.swiftdrop.backend.modules.parcel.service.ParcelLookupService;
 import com.swiftdrop.backend.modules.tracking.controller.TrackingExceptionHandler;
@@ -32,6 +33,9 @@ import com.swiftdrop.backend.support.TestParcels;
 @WebMvcTest(DevParcelStatusController.class)
 @Import({DevSecurityConfig.class, DefaultSecurityConfig.class, TrackingExceptionHandler.class})
 class DevParcelStatusControllerTest {
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.swiftdrop.backend.modules.auth.security.JwtTokenProvider jwtTokenProvider;
 
     private static final UUID PARCEL_ID = UUID.randomUUID();
 

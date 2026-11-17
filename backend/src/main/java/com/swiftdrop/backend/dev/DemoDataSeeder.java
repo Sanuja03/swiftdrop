@@ -42,7 +42,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             new DemoParcel("SDP7845621", "Nimal Silva", "No. 12, Galle Road", "Dehiwala",
                     ServiceType.STANDARD, "5.00", "590.00", ParcelStatus.IN_TRANSIT),
             new DemoParcel("SDP7845638", "Kamala Jayasuriya", "No. 8, Peradeniya Road", "Kandy",
-                    ServiceType.EXPRESS, "1.20", "1490.00", ParcelStatus.DELIVERED),
+                    ServiceType.EXPRESS, "1.20", "1490.00", ParcelStatus.OUT_FOR_DELIVERY),
             new DemoParcel("SDP7845009", "Ruwan Fernando", "No. 44, Lighthouse Street", "Galle",
                     ServiceType.STANDARD, "3.40", "890.00", ParcelStatus.OUT_FOR_DELIVERY));
 

@@ -1,5 +1,6 @@
 package com.swiftdrop.backend.modules.pricing.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,4 +11,6 @@ import com.swiftdrop.backend.modules.pricing.entity.PricingRule;
 
 public interface PricingRuleRepository extends JpaRepository<PricingRule, UUID> {
     Optional<PricingRule> findByServiceType(ServiceType serviceType);
+
+    List<PricingRule> findAllByActiveTrue();
 }

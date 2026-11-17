@@ -5,6 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import jakarta.persistence.LockModeType;
 
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
@@ -15,6 +18,11 @@ public interface ParcelRepository extends JpaRepository<Parcel, UUID> {
 
     List<Parcel> findByStatusOrderByCreatedAtDesc(ParcelStatus status);
 
+    /** A customer's parcels, newest booking first. */
     List<Parcel> findByCustomerIdOrderByCreatedAtDesc(UUID customerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Parcel p where p.id = :id")
+    Optional<Parcel> lockById(UUID id);
 }
 

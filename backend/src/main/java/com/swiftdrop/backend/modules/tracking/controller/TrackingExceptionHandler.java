@@ -11,6 +11,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 
 import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.tracking.exception.InvalidStatusTransitionException;
+import com.swiftdrop.backend.modules.tracking.exception.ParcelStatusRequirementException;
 
 /**
  * Turns parcel and status-change errors into RFC 9457 problem responses, for every
@@ -20,6 +21,11 @@ import com.swiftdrop.backend.modules.tracking.exception.InvalidStatusTransitionE
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 public class TrackingExceptionHandler {
+
+    @ExceptionHandler(ParcelStatusRequirementException.class)
+    public ProblemDetail missingRequirement(ParcelStatusRequirementException ex) {
+        return problem(HttpStatus.CONFLICT, "Status requirements not met", ex.getMessage());
+    }
 
     @ExceptionHandler(ParcelNotFoundException.class)
     public ProblemDetail handleNotFound(ParcelNotFoundException ex) {

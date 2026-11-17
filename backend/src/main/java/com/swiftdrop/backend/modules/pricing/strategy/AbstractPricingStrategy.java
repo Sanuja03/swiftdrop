@@ -7,9 +7,6 @@ import com.swiftdrop.backend.modules.pricing.dto.FeeBreakdown;
 import com.swiftdrop.backend.modules.pricing.dto.PricingContext;
 
 abstract class AbstractPricingStrategy implements PricingStrategy {
-    /** The base fee already covers this much weight; only the weight above it is charged per kg. */
-    static final BigDecimal INCLUDED_WEIGHT_KG = BigDecimal.ONE;
-
     protected FeeBreakdown breakdown(PricingContext context) {
         var rule = context.rule();
         BigDecimal chargeableWeight = context.weightKg().subtract(INCLUDED_WEIGHT_KG).max(BigDecimal.ZERO);

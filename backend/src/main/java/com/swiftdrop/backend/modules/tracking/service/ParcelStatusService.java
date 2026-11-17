@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
+import com.swiftdrop.backend.modules.courier.repository.DeliveryProofRepository;
+import com.swiftdrop.backend.modules.tracking.exception.ParcelStatusRequirementException;
 import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
@@ -30,6 +32,7 @@ public class ParcelStatusService {
     private final ParcelStatusHistoryRepository historyRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
+    private final DeliveryProofRepository deliveryProofs;
 
     /**
      * Records the first timeline entry for a parcel that has just been saved as CREATED.
@@ -53,6 +56,13 @@ public class ParcelStatusService {
         Parcel parcel = parcelRepository.findById(parcelId)
                 .orElseThrow(() -> new ParcelNotFoundException(parcelId));
 
+        parcel.getStatus().assertCanTransitionTo(newStatus);
+        if (newStatus == ParcelStatus.FAILED && (note == null || note.isBlank() || note.strip().length() > 500)) {
+            throw new ParcelStatusRequirementException("Failed delivery requires a reason of up to 500 characters");
+        }
+        if (newStatus == ParcelStatus.DELIVERED && !deliveryProofs.existsByParcelId(parcelId)) {
+            throw new ParcelStatusRequirementException("Save delivery proof before marking the parcel delivered");
+        }
         ParcelStatus oldStatus = parcel.changeStatus(newStatus);
         record(parcel, oldStatus, newStatus, note, changedBy);
     }

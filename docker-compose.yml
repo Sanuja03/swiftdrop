@@ -1,21 +1,52 @@
+# Local stack: PostgreSQL, RabbitMQ, backend and frontend.
+# Every credential comes from the root .env file (copy .env.example). There are no defaults
+# here: a missing value stops `docker compose` with a message naming the variable.
 
 services:
   postgres:
     image: postgres:17-alpine
     container_name: swiftdrop-postgres
     environment:
-      POSTGRES_DB: swiftdrop
-      POSTGRES_USER: swiftdrop
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-swiftdrop_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      # Host port 5433, so it does not clash with a PostgreSQL already installed on 5432.
+      # Inside the Docker network the backend still uses postgres:5432.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U swiftdrop -d swiftdrop"]
+      # $$ = read the variable inside the container, not when compose parses this file
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Message broker for parcel status events, the outbox relay and merchant webhooks.
+  # Same image as the messaging integration test (Testcontainers). Management UI: http://localhost:15672
+  # The built-in "guest" user only works from inside the container, so a named user is created here.
+  # The user is created only when the rabbitmq_data volume is new: after changing the credentials,
+  # run `docker compose down` and `docker volume rm swiftdrop_rabbitmq_data` once.
+  rabbitmq:
+    image: rabbitmq:4.4.0-management
+    container_name: swiftdrop-rabbitmq
+    hostname: swiftdrop-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
 
   backend:
     build: ./backend
@@ -23,11 +54,20 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/swiftdrop
-      SPRING_DATASOURCE_USERNAME: swiftdrop
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-swiftdrop_dev_password}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      # Read by spring.rabbitmq.* in application.properties
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      RABBITMQ_VHOST: /
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   frontend:
@@ -40,3 +80,4 @@ services:
 
 volumes:
   postgres_data:
+  rabbitmq_data:

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { signupUser } from '../services/api';
+import { homePathFor } from '@/shared/auth/session';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
 import './SignupPage.css';
@@ -115,7 +116,7 @@ export default function SignupPage() {
     const res = await loginWithGoogle(credentialResponse.credential);
     setLoading(false);
     if (res.success) {
-      navigate('/profile');
+      navigate(homePathFor(res.user));
     } else {
       setErrorMessage(res.error || 'Google signup failed. Please try with email.');
     }
@@ -312,7 +313,7 @@ export default function SignupPage() {
                         <Building size={18} className="signup-input-icon" />
                         <input
                           type="text"
-                          placeholder="e.g. Colombo Tech Store"
+                          placeholder="Your business name"
                           value={businessName}
                           onChange={(e) => setBusinessName(e.target.value)}
                           required
@@ -327,7 +328,7 @@ export default function SignupPage() {
                         <User size={18} className="signup-input-icon" />
                         <input
                           type="text"
-                          placeholder="e.g. Kasun Perera"
+                          placeholder="Your full name"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
                           required
@@ -343,7 +344,7 @@ export default function SignupPage() {
                       <User size={18} className="signup-input-icon" />
                       <input
                         type="text"
-                        placeholder="e.g. Kasun Perera"
+                        placeholder="Your full name"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         required

@@ -85,3 +85,13 @@
     gap: var(--space-4);
   }
 }
+
+/* Link versions (<a>) restate their colours with :any-link so a page-wide `a { color }` rule cannot override them. */
+.link:any-link {
+  color: var(--color-sidebar-text);
+}
+
+.link:any-link:hover,
+.link:any-link[aria-current='page'] {
+  color: #fff;
+}

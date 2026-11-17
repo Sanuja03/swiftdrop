@@ -81,3 +81,9 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Link versions (<a>) restate their colours with :any-link so a page-wide `a { color }` rule cannot override them. */
+.liveLink:any-link,
+.liveLink:any-link:hover {
+  color: var(--color-text);
+}
