@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User,
@@ -23,10 +23,11 @@ import './ProfilePage.css';
 export default function ProfilePage() {
   const { user, token, logout, updateUserSession } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  // If user has no phone number, open edit form by default
+  // If user has no phone number or requested ?edit=true, open edit form by default
   const isProfileIncomplete = !user?.phone || user.phone.trim() === '';
-  const [isEditing, setIsEditing] = useState(isProfileIncomplete);
+  const [isEditing, setIsEditing] = useState(isProfileIncomplete || searchParams.get('edit') === 'true');
   
   // Form state
   const [fullName, setFullName] = useState(user?.fullName || '');
@@ -149,11 +150,11 @@ export default function ProfilePage() {
           {/* Top Banner Status */}
           <div className="profile-status-banner">
             <div className="profile-status-icon-bubble">
-              <CheckCircle2 size={32} color="#16A34A" />
+              <User size={30} color="#F58220" />
             </div>
-            <h1 className="profile-success-title">Signed In Successfully!</h1>
+            <h1 className="profile-success-title">My Account Profile</h1>
             <p className="profile-success-subtitle">
-              Your identity has been authenticated and your session is active.
+              Manage your personal information, verified contact details, and account settings.
             </p>
           </div>
 
@@ -303,10 +304,17 @@ export default function ProfilePage() {
 
           {/* Action Navigation Buttons */}
           <div className="profile-actions-row">
-            <Link to="/" className="btn-profile-primary">
-              <Home size={18} />
-              <span>Go to Home Page</span>
-            </Link>
+            {user.role === 'ROLE_CUSTOMER' ? (
+              <Link to="/app" className="btn-profile-primary">
+                <Home size={18} />
+                <span>Go to Customer Portal</span>
+              </Link>
+            ) : (
+              <Link to="/" className="btn-profile-primary">
+                <Home size={18} />
+                <span>Go to Home Page</span>
+              </Link>
+            )}
             <button onClick={handleLogout} className="btn-profile-secondary">
               <LogOut size={18} />
               <span>Sign Out</span>
