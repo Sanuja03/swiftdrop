@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
-public interface CourierAssignmentRepository extends JpaRepository<CourierAssignment, UUID> {
+@Repository("dispatchCourierAssignmentRepository")
+public interface DispatchCourierAssignmentRepository extends JpaRepository<CourierAssignment, UUID> {
 
     Optional<CourierAssignment> findByParcelIdAndStatusIn(UUID parcelId, Collection<AssignmentStatus> statuses);
 
@@ -33,7 +33,7 @@ public interface CourierAssignmentRepository extends JpaRepository<CourierAssign
 
     @Query("""
         SELECT ca.courierId, COUNT(ca)
-        FROM CourierAssignment ca
+        FROM DispatchCourierAssignment ca
         WHERE ca.status IN :statuses
         GROUP BY ca.courierId
     """)

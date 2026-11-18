@@ -24,7 +24,7 @@ import java.util.UUID;
  * Tracks the assignment of a parcel to a courier by a dispatcher.
  * Kept separate from parcel delivery lifecycle to preserve modularity.
  */
-@Entity
+@Entity(name = "DispatchCourierAssignment")
 @Table(name = "courier_assignments")
 @Getter
 @Builder

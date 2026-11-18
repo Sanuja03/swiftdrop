@@ -13,7 +13,7 @@ import com.swiftdrop.backend.modules.dispatch.entity.CourierAssignment;
 import com.swiftdrop.backend.modules.dispatch.exception.AssignmentNotFoundException;
 import com.swiftdrop.backend.modules.dispatch.exception.DuplicateAssignmentException;
 import com.swiftdrop.backend.modules.dispatch.exception.InvalidAssignmentStateException;
-import com.swiftdrop.backend.modules.dispatch.repository.CourierAssignmentRepository;
+import com.swiftdrop.backend.modules.dispatch.repository.DispatchCourierAssignmentRepository;
 import com.swiftdrop.backend.modules.dispatch.service.DispatchService;
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
 import com.swiftdrop.backend.modules.parcel.exception.ParcelNotFoundException;
@@ -45,7 +45,7 @@ public class DispatchServiceImpl implements DispatchService {
     );
 
     private final ParcelRepository parcelRepository;
-    private final CourierAssignmentRepository courierAssignmentRepository;
+    private final DispatchCourierAssignmentRepository courierAssignmentRepository;
     private final UserRepository userRepository;
 
     @Override
