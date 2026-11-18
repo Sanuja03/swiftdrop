@@ -46,9 +46,18 @@ class CourierFlowTest {
     private final Principal other = () -> "second@courier.test";
     private UUID parcelId;
     private UUID courierUserId;
+    private UUID dispatcherId;
 
     @BeforeEach
     void setUp() {
+        // Hibernate creates only the courier read view's columns. Include the shared
+        // dispatch columns and constraints so JDBC fixtures match schema.sql too.
+        jdbc.execute("alter table courier_assignments add column if not exists dispatcher_id UUID not null references users(id)");
+        jdbc.execute("alter table courier_assignments add column if not exists assigned_at timestamp with time zone default current_timestamp not null");
+        jdbc.execute("alter table courier_assignments add column if not exists updated_at timestamp with time zone default current_timestamp not null");
+        jdbc.execute("alter table courier_assignments add column if not exists version bigint default 0 not null");
+        dispatcherId = users.saveAndFlush(User.builder().email("dispatcher@courier.test")
+                .fullName("Test dispatcher").role(Role.ROLE_DISPATCHER).build()).getId();
         courierUserId = createCourier(courier);
         UUID otherId = createCourier(other);
         LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
@@ -57,14 +66,38 @@ class CourierFlowTest {
         assignedParcel(courierUserId, today.plusDays(1), "SDP-TOMORROW");
         assignedParcel(courierUserId, null, "SDP-NO-ESTIMATE");
         assignedParcel(otherId, today, "SDP-OTHER");
-        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, status)"
-                + " values (?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId);
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
+                + " values (?, ?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId, dispatcherId);
     }
 
     @Test
     void onlyShowsOwnDeliveriesScheduledForToday() {
         assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
                 .containsExactly(parcelId);
+    }
+
+    @Test
+    void todayExcludesAssignmentsWithAnyOtherStatus() {
+        LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
+        for (String status : new String[]{"ACCEPTED", "CANCELLED", "REJECTED", "COMPLETED"}) {
+            UUID id = assignedParcel(courierUserId, today, "SDP-" + status);
+            jdbc.update("update courier_assignments set status = ? where parcel_id = ?", status, id);
+        }
+        assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
+                .containsExactly(parcelId);
+    }
+
+    @Test
+    void reassignedParcelOnlyAppearsForNewCourier() {
+        jdbc.update("update courier_assignments set status = 'CANCELLED' where parcel_id = ?", parcelId);
+        UUID otherId = users.findByEmail(other.getName()).orElseThrow().getId();
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
+                + " values (?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), parcelId, otherId, dispatcherId);
+
+        assertThat(deliveries.today(courier)).isEmpty();
+        assertThat(deliveries.today(other)).extracting(CourierDeliveryResponse::parcelId).contains(parcelId);
+        assertThat(assertThrows(ResponseStatusException.class, () -> deliveries.details(parcelId, courier))
+                .getStatusCode().value()).isEqualTo(404);
     }
 
     @Test
@@ -143,8 +176,8 @@ class CourierFlowTest {
                     date.atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant());
         }
         UUID id = parcels.saveAndFlush(parcel).getId();
-        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, status)"
-                + " values (?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId);
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
+                + " values (?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId, dispatcherId);
         return id;
     }
 }

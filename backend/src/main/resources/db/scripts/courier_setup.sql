@@ -1,4 +1,4 @@
--- Run after the shared users and parcels tables exist.
+-- Run after schema.sql. Courier assignments are owned by the shared schema.sql.
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.couriers (

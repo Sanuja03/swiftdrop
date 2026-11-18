@@ -250,3 +250,25 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_merchant
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status
     ON webhook_deliveries (status);
 -- ================= end Messaging & Webhook Engine section =================
+
+-- Shared dispatch assignments. Courier queries use this same table.
+CREATE TABLE IF NOT EXISTS courier_assignments (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parcel_id     UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    courier_id    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    dispatcher_id UUID NOT NULL REFERENCES users(id),
+    status        VARCHAR(30) NOT NULL DEFAULT 'ASSIGNED',
+    notes         VARCHAR(500),
+    assigned_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    version       BIGINT NOT NULL DEFAULT 0
+);
+
+ALTER TABLE courier_assignments ALTER COLUMN assigned_at SET DEFAULT now();
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_courier_assignment
+    ON courier_assignments (parcel_id) WHERE status IN ('ASSIGNED', 'ACCEPTED');
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_courier_status
+    ON courier_assignments (courier_id, status);
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_parcel
+    ON courier_assignments (parcel_id);
