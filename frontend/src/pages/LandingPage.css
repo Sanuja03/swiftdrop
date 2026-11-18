@@ -124,6 +124,29 @@
   gap: 12px;
 }
 
+.btn-nav-portal {
+  background-color: #F58220;
+  color: #FFFFFF !important;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(245, 130, 32, 0.35);
+  transition: all 0.15s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btn-nav-portal:hover {
+  background-color: #E66D0A;
+  color: #FFFFFF !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(245, 130, 32, 0.45);
+}
+
 .btn-nav-profile {
   display: inline-flex;
   align-items: center;
@@ -209,8 +232,90 @@
   font-size: 16px;
   color: #CBD5E1;
   line-height: 1.55;
-  margin: 0 0 28px 0;
+  margin: 0 0 24px 0;
   max-width: 520px;
+}
+
+/* Logged-in Customer Hero Quick-Access Card */
+.hero-portal-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: rgba(16, 42, 76, 0.75);
+  border: 1px solid rgba(245, 130, 32, 0.35);
+  backdrop-filter: blur(10px);
+  padding: 16px 20px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+  max-width: 540px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+}
+
+.hero-portal-card-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hero-portal-avatar-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(245, 130, 32, 0.16);
+  border: 1px solid rgba(245, 130, 32, 0.4);
+  color: #F58220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hero-portal-welcome {
+  font-size: 15px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.hero-portal-subtitle {
+  font-size: 12.5px;
+  color: #94A3B8;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.btn-hero-portal-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #F58220;
+  color: #FFFFFF !important;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 9px;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(245, 130, 32, 0.35);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-hero-portal-cta:hover {
+  background: #E66D0A;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(245, 130, 32, 0.45);
+}
+
+@media (max-width: 640px) {
+  .hero-portal-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .btn-hero-portal-cta {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* Integrated Search Bar inside Hero */

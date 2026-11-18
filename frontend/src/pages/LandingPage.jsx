@@ -14,7 +14,8 @@ import {
   Navigation,
   FileText,
   User,
-  LogOut
+  LogOut,
+  LayoutDashboard
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import DeliveryVanIllustration from '../components/common/DeliveryVanIllustration';
@@ -57,7 +58,13 @@ export default function LandingPage() {
           <div className="landing-nav-cta">
             {isAuthenticated ? (
               <div className="landing-nav-user-group">
-                <Link to="/profile" className="btn-nav-profile">
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
+                  <Link to={ROUTES.app} className="btn-nav-portal">
+                    <LayoutDashboard size={15} />
+                    <span>Customer Portal</span>
+                  </Link>
+                </motion.div>
+                <Link to="/profile" className="btn-nav-profile" title="View Account Profile">
                   <User size={15} />
                   <span>{user?.fullName ? user.fullName.split(' ')[0] : 'My Account'}</span>
                 </Link>
@@ -100,6 +107,34 @@ export default function LandingPage() {
             >
               Enter your tracking number to get real-time updates on your delivery.
             </motion.p>
+
+            {/* Logged-in Customer Quick-Access Banner */}
+            {isAuthenticated && (
+              <motion.div 
+                className="hero-portal-card"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, delay: 0.16 }}
+              >
+                <div className="hero-portal-card-left">
+                  <div className="hero-portal-avatar-icon">
+                    <LayoutDashboard size={22} />
+                  </div>
+                  <div>
+                    <div className="hero-portal-welcome">
+                      Welcome back, {user?.fullName || 'Customer'}!
+                    </div>
+                    <div className="hero-portal-subtitle">
+                      You are signed in. Manage shipments, book pickups, and view orders.
+                    </div>
+                  </div>
+                </div>
+                <Link to={ROUTES.app} className="btn-hero-portal-cta">
+                  <span>Open Customer Portal</span>
+                  <ArrowRight size={16} />
+                </Link>
+              </motion.div>
+            )}
 
             {/* Hero Search Bar with Motion */}
             <motion.form 
@@ -505,17 +540,28 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="cta-banner-buttons">
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Link to="/signup" className="btn-cta-primary">
-                  Get Started Free
-                  <ArrowRight size={18} />
-                </Link>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Link to="/login" className="btn-cta-secondary">
-                  Sign In to Portal
-                </Link>
-              </motion.div>
+              {isAuthenticated ? (
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <Link to={ROUTES.app} className="btn-cta-primary">
+                    Open Customer Portal
+                    <ArrowRight size={18} />
+                  </Link>
+                </motion.div>
+              ) : (
+                <>
+                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                    <Link to="/signup" className="btn-cta-primary">
+                      Get Started Free
+                      <ArrowRight size={18} />
+                    </Link>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                    <Link to="/login" className="btn-cta-secondary">
+                      Sign In to Portal
+                    </Link>
+                  </motion.div>
+                </>
+              )}
             </div>
           </motion.div>
         </div>
@@ -548,7 +594,7 @@ export default function LandingPage() {
           <div className="footer-links-group">
             <h4 className="footer-group-title">Portals</h4>
             <ul className="footer-nav-list">
-              <li><Link to="/login">Customer Portal</Link></li>
+              <li><Link to={isAuthenticated ? ROUTES.app : "/login"}>Customer Portal</Link></li>
               <li><Link to="/login">Merchant Dashboard</Link></li>
               <li><Link to="/login">Courier Delivery App</Link></li>
               <li><Link to="/login">Admin Operations</Link></li>
