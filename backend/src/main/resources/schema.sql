@@ -192,6 +192,56 @@ CREATE INDEX IF NOT EXISTS idx_parcels_dropoff_zone_id ON parcels (dropoff_zone_
 -- ===================== end Booking & Pricing section =====================
 
 -- =====================================================================
+-- Dispatch Management: courier assignments
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS courier_assignments (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    parcel_id     UUID         NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    courier_id    UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    dispatcher_id UUID         NOT NULL REFERENCES users(id),
+    status        VARCHAR(30)  NOT NULL DEFAULT 'ASSIGNED',
+    notes         VARCHAR(500),
+    scheduled_date DATE        NOT NULL DEFAULT CURRENT_DATE,
+    assigned_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    version       BIGINT       NOT NULL DEFAULT 0
+);
+
+-- Ensure scheduled_date column exists on pre-existing courier_assignments tables
+ALTER TABLE courier_assignments ADD COLUMN IF NOT EXISTS scheduled_date DATE NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE courier_assignments ALTER COLUMN assigned_at SET DEFAULT now();
+
+-- Unique index prevents duplicate active assignments for the same parcel
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_courier_assignment
+    ON courier_assignments (parcel_id)
+    WHERE status IN ('ASSIGNED', 'ACCEPTED');
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_courier_status
+    ON courier_assignments (courier_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_parcel
+    ON courier_assignments (parcel_id);
+
+-- =====================================================================
+-- AI Assistant: chat conversation messages
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id     VARCHAR(64)  NOT NULL,
+    user_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
+    sender         VARCHAR(20)  NOT NULL,
+    content        TEXT         NOT NULL,
+    tool_name      VARCHAR(50),
+    tool_arguments TEXT,
+    tool_result    TEXT,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+    ON chat_messages (session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user
+    ON chat_messages (user_id);
 -- Messaging & Webhook Engine: transactional outbox and webhook deliveries
 -- Additive and idempotent. merchant_id / parcel_id are plain UUIDs (no FK)
 -- so this section can be applied before the merchant tables exist.
@@ -250,25 +300,3 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_merchant
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status
     ON webhook_deliveries (status);
 -- ================= end Messaging & Webhook Engine section =================
-
--- Shared dispatch assignments. Courier queries use this same table.
-CREATE TABLE IF NOT EXISTS courier_assignments (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    parcel_id     UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
-    courier_id    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    dispatcher_id UUID NOT NULL REFERENCES users(id),
-    status        VARCHAR(30) NOT NULL DEFAULT 'ASSIGNED',
-    notes         VARCHAR(500),
-    assigned_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    version       BIGINT NOT NULL DEFAULT 0
-);
-
-ALTER TABLE courier_assignments ALTER COLUMN assigned_at SET DEFAULT now();
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_active_courier_assignment
-    ON courier_assignments (parcel_id) WHERE status IN ('ASSIGNED', 'ACCEPTED');
-CREATE INDEX IF NOT EXISTS idx_courier_assignments_courier_status
-    ON courier_assignments (courier_id, status);
-CREATE INDEX IF NOT EXISTS idx_courier_assignments_parcel
-    ON courier_assignments (parcel_id);
