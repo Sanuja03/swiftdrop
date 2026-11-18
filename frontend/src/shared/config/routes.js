@@ -10,4 +10,6 @@ export const ROUTES = {
   bookingConfirmation: (trackingNumber) => `/app/bookings/${encodeURIComponent(trackingNumber)}`,
   history: '/app/history',
   settings: '/app/settings',
+  dispatch: '/dispatch',
+  dispatchWorkload: '/dispatch/workload',
 }

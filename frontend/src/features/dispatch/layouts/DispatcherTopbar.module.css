@@ -1,0 +1,132 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--topbar-height, 64px);
+  padding: 0 var(--space-8, 32px);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.leftGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4, 16px);
+}
+
+.menuButton {
+  display: none;
+  border: none;
+  background: transparent;
+  color: var(--color-navy, #0f172a);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.portalTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-navy, #0f172a);
+  letter-spacing: -0.2px;
+}
+
+.userGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4, 16px);
+  margin-left: auto;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-navy, #0f172a);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text, #0f172a);
+  line-height: 1.2;
+}
+
+.roleBadge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.dispatcherBadge {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.adminBadge {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+.logoutButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #334155);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.logoutButton:hover {
+  background: var(--color-error-soft, #fee2e2);
+  border-color: #fca5a5;
+  color: var(--color-error, #dc2626);
+}
+
+@media (max-width: 960px) {
+  .topbar {
+    padding: 0 var(--space-4, 16px);
+  }
+
+  .menuButton {
+    display: block;
+  }
+}
+
+@media (max-width: 640px) {
+  .portalTitle,
+  .userInfo {
+    display: none;
+  }
+}
