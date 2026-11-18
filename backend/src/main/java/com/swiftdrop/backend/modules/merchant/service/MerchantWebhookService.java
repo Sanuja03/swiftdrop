@@ -11,6 +11,7 @@ import com.swiftdrop.backend.modules.merchant.repository.MerchantWebhookLogRepos
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -44,6 +45,9 @@ public class MerchantWebhookService {
             .connectTimeout(Duration.ofSeconds(4))
             .build();
 
+    @Value("${swiftdrop.webhooks.direct-delivery.enabled:true}")
+    private boolean directDeliveryEnabled = true;
+
     public MerchantWebhookService(MerchantRepository merchantRepository,
                                   MerchantWebhookLogRepository webhookLogRepository) {
         this.merchantRepository = merchantRepository;
@@ -52,6 +56,11 @@ public class MerchantWebhookService {
 
     @Async
     public void notifyStatusChangeAsync(Parcel parcel, String eventType, String note) {
+        if (!directDeliveryEnabled) {
+            log.debug("Direct webhook notification skipped for parcel {} (messaging engine active)", parcel.getTrackingNumber());
+            return;
+        }
+
         if (parcel.getMerchantId() == null) {
             return;
         }
@@ -78,15 +87,16 @@ public class MerchantWebhookService {
             payloadMap.put("note", note != null ? note : "Parcel status updated to " + parcel.getStatus().getLabel());
             payloadMap.put("timestamp", Instant.now().toString());
 
+            // Privacy: no recipient phone or address in webhook body (as per security guidelines)
             Map<String, Object> recipient = new LinkedHashMap<>();
             recipient.put("name", parcel.getRecipientName());
-            recipient.put("phone", parcel.getRecipientPhone());
-            recipient.put("address", parcel.getDropoffAddress());
             recipient.put("city", parcel.getDropoffCity());
             payloadMap.put("recipient", recipient);
 
+            long timestamp = Instant.now().getEpochSecond();
             String jsonPayload = objectMapper.writeValueAsString(payloadMap);
-            String signature = signPayload(jsonPayload, merchant.getWebhookSecret());
+            String signature = signPayload(jsonPayload, merchant.getWebhookSecret(), timestamp);
+            String deliveryId = UUID.randomUUID().toString();
 
             HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(merchant.getWebhookUrl()))
@@ -95,6 +105,8 @@ public class MerchantWebhookService {
                     .header("User-Agent", "SwiftDrop-Webhook/1.0")
                     .header("X-SwiftDrop-Signature", signature)
                     .header("X-SwiftDrop-Event", eventType)
+                    .header("X-SwiftDrop-Delivery", deliveryId)
+                    .header("X-SwiftDrop-Attempt", String.valueOf(attemptCount))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload, StandardCharsets.UTF_8));
 
             long start = System.currentTimeMillis();
@@ -231,6 +243,10 @@ public class MerchantWebhookService {
     }
 
     public String signPayload(String payload, String secret) {
+        return signPayload(payload, secret, 0);
+    }
+
+    public String signPayload(String payload, String secret, long timestamp) {
         if (secret == null || secret.isBlank()) {
             secret = "default_swiftdrop_webhook_secret_key";
         }
@@ -238,8 +254,10 @@ public class MerchantWebhookService {
             Mac mac = Mac.getInstance("HmacSHA256");
             SecretKeySpec secretKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             mac.init(secretKey);
-            byte[] hash = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-            return "sha256=" + HexFormat.of().formatHex(hash);
+            String toSign = timestamp > 0 ? timestamp + "." + payload : payload;
+            byte[] hash = mac.doFinal(toSign.getBytes(StandardCharsets.UTF_8));
+            String hex = HexFormat.of().formatHex(hash);
+            return timestamp > 0 ? "t=" + timestamp + ",v1=" + hex : "sha256=" + hex;
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             return "sha256=unsigned";
         }

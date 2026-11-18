@@ -4,6 +4,8 @@ import java.util.Set;
 
 import com.swiftdrop.backend.modules.tracking.exception.InvalidStatusTransitionException;
 
+import lombok.Getter;
+
 /**
  * Lifecycle of a parcel, implemented with the State pattern: every status
  * decides for itself which statuses may follow it.
@@ -14,6 +16,7 @@ import com.swiftdrop.backend.modules.tracking.exception.InvalidStatusTransitionE
  *    \-----> CANCELLED (Merchant or Customer can cancel while CREATED)
  * </pre>
  */
+@Getter
 public enum ParcelStatus {
 
     CREATED("Order Created") {

@@ -13,6 +13,10 @@ public interface ParcelRepository extends JpaRepository<Parcel, UUID> {
 
     Optional<Parcel> findByTrackingNumber(String trackingNumber);
 
+    List<Parcel> findByStatusOrderByCreatedAtDesc(ParcelStatus status);
+
+    List<Parcel> findByCustomerIdOrderByCreatedAtDesc(UUID customerId);
+
     List<Parcel> findByMerchantIdOrderByCreatedAtDesc(UUID merchantId);
 
     List<Parcel> findByMerchantIdAndStatusOrderByCreatedAtDesc(UUID merchantId, ParcelStatus status);
