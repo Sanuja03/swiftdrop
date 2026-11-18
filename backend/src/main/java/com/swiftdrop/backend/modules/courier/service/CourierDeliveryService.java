@@ -38,8 +38,7 @@ public class CourierDeliveryService {
     public List<CourierDeliveryResponse> today(Principal principal) {
         UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
         LocalDate today = LocalDate.now(clock.withZone(DELIVERY_ZONE));
-        return assignments.findToday(courierUserId, today.atStartOfDay(DELIVERY_ZONE).toInstant(),
-                        today.plusDays(1).atStartOfDay(DELIVERY_ZONE).toInstant())
+        return assignments.findToday(courierUserId, today)
                 .stream().map(assignment -> CourierDeliveryResponse.from(assignment, DELIVERY_ZONE)).toList();
     }
 

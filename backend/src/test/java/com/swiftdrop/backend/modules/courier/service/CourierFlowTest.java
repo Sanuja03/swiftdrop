@@ -64,7 +64,6 @@ class CourierFlowTest {
         parcelId = assignedParcel(courierUserId, today, "SDP-TODAY");
         assignedParcel(courierUserId, today.minusDays(1), "SDP-OVERDUE");
         assignedParcel(courierUserId, today.plusDays(1), "SDP-TOMORROW");
-        assignedParcel(courierUserId, null, "SDP-NO-ESTIMATE");
         assignedParcel(otherId, today, "SDP-OTHER");
         jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
                 + " values (?, ?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId, dispatcherId);
@@ -74,6 +73,22 @@ class CourierFlowTest {
     void onlyShowsOwnDeliveriesScheduledForToday() {
         assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
                 .containsExactly(parcelId);
+    }
+
+    @Test
+    void scheduleControlsTodayEvenWhenParcelEstimateDiffersOrIsMissing() {
+        LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
+        UUID noEstimate = assignedParcel(courierUserId, today, "SDP-NO-ESTIMATE");
+        jdbc.update("update parcels set estimated_delivery_at = null where id = ?", noEstimate);
+        jdbc.update("update parcels set estimated_delivery_at = ? where id = ?",
+                today.plusDays(2).atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant(), parcelId);
+        UUID later = assignedParcel(courierUserId, today.plusDays(1), "SDP-LATER");
+        jdbc.update("update parcels set estimated_delivery_at = ? where id = ?",
+                today.atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant(), later);
+
+        assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
+                .containsExactlyInAnyOrder(parcelId, noEstimate);
+        assertThat(deliveries.details(parcelId, courier).scheduledDate()).isEqualTo(today);
     }
 
     @Test
@@ -176,8 +191,8 @@ class CourierFlowTest {
                     date.atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant());
         }
         UUID id = parcels.saveAndFlush(parcel).getId();
-        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
-                + " values (?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId, dispatcherId);
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, scheduled_date, status)"
+                + " values (?, ?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId, dispatcherId, date);
         return id;
     }
 }

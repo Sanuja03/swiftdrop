@@ -19,10 +19,8 @@ public record CourierDeliveryResponse(UUID parcelId, String trackingNumber, Loca
     public static CourierDeliveryResponse from(CourierAssignment assignment, ZoneId deliveryZone,
                                                Boolean hasSavedProof) {
         var parcel = assignment.getParcel();
-        var estimate = parcel.getEstimatedDeliveryAt();
-        LocalDate scheduledDate = estimate == null ? null : estimate.atZone(deliveryZone).toLocalDate();
         return new CourierDeliveryResponse(parcel.getId(), parcel.getTrackingNumber(),
-                scheduledDate, parcel.getStatus(), parcel.getSenderName(),
+                assignment.getScheduledDate(), parcel.getStatus(), parcel.getSenderName(),
                 parcel.getPickupAddress(), parcel.getPickupCity(), parcel.getRecipientName(),
                 parcel.getRecipientPhone(), parcel.getDropoffAddress(), parcel.getDropoffCity(), hasSavedProof);
     }
