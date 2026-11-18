@@ -33,6 +33,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -241,6 +242,7 @@ class DispatchServiceImplTest {
         when(courierAssignmentRepository.saveAndFlush(any(CourierAssignment.class)))
                 .thenAnswer(invocation -> {
                     CourierAssignment a = invocation.getArgument(0);
+                    assertThat(a.getScheduledDate()).isEqualTo(LocalDate.now());
                     return CourierAssignment.builder()
                             .id(ASSIGNMENT_ID)
                             .parcelId(a.getParcelId())
@@ -248,6 +250,7 @@ class DispatchServiceImplTest {
                             .dispatcherId(a.getDispatcherId())
                             .status(a.getStatus())
                             .notes(a.getNotes())
+                            .scheduledDate(a.getScheduledDate())
                             .assignedAt(Instant.now())
                             .updatedAt(Instant.now())
                             .version(0L)

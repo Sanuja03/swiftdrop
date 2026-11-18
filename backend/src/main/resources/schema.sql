@@ -201,10 +201,14 @@ CREATE TABLE IF NOT EXISTS courier_assignments (
     dispatcher_id UUID         NOT NULL REFERENCES users(id),
     status        VARCHAR(30)  NOT NULL DEFAULT 'ASSIGNED',
     notes         VARCHAR(500),
+    scheduled_date DATE        NOT NULL DEFAULT CURRENT_DATE,
     assigned_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     version       BIGINT       NOT NULL DEFAULT 0
 );
+
+-- Ensure scheduled_date column exists on pre-existing courier_assignments tables
+ALTER TABLE courier_assignments ADD COLUMN IF NOT EXISTS scheduled_date DATE NOT NULL DEFAULT CURRENT_DATE;
 
 -- Unique index prevents duplicate active assignments for the same parcel
 CREATE UNIQUE INDEX IF NOT EXISTS idx_active_courier_assignment

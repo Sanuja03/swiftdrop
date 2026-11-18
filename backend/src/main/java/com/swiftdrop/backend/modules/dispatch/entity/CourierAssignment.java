@@ -16,8 +16,12 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -34,6 +38,7 @@ public class CourierAssignment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @ColumnDefault("gen_random_uuid()")
     private UUID id;
 
     @Column(name = "parcel_id", nullable = false)
@@ -42,24 +47,35 @@ public class CourierAssignment {
     @Column(name = "courier_id", nullable = false)
     private UUID courierId;
 
-    @Column(name = "dispatcher_id", nullable = false)
+    @Column(name = "dispatcher_id")
     private UUID dispatcherId;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
+    @ColumnDefault("'ASSIGNED'")
     @Column(name = "status", nullable = false, length = 30)
     private AssignmentStatus status = AssignmentStatus.ASSIGNED;
 
     @Column(name = "notes", length = 500)
     private String notes;
 
+    @Builder.Default
+    @Column(name = "scheduled_date", nullable = false)
+    @ColumnDefault("CURRENT_DATE")
+    private LocalDate scheduledDate = LocalDate.now();
+
+    @CreationTimestamp
+    @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "assigned_at", nullable = false, updatable = false)
     private Instant assignedAt;
 
+    @UpdateTimestamp
+    @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     @Version
+    @ColumnDefault("0")
     @Column(name = "version", nullable = false)
     private long version;
 
@@ -110,10 +126,17 @@ public class CourierAssignment {
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
-        assignedAt = now;
-        updatedAt = now;
+        if (assignedAt == null) {
+            assignedAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
         if (status == null) {
             status = AssignmentStatus.ASSIGNED;
+        }
+        if (scheduledDate == null) {
+            scheduledDate = LocalDate.now();
         }
     }
 
