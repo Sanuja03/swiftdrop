@@ -88,6 +88,18 @@ public class AuthController {
         return ResponseEntity.ok(updated);
     }
 
+    @PostMapping("/change-password")
+    public ResponseEntity<Map<String, String>> changePassword(
+            Principal principal,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        authService.changePassword(principal.getName(), request);
+        return ResponseEntity.ok(Map.of("message", "Your password has been changed successfully."));
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(Principal principal) {
         if (principal != null) {

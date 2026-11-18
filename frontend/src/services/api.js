@@ -81,6 +81,17 @@ export function resetUserPassword(token, newPassword) {
   );
 }
 
+export function changeUserPassword(currentPassword, newPassword, confirmPassword) {
+  return attempt(
+    () => request('/auth/change-password', {
+      method: 'POST',
+      json: { currentPassword, newPassword, confirmPassword },
+      redirectOnUnauthorized: false,
+    }),
+    'Failed to change password. Please check your current password.',
+  );
+}
+
 export function verifyEmailCode(email, code) {
   return attempt(
     () => request('/auth/verify-email', { json: { email, code }, ...PUBLIC_CALL }),

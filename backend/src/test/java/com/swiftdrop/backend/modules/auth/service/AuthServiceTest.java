@@ -531,5 +531,132 @@ class AuthServiceTest {
         verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
         verify(emailService).sendEmailVerification(eq("user@swiftdrop.com"), eq("User Test"), any());
     }
+
+    @Test
+    @DisplayName("Should change password successfully for local user")
+    void changePasswordSuccess() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("OldPass123!")
+                .newPassword("NewPass123!")
+                .confirmPassword("NewPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("OldPass123!", "hashedOldPass")).thenReturn(true);
+        when(passwordEncoder.matches("NewPass123!", "hashedOldPass")).thenReturn(false);
+        when(passwordEncoder.encode("NewPass123!")).thenReturn("hashedNewPass");
+
+        authService.changePassword("user@swiftdrop.com", request);
+
+        assertEquals("hashedNewPass", user.getPasswordHash());
+        verify(userRepository).save(user);
+        verify(refreshTokenRepository).deleteByUser(user);
+    }
+
+    @Test
+    @DisplayName("Should reject password change if current password is wrong")
+    void changePasswordWrongCurrent() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("WrongPass!")
+                .newPassword("NewPass123!")
+                .confirmPassword("NewPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("WrongPass!", "hashedOldPass")).thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("user@swiftdrop.com", request));
+        assertEquals("The current password you entered is incorrect.", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject password change if new and confirm passwords do not match")
+    void changePasswordMismatch() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("OldPass123!")
+                .newPassword("NewPass123!")
+                .confirmPassword("DifferentPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("OldPass123!", "hashedOldPass")).thenReturn(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("user@swiftdrop.com", request));
+        assertEquals("New password and confirmation password do not match.", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject password change if new password is same as old password")
+    void changePasswordSameAsOld() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("OldPass123!")
+                .newPassword("OldPass123!")
+                .confirmPassword("OldPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("OldPass123!", "hashedOldPass")).thenReturn(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("user@swiftdrop.com", request));
+        assertEquals("New password cannot be the same as your current password.", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should block password change for Google OAuth users")
+    void changePasswordGoogleUserBlocked() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("any")
+                .newPassword("NewPass123!")
+                .confirmPassword("NewPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("googleuser@gmail.com")
+                .provider(AuthProvider.GOOGLE)
+                .passwordHash(null)
+                .build();
+
+        when(userRepository.findByEmail("googleuser@gmail.com")).thenReturn(Optional.of(user));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("googleuser@gmail.com", request));
+        assertEquals("Password change is only available for accounts registered with email and password.", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
 }
 

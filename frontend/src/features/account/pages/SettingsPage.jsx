@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle2, Edit2, Mail, Phone, Save, ShieldCheck, User, X } from 'lucide-react'
+import { CheckCircle2, Edit2, KeyRound, Lock, Mail, Phone, Save, ShieldCheck, User, X } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import Alert from '@/shared/components/ui/Alert'
 import Button from '@/shared/components/ui/Button'
@@ -7,17 +7,28 @@ import Card, { CardHeader } from '@/shared/components/ui/Card'
 import FormField from '@/shared/components/ui/FormField'
 import { Input } from '@/shared/components/ui/Input'
 import PageHeader from '@/shared/components/ui/PageHeader'
-import { updateUserProfile } from '@/services/api'
+import { changeUserPassword, updateUserProfile } from '@/services/api'
 import styles from './SettingsPage.module.css'
 
 export default function SettingsPage() {
   const { user, token, updateUserSession } = useAuth()
 
+  // Profile edit state
   const [isEditing, setIsEditing] = useState(false)
   const [fullName, setFullName] = useState(user?.fullName || '')
   const [phone, setPhone] = useState(user?.phone || '')
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState(null)
+
+  // Password change state (for email/password users only)
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordFeedback, setPasswordFeedback] = useState(null)
+
+  const isLocalUser = !user?.provider || user.provider === 'LOCAL'
 
   // Keep form fields synced if auth user state updates
   useEffect(() => {
@@ -72,6 +83,62 @@ export default function SettingsPage() {
     }
   }
 
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault()
+    setPasswordFeedback(null)
+
+    if (!currentPassword) {
+      setPasswordFeedback({ tone: 'error', title: 'Current password required', message: 'Please enter your current password.' })
+      return
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordFeedback({ tone: 'error', title: 'Invalid new password', message: 'New password must be at least 6 characters long.' })
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordFeedback({ tone: 'error', title: 'Passwords do not match', message: 'New password and confirmation password do not match.' })
+      return
+    }
+
+    if (currentPassword === newPassword) {
+      setPasswordFeedback({ tone: 'error', title: 'Password unchanged', message: 'New password cannot be the same as your current password.' })
+      return
+    }
+
+    setPasswordSaving(true)
+    const res = await changeUserPassword(currentPassword, newPassword, confirmPassword)
+    setPasswordSaving(false)
+
+    if (res.success) {
+      setPasswordFeedback({
+        tone: 'info',
+        title: 'Password updated',
+        message: res.data?.message || 'Your password has been changed successfully!'
+      })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowPasswordForm(false)
+      setTimeout(() => setPasswordFeedback(null), 5000)
+    } else {
+      setPasswordFeedback({
+        tone: 'error',
+        title: 'Change password failed',
+        message: res.error || 'Failed to change password. Please verify your current password.'
+      })
+    }
+  }
+
+  const handleCancelPassword = () => {
+    setShowPasswordForm(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setPasswordFeedback(null)
+  }
+
   const formatRole = (role) => {
     if (!role) return 'Customer'
     return role.replace('ROLE_', '').toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
@@ -79,7 +146,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" subtitle="Manage your personal profile, contact information, and account details." />
+      <PageHeader title="Settings" subtitle="Manage your personal profile, contact information, and account security." />
 
       {feedback && (
         <div className={styles.alertWrapper}>
@@ -89,6 +156,7 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Profile Details Card */}
       <Card className={styles.card}>
         <CardHeader
           title="Profile Details"
@@ -196,6 +264,115 @@ export default function SettingsPage() {
         )}
       </Card>
 
+      {/* Change Password Card - EXCLUSIVELY for Email & Password (Local) users */}
+      {isLocalUser && (
+        <Card className={styles.passwordCard}>
+          <CardHeader
+            title="Change Password"
+            icon={KeyRound}
+            action={
+              !showPasswordForm && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={KeyRound}
+                  onClick={() => {
+                    setShowPasswordForm(true)
+                    setPasswordFeedback(null)
+                  }}
+                >
+                  Change password
+                </Button>
+              )
+            }
+          />
+
+          {passwordFeedback && (
+            <div className={styles.alertWrapper}>
+              <Alert tone={passwordFeedback.tone} title={passwordFeedback.title}>
+                {passwordFeedback.message}
+              </Alert>
+            </div>
+          )}
+
+          {showPasswordForm ? (
+            <form onSubmit={handlePasswordSubmit} className={styles.form}>
+              <div className={styles.fields}>
+                <FormField label="Current password" icon={Lock}>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter your current password"
+                      required
+                      autoFocus
+                    />
+                  )}
+                </FormField>
+
+                <FormField
+                  label="New password"
+                  icon={Lock}
+                  hint="Must be at least 6 characters long and different from your current password."
+                >
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password (min. 6 characters)"
+                      required
+                    />
+                  )}
+                </FormField>
+
+                <FormField label="Confirm new password" icon={Lock}>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-type new password"
+                      required
+                    />
+                  )}
+                </FormField>
+              </div>
+
+              <div className={styles.actions}>
+                <Button type="submit" variant="primary" icon={Save} disabled={passwordSaving}>
+                  {passwordSaving ? 'Updating Password...' : 'Update Password'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={X}
+                  onClick={handleCancelPassword}
+                  disabled={passwordSaving}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className={styles.passwordSummaryRow}>
+              <div>
+                <p className={styles.passwordNoticeText}>
+                  Your account is protected with a password.
+                </p>
+                <p className={styles.passwordNoticeSubtext}>
+                  Regularly updating your password helps keep your deliveries and contact details secure.
+                </p>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Account & Security Information */}
       <Card className={styles.accountMetaCard}>
         <CardHeader title="Account & Security" icon={ShieldCheck} />
@@ -220,6 +397,18 @@ export default function SettingsPage() {
             </span>
           </div>
         </div>
+
+        {user?.provider === 'GOOGLE' && (
+          <div className={styles.googleNotice}>
+            <ShieldCheck size={18} className={styles.googleNoticeIcon} />
+            <div>
+              <strong className={styles.googleNoticeTitle}>Google Account Authentication</strong>
+              <p className={styles.googleNoticeText}>
+                You are signed in with Google. Passwords and security credentials are directly managed through your Google account.
+              </p>
+            </div>
+          </div>
+        )}
       </Card>
     </>
   )

@@ -13,11 +13,13 @@ import {
   Terminal,
   Edit2,
   Save,
-  AlertCircle
+  AlertCircle,
+  KeyRound,
+  Lock
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { useAuth } from '../context/AuthContext';
-import { testEndpoint, updateUserProfile } from '../services/api';
+import { testEndpoint, updateUserProfile, changeUserPassword } from '../services/api';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
@@ -35,6 +37,16 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [saveError, setSaveError] = useState('');
+
+  // Password change state (only for LOCAL email/password users)
+  const isLocalUser = !user?.provider || user?.provider === 'LOCAL';
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [passSaving, setPassSaving] = useState(false);
+  const [passMessage, setPassMessage] = useState('');
+  const [passError, setPassError] = useState('');
 
   // Evaluator inspector
   const [showRbacInspector, setShowRbacInspector] = useState(false);
@@ -71,6 +83,44 @@ export default function ProfilePage() {
       setTimeout(() => setSaveMessage(''), 3500);
     } else {
       setSaveError(res.error || 'Failed to update details. Please try again.');
+    }
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPassError('');
+    setPassMessage('');
+
+    if (!currentPass) {
+      setPassError('Please enter your current password.');
+      return;
+    }
+    if (!newPass || newPass.length < 6) {
+      setPassError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setPassError('New password and confirmation password do not match.');
+      return;
+    }
+    if (currentPass === newPass) {
+      setPassError('New password cannot be the same as your current password.');
+      return;
+    }
+
+    setPassSaving(true);
+    const res = await changeUserPassword(currentPass, newPass, confirmPass);
+    setPassSaving(false);
+
+    if (res.success) {
+      setPassMessage(res.data?.message || 'Your password has been changed successfully!');
+      setCurrentPass('');
+      setNewPass('');
+      setConfirmPass('');
+      setShowPasswordChange(false);
+      setTimeout(() => setPassMessage(''), 4000);
+    } else {
+      setPassError(res.error || 'Failed to change password. Please check your current password.');
     }
   };
 
@@ -299,6 +349,122 @@ export default function ProfilePage() {
                   </strong>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Change Password Block (EXCLUSIVELY for Email & Password accounts) */}
+          {isLocalUser && (
+            <div className="profile-session-block" style={{ marginTop: 20 }}>
+              <div className="profile-section-heading-row">
+                <h3 className="profile-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <KeyRound size={16} color="#F58220" />
+                  <span>Account Password & Security</span>
+                </h3>
+                {!showPasswordChange && (
+                  <button
+                    onClick={() => {
+                      setShowPasswordChange(true);
+                      setPassError('');
+                      setPassMessage('');
+                    }}
+                    className="btn-edit-trigger"
+                  >
+                    <KeyRound size={14} />
+                    <span>Change Password</span>
+                  </button>
+                )}
+              </div>
+
+              {passMessage && (
+                <div className="profile-alert-success" style={{ margin: '12px 0' }}>
+                  <CheckCircle2 size={18} color="#16A34A" />
+                  <span>{passMessage}</span>
+                </div>
+              )}
+
+              {passError && (
+                <div className="profile-alert-error" style={{ margin: '12px 0' }}>
+                  <AlertCircle size={18} color="#DC2626" />
+                  <span>{passError}</span>
+                </div>
+              )}
+
+              {showPasswordChange ? (
+                <form onSubmit={handlePasswordChange} className="profile-details-form" style={{ marginTop: 12 }}>
+                  <div className="profile-form-row">
+                    <div className="profile-form-group">
+                      <label className="profile-form-label">Current Password</label>
+                      <div className="profile-input-wrapper">
+                        <Lock size={18} className="profile-input-icon" />
+                        <input
+                          type="password"
+                          value={currentPass}
+                          onChange={(e) => setCurrentPass(e.target.value)}
+                          placeholder="Your current password"
+                          required
+                          className="profile-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="profile-form-row">
+                    <div className="profile-form-group">
+                      <label className="profile-form-label">New Password</label>
+                      <div className="profile-input-wrapper">
+                        <Lock size={18} className="profile-input-icon" />
+                        <input
+                          type="password"
+                          value={newPass}
+                          onChange={(e) => setNewPass(e.target.value)}
+                          placeholder="Min. 6 characters"
+                          required
+                          className="profile-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="profile-form-group">
+                      <label className="profile-form-label">Confirm New Password</label>
+                      <div className="profile-input-wrapper">
+                        <Lock size={18} className="profile-input-icon" />
+                        <input
+                          type="password"
+                          value={confirmPass}
+                          onChange={(e) => setConfirmPass(e.target.value)}
+                          placeholder="Re-enter new password"
+                          required
+                          className="profile-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="profile-form-actions">
+                    <button type="submit" disabled={passSaving} className="btn-save-details">
+                      <Save size={16} />
+                      <span>{passSaving ? 'Updating...' : 'Update Password'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPasswordChange(false);
+                        setCurrentPass('');
+                        setNewPass('');
+                        setConfirmPass('');
+                        setPassError('');
+                      }}
+                      className="btn-cancel-edit"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <p style={{ margin: '8px 0 0 0', fontSize: 13, color: '#64748B' }}>
+                  Your account is secured with a password. Click "Change Password" to update your credentials.
+                </p>
+              )}
             </div>
           )}
 
