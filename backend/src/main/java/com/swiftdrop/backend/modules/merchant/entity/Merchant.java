@@ -53,7 +53,7 @@ public class Merchant {
     @Column(name = "webhook_url", length = 500)
     private String webhookUrl;
 
-    @Column(name = "webhook_secret", length = 128)
+    @Column(name = "webhook_secret", length = 255)
     private String webhookSecret;
 
     @Column(name = "created_at", nullable = false, updatable = false)
