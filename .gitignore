@@ -26,3 +26,7 @@ Thumbs.db
 
 # Temporary files
 *.tmp
+
+# Local Batch / Shell Runner scripts
+*.bat
+*.cmd

@@ -1,0 +1,9 @@
+.card {
+  max-width: 640px;
+}
+
+.fields {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}

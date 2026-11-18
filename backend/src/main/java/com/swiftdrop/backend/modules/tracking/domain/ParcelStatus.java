@@ -13,7 +13,7 @@ import lombok.Getter;
  * <pre>
  * CREATED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY -> DELIVERED
  *    |                                                   \-> FAILED
- *    \-----> CANCELLED (Merchant or Customer can cancel while CREATED)
+ *    \-----> CANCELLED (merchant or customer can cancel while CREATED)
  * </pre>
  */
 @Getter
@@ -68,10 +68,9 @@ public enum ParcelStatus {
         this.label = label;
     }
 
-    public String getLabel() {
-        return label;
-    }
-
+    /**
+     * @return the statuses this status is allowed to move to
+     */
     public abstract Set<ParcelStatus> nextStatuses();
 
     public boolean canTransitionTo(ParcelStatus target) {
@@ -82,6 +81,9 @@ public enum ParcelStatus {
         return nextStatuses().isEmpty();
     }
 
+    /**
+     * @throws InvalidStatusTransitionException if {@code target} may not follow this status
+     */
     public void assertCanTransitionTo(ParcelStatus target) {
         if (!canTransitionTo(target)) {
             throw new InvalidStatusTransitionException(this, target);

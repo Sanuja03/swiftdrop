@@ -1,0 +1,22 @@
+import styles from './Logo.module.css'
+
+function LogoMark() {
+  return (
+    <svg className={styles.mark} viewBox="0 0 32 32" aria-hidden="true">
+      <path fill="#E06A1F" d="M16 2 29 8.5v15L16 30 3 23.5v-15z" />
+      <path fill="#C25414" d="M16 15v15L3 23.5v-15z" />
+      <path fill="#F59E5B" d="M16 2 29 8.5 16 15 3 8.5z" />
+      <path fill="#fff" d="m10 5.4 13 6.5v4l-3-1.5v-4L7 3.9z" opacity=".85" />
+    </svg>
+  )
+}
+
+/** SwiftDrop wordmark. Use tone="light" on dark backgrounds. */
+export default function Logo({ tone = 'light', size = 'md' }) {
+  return (
+    <span className={`${styles.logo} ${styles[tone]} ${styles[size]}`}>
+      <LogoMark />
+      <span className={styles.word}>SwiftDrop</span>
+    </span>
+  )
+}

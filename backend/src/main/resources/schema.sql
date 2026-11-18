@@ -192,6 +192,59 @@ CREATE INDEX IF NOT EXISTS idx_parcels_dropoff_zone_id ON parcels (dropoff_zone_
 -- ===================== end Booking & Pricing section =====================
 
 -- =====================================================================
+-- =====================================================================
+-- Dispatch Management: courier assignments
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS courier_assignments (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    parcel_id     UUID         NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    courier_id    UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    dispatcher_id UUID         NOT NULL REFERENCES users(id),
+    status        VARCHAR(30)  NOT NULL DEFAULT 'ASSIGNED',
+    notes         VARCHAR(500),
+    scheduled_date DATE        NOT NULL DEFAULT CURRENT_DATE,
+    assigned_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    version       BIGINT       NOT NULL DEFAULT 0
+);
+
+-- Ensure scheduled_date column exists on pre-existing courier_assignments tables
+ALTER TABLE courier_assignments ADD COLUMN IF NOT EXISTS scheduled_date DATE NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE courier_assignments ALTER COLUMN assigned_at SET DEFAULT now();
+
+-- Unique index prevents duplicate active assignments for the same parcel
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_courier_assignment
+    ON courier_assignments (parcel_id)
+    WHERE status IN ('ASSIGNED', 'ACCEPTED');
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_courier_status
+    ON courier_assignments (courier_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_parcel
+    ON courier_assignments (parcel_id);
+
+-- =====================================================================
+-- AI Assistant: chat conversation messages
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id     VARCHAR(64)  NOT NULL,
+    user_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
+    sender         VARCHAR(20)  NOT NULL,
+    content        TEXT         NOT NULL,
+    tool_name      VARCHAR(50),
+    tool_arguments TEXT,
+    tool_result    TEXT,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+    ON chat_messages (session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user
+    ON chat_messages (user_id);
+
+-- =====================================================================
 -- Messaging & Webhook Engine: transactional outbox and webhook deliveries
 -- Additive and idempotent. merchant_id / parcel_id are plain UUIDs (no FK)
 -- so this section can be applied before the merchant tables exist.
@@ -251,12 +304,9 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status
     ON webhook_deliveries (status);
 -- ================= end Messaging & Webhook Engine section =================
 
-
 -- =====================================================================
 -- Merchant Platform, Order API & Webhooks
 -- =====================================================================
-
--- Merchants Table
 CREATE TABLE IF NOT EXISTS merchants (
     id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID         NOT NULL UNIQUE REFERENCES users(id),
@@ -274,7 +324,7 @@ CREATE TABLE IF NOT EXISTS merchants (
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Backward compatibility and idempotent column modifications
+-- Backward compatibility for merchants tables created before these columns
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS webhook_url VARCHAR(500);
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(255);
 ALTER TABLE merchants ALTER COLUMN webhook_secret TYPE VARCHAR(255);
@@ -283,13 +333,11 @@ CREATE INDEX IF NOT EXISTS idx_merchants_user_id ON merchants(user_id);
 CREATE INDEX IF NOT EXISTS idx_merchants_api_key ON merchants(api_key);
 CREATE INDEX IF NOT EXISTS idx_merchants_status ON merchants(registration_status);
 
--- Merchant ownership on parcels table
+-- Merchant ownership on parcels (null for customer bookings)
 ALTER TABLE parcels ADD COLUMN IF NOT EXISTS merchant_id UUID REFERENCES merchants(id);
-ALTER TABLE parcels ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(50);
-
 CREATE INDEX IF NOT EXISTS idx_parcels_merchant_id ON parcels(merchant_id);
 
--- Merchant Webhook Logs Table (for direct test pings and delivery logging)
+-- Merchant webhook test pings and direct delivery log
 CREATE TABLE IF NOT EXISTS merchant_webhook_logs (
     id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     merchant_id     UUID         NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
@@ -306,34 +354,5 @@ CREATE TABLE IF NOT EXISTS merchant_webhook_logs (
 
 CREATE INDEX IF NOT EXISTS idx_merchant_webhook_logs_merchant ON merchant_webhook_logs(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_merchant_webhook_logs_tracking ON merchant_webhook_logs(tracking_number);
-
--- Demo Merchant User & Merchant Profile (idempotent seed for local & verification testing)
-INSERT INTO users (id, email, password_hash, full_name, phone, role, status, email_verified)
-VALUES (
-    '7a35f29c-9821-4f1e-8488-84dc2d6a5c01',
-    'merchant@colomboelectronics.lk',
-    '',
-    'Colombo Electronics Admin',
-    '+94 77 123 4567',
-    'ROLE_MERCHANT',
-    'ACTIVE',
-    TRUE
-) ON CONFLICT (email) DO NOTHING;
-
-INSERT INTO merchants (id, user_id, business_name, registration_number, contact_phone, business_address, registration_status, api_key, webhook_url, webhook_secret)
-VALUES (
-    '7a35f29c-9821-4f1e-8488-84dc2d6a5c10',
-    '7a35f29c-9821-4f1e-8488-84dc2d6a5c01',
-    'Colombo Electronics & Gadgets Ltd',
-    'PV-89214-LK',
-    '+94 77 123 4567',
-    '45 Galle Road, Colombo 03',
-    'APPROVED',
-    'sdp_live_9f82a17b8c6e430d892a017e29b1',
-    'https://api.colomboelectronics.lk/webhooks/swiftdrop',
-    'whsec_f8902a7b6c3d4e818902cba6120'
-) ON CONFLICT (user_id) DO UPDATE SET
-    webhook_url = EXCLUDED.webhook_url,
-    webhook_secret = EXCLUDED.webhook_secret,
-    api_key = EXCLUDED.api_key;
+-- Demo merchant data lives in the dev-profile seeder, not here (no committed API keys or secrets).
 -- ================= end Merchant Platform section =====================
