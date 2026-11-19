@@ -1,139 +1,125 @@
 package com.swiftdrop.backend.modules.merchant.service;
 
-import com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
 import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
-import com.swiftdrop.backend.modules.merchant.dto.MerchantStatsResponse;
 import com.swiftdrop.backend.modules.merchant.dto.WebhookConfigRequest;
 import com.swiftdrop.backend.modules.merchant.entity.Merchant;
 import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
 import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
 class MerchantServiceTest {
+    private static final UUID USER_ID = UUID.fromString("70000000-0000-4000-8000-000000000001");
+    private static final UUID MERCHANT_ID = UUID.fromString("80000000-0000-4000-8000-000000000001");
 
-    @Mock
-    private MerchantRepository merchantRepository;
+    private final MerchantRepository merchantRepository = mock(MerchantRepository.class);
+    private final ParcelRepository parcelRepository = mock(ParcelRepository.class);
+    private final MerchantService service = new MerchantService(merchantRepository, parcelRepository);
 
-    @Mock
-    private ParcelRepository parcelRepository;
+    @Test
+    void registrationIsLinkedToTheCallersOwnAccountAndStartsPending() {
+        when(merchantRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        when(merchantRepository.save(any(Merchant.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-    @InjectMocks
-    private MerchantService merchantService;
+        var response = service.registerMerchant(USER_ID, registerRequest());
 
-    private UUID merchantId;
-    private Merchant merchant;
+        var saved = ArgumentCaptor.forClass(Merchant.class);
+        verify(merchantRepository).save(saved.capture());
+        assertThat(saved.getValue().getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getValue().getWebhookSecret()).startsWith("whsec_");
+        assertThat(response.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.PENDING);
+        assertThat(response.getApiKey()).isNull();
+    }
 
-    @BeforeEach
-    void setUp() {
-        merchantId = UUID.randomUUID();
-        merchant = Merchant.builder()
-                .id(merchantId)
-                .userId(UUID.randomUUID())
-                .businessName("Galle Bookshop")
-                .registrationNumber("PV-554433")
-                .contactPhone("+94912233445")
-                .businessAddress("Fort, Galle")
+    @Test
+    void secondProfileForTheSameAccountIsRejected() {
+        when(merchantRepository.findByUserId(USER_ID)).thenReturn(Optional.of(merchant(null)));
+
+        assertThatThrownBy(() -> service.registerMerchant(USER_ID, registerRequest()))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(merchantRepository, never()).save(any());
+    }
+
+    @Test
+    void regeneratedKeyIsNewAndRandom() {
+        var merchant = merchant("sdp_live_old");
+        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(merchant));
+
+        String first = service.regenerateApiKey(MERCHANT_ID);
+        String second = service.regenerateApiKey(MERCHANT_ID);
+
+        assertThat(first).startsWith("sdp_live_").isNotEqualTo("sdp_live_old").isNotEqualTo(second);
+        assertThat(merchant.getApiKey()).isEqualTo(second);
+    }
+
+    @Test
+    void ownProfileShowsTheKeyButTheAdminViewDoesNot() {
+        var merchant = merchant("sdp_live_test_key");
+
+        assertThat(service.mapToProfile(merchant).getApiKey()).isEqualTo("sdp_live_test_key");
+        assertThat(service.mapToAdminProfile(merchant).getApiKey()).isNull();
+    }
+
+    @Test
+    void updatesWebhookSettings() {
+        var merchant = merchant(null);
+        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(merchant));
+        when(merchantRepository.save(any(Merchant.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.updateWebhookConfig(MERCHANT_ID, WebhookConfigRequest.builder()
+                .webhookUrl(" https://example.com/webhook ").webhookSecret("whsec_test_secret").build());
+
+        assertThat(response.getWebhookUrl()).isEqualTo("https://example.com/webhook");
+        assertThat(response.isWebhookConfigured()).isTrue();
+        assertThat(merchant.getWebhookSecret()).isEqualTo("whsec_test_secret");
+    }
+
+    @Test
+    void statsCountOnlyThisMerchantsParcels() {
+        when(parcelRepository.countByMerchantId(MERCHANT_ID)).thenReturn(5L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.CREATED)).thenReturn(1L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.IN_TRANSIT)).thenReturn(2L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.DELIVERED)).thenReturn(1L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.CANCELLED)).thenReturn(1L);
+
+        var stats = service.getStats(MERCHANT_ID);
+
+        assertThat(stats.getTotalOrders()).isEqualTo(5);
+        assertThat(stats.getPendingOrders()).isEqualTo(1);
+        assertThat(stats.getActiveShipments()).isEqualTo(2);
+        assertThat(stats.getCancelledOrders()).isEqualTo(1);
+    }
+
+    private static MerchantRegisterRequest registerRequest() {
+        return MerchantRegisterRequest.builder()
+                .businessName("Test Shop")
+                .contactPhone("0000000000")
+                .businessAddress("1 Sample Street")
+                .build();
+    }
+
+    private static Merchant merchant(String apiKey) {
+        return Merchant.builder()
+                .id(MERCHANT_ID)
+                .userId(USER_ID)
+                .businessName("Test Shop")
                 .registrationStatus(MerchantRegistrationStatus.APPROVED)
-                .apiKey("sdp_live_old_key")
-                .webhookUrl("https://example.com/webhook")
-                .webhookSecret("whsec_old_secret")
+                .apiKey(apiKey)
+                .webhookSecret("whsec_old")
                 .build();
-    }
-
-    @Test
-    void testRegisterMerchant() {
-        UUID userId = UUID.randomUUID();
-        MerchantRegisterRequest request = MerchantRegisterRequest.builder()
-                .userId(userId)
-                .businessName("Kandy Tea Traders")
-                .registrationNumber("BR-9988")
-                .contactPhone("+94812233445")
-                .businessAddress("Dalada Veediya, Kandy")
-                .build();
-
-        when(merchantRepository.findByUserId(userId)).thenReturn(Optional.empty());
-        when(merchantRepository.save(any(Merchant.class))).thenAnswer(i -> {
-            Merchant m = i.getArgument(0);
-            return Merchant.builder()
-                    .id(UUID.randomUUID())
-                    .userId(m.getUserId())
-                    .businessName(m.getBusinessName())
-                    .registrationNumber(m.getRegistrationNumber())
-                    .contactPhone(m.getContactPhone())
-                    .businessAddress(m.getBusinessAddress())
-                    .registrationStatus(m.getRegistrationStatus())
-                    .webhookSecret(m.getWebhookSecret())
-                    .build();
-        });
-
-        MerchantProfileResponse response = merchantService.registerMerchant(request);
-
-        assertNotNull(response);
-        assertEquals("Kandy Tea Traders", response.getBusinessName());
-        assertEquals(MerchantRegistrationStatus.PENDING, response.getRegistrationStatus());
-        assertNull(response.getApiKey()); // API key not generated until approved
-    }
-
-    @Test
-    void testRegenerateApiKey() {
-        when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(merchant));
-
-        String newKey = merchantService.regenerateApiKey(merchantId);
-
-        assertNotNull(newKey);
-        assertTrue(newKey.startsWith("sdp_live_"));
-        assertNotEquals("sdp_live_old_key", newKey);
-        verify(merchantRepository).save(merchant);
-    }
-
-    @Test
-    void testUpdateWebhookConfig() {
-        when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(merchant));
-        when(merchantRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-        WebhookConfigRequest req = WebhookConfigRequest.builder()
-                .webhookUrl("https://api.merchant.com/swiftdrop-events")
-                .webhookSecret("whsec_new_custom_secret")
-                .build();
-
-        MerchantProfileResponse response = merchantService.updateWebhookConfig(merchantId, req);
-
-        assertEquals("https://api.merchant.com/swiftdrop-events", response.getWebhookUrl());
-        assertTrue(response.isWebhookConfigured());
-    }
-
-    @Test
-    void testGetStats() {
-        when(parcelRepository.countByMerchantId(merchantId)).thenReturn(10L);
-        when(parcelRepository.countByMerchantIdAndStatus(merchantId, ParcelStatus.CREATED)).thenReturn(2L);
-        when(parcelRepository.countByMerchantIdAndStatus(merchantId, ParcelStatus.PICKED_UP)).thenReturn(1L);
-        when(parcelRepository.countByMerchantIdAndStatus(merchantId, ParcelStatus.IN_TRANSIT)).thenReturn(3L);
-        when(parcelRepository.countByMerchantIdAndStatus(merchantId, ParcelStatus.OUT_FOR_DELIVERY)).thenReturn(1L);
-        when(parcelRepository.countByMerchantIdAndStatus(merchantId, ParcelStatus.DELIVERED)).thenReturn(2L);
-        when(parcelRepository.countByMerchantIdAndStatus(merchantId, ParcelStatus.CANCELLED)).thenReturn(1L);
-
-        MerchantStatsResponse stats = merchantService.getStats(merchantId);
-
-        assertEquals(10L, stats.getTotalOrders());
-        assertEquals(2L, stats.getPendingOrders());
-        assertEquals(5L, stats.getActiveShipments()); // 1 picked up + 3 in transit + 1 out for delivery
-        assertEquals(2L, stats.getDeliveredOrders());
-        assertEquals(1L, stats.getCancelledOrders());
     }
 }
-

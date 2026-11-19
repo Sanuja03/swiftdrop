@@ -1,83 +1,95 @@
 package com.swiftdrop.backend.modules.merchant.service;
 
-import com.swiftdrop.backend.modules.merchant.dto.MerchantApprovalRequest;
-import com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse;
-import com.swiftdrop.backend.modules.merchant.entity.Merchant;
-import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
-import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-@ExtendWith(MockitoExtension.class)
+import com.swiftdrop.backend.modules.merchant.entity.Merchant;
+import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
+import com.swiftdrop.backend.modules.merchant.exception.MerchantNotFoundException;
+import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
+import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
+
 class MerchantAdminServiceTest {
+    private static final UUID MERCHANT_ID = UUID.fromString("80000000-0000-4000-8000-000000000001");
+    private static final UUID ADMIN_ID = UUID.fromString("70000000-0000-4000-8000-000000000009");
 
-    @Mock
-    private MerchantRepository merchantRepository;
-
-    private MerchantService merchantService;
-    private MerchantAdminService adminService;
-
-    private UUID merchantId;
-    private Merchant pendingMerchant;
+    private final MerchantRepository merchantRepository = mock(MerchantRepository.class);
+    private final MerchantService merchantService = new MerchantService(merchantRepository, mock(ParcelRepository.class));
+    private final MerchantAdminService service = new MerchantAdminService(merchantRepository, merchantService);
 
     @BeforeEach
-    void setUp() {
-        merchantService = new MerchantService(merchantRepository, null);
-        adminService = new MerchantAdminService(merchantRepository, merchantService);
+    void saveReturnsTheEntity() {
+        when(merchantRepository.save(any(Merchant.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
-        merchantId = UUID.randomUUID();
-        pendingMerchant = Merchant.builder()
-                .id(merchantId)
-                .userId(UUID.randomUUID())
-                .businessName("Lanka Spices Co.")
+    @Test
+    void approvalRecordsTheSignedInAdminAndIssuesAKey() {
+        var merchant = pending();
+        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(merchant));
+
+        var response = service.approveMerchant(MERCHANT_ID, "Looks good", ADMIN_ID);
+
+        assertThat(merchant.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.APPROVED);
+        assertThat(merchant.getApprovedBy()).isEqualTo(ADMIN_ID);
+        assertThat(merchant.getApiKey()).startsWith("sdp_live_");
+        assertThat(response.getApiKey()).as("admins never see a merchant's key").isNull();
+    }
+
+    @Test
+    void reapprovalKeepsTheExistingKey() {
+        var merchant = pending();
+        merchant.setApiKey("sdp_live_existing");
+        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(merchant));
+
+        service.approveMerchant(MERCHANT_ID, null, ADMIN_ID);
+
+        assertThat(merchant.getApiKey()).isEqualTo("sdp_live_existing");
+    }
+
+    @Test
+    void rejectionRecordsTheAdmin() {
+        var merchant = pending();
+        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(merchant));
+
+        service.rejectMerchant(MERCHANT_ID, "Missing documents", ADMIN_ID);
+
+        assertThat(merchant.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.REJECTED);
+        assertThat(merchant.getApprovedBy()).isEqualTo(ADMIN_ID);
+    }
+
+    @Test
+    void listHidesApiKeys() {
+        var merchant = pending();
+        merchant.setApiKey("sdp_live_secret");
+        when(merchantRepository.findAll()).thenReturn(List.of(merchant));
+
+        assertThat(service.listMerchants(null)).allMatch(profile -> profile.getApiKey() == null);
+    }
+
+    @Test
+    void unknownMerchantIsNotFound() {
+        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.approveMerchant(MERCHANT_ID, null, ADMIN_ID))
+                .isInstanceOf(MerchantNotFoundException.class);
+    }
+
+    private static Merchant pending() {
+        return Merchant.builder()
+                .id(MERCHANT_ID)
+                .userId(UUID.fromString("70000000-0000-4000-8000-000000000001"))
+                .businessName("Test Shop")
                 .registrationStatus(MerchantRegistrationStatus.PENDING)
                 .build();
-    }
-
-    @Test
-    void testApproveMerchantGeneratesApiKeyAndSetsApproved() {
-        UUID adminId = UUID.randomUUID();
-        MerchantApprovalRequest req = MerchantApprovalRequest.builder()
-                .adminId(adminId)
-                .notes("All legal documents verified")
-                .build();
-
-        when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(pendingMerchant));
-        when(merchantRepository.save(any(Merchant.class))).thenAnswer(i -> i.getArgument(0));
-
-        MerchantProfileResponse response = adminService.approveMerchant(merchantId, req);
-
-        assertEquals(MerchantRegistrationStatus.APPROVED, response.getRegistrationStatus());
-        assertNotNull(response.getApiKey());
-        assertTrue(response.getApiKey().startsWith("sdp_live_"));
-        verify(merchantRepository).save(argThat(m ->
-                m.getRegistrationStatus() == MerchantRegistrationStatus.APPROVED
-                        && m.getApprovedBy().equals(adminId)
-        ));
-    }
-
-    @Test
-    void testRejectMerchantSetsRejectedStatus() {
-        MerchantApprovalRequest req = MerchantApprovalRequest.builder()
-                .notes("Business registration certificate invalid")
-                .build();
-
-        when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(pendingMerchant));
-        when(merchantRepository.save(any(Merchant.class))).thenAnswer(i -> i.getArgument(0));
-
-        MerchantProfileResponse response = adminService.rejectMerchant(merchantId, req);
-
-        assertEquals(MerchantRegistrationStatus.REJECTED, response.getRegistrationStatus());
-        assertNull(response.getApiKey());
     }
 }

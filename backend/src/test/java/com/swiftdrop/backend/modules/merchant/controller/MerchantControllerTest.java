@@ -1,160 +1,106 @@
 package com.swiftdrop.backend.modules.merchant.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.swiftdrop.backend.modules.merchant.dto.CreateMerchantOrderRequest;
-import com.swiftdrop.backend.modules.merchant.dto.MerchantOrderResponse;
-import com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse;
-import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
-import com.swiftdrop.backend.modules.merchant.dto.MerchantStatsResponse;
-import com.swiftdrop.backend.modules.merchant.entity.Merchant;
-import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
-import com.swiftdrop.backend.modules.merchant.exception.MerchantExceptionHandler;
-import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
-import com.swiftdrop.backend.modules.merchant.service.MerchantOrderService;
-import com.swiftdrop.backend.modules.merchant.service.MerchantPricingService;
-import com.swiftdrop.backend.modules.merchant.service.MerchantService;
-import com.swiftdrop.backend.modules.merchant.service.MerchantWebhookService;
-import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
-import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@ExtendWith(MockitoExtension.class)
+import java.util.List;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import com.swiftdrop.backend.modules.auth.entity.User;
+import com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse;
+import com.swiftdrop.backend.modules.merchant.entity.Merchant;
+import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
+import com.swiftdrop.backend.modules.merchant.exception.MerchantExceptionHandler;
+import com.swiftdrop.backend.modules.merchant.exception.MerchantNotFoundException;
+import com.swiftdrop.backend.modules.merchant.security.CurrentMerchantProvider;
+import com.swiftdrop.backend.modules.merchant.service.MerchantOrderService;
+import com.swiftdrop.backend.modules.merchant.service.MerchantPricingService;
+import com.swiftdrop.backend.modules.merchant.service.MerchantService;
+import com.swiftdrop.backend.modules.merchant.service.MerchantWebhookService;
+
+/** The portal always acts for the signed-in merchant; ids sent by the client are ignored. */
 class MerchantControllerTest {
+    private static final UUID OWN_MERCHANT_ID = UUID.fromString("80000000-0000-4000-8000-000000000001");
+    private static final UUID OTHER_MERCHANT_ID = UUID.fromString("80000000-0000-4000-8000-000000000002");
+    private static final UUID OWN_USER_ID = UUID.fromString("70000000-0000-4000-8000-000000000001");
 
+    private final MerchantService merchantService = mock(MerchantService.class);
+    private final MerchantOrderService orderService = mock(MerchantOrderService.class);
+    private final CurrentMerchantProvider currentMerchantProvider = mock(CurrentMerchantProvider.class);
     private MockMvc mockMvc;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @Mock
-    private MerchantService merchantService;
-
-    @Mock
-    private MerchantOrderService orderService;
-
-    @Mock
-    private MerchantPricingService pricingService;
-
-    @Mock
-    private MerchantWebhookService webhookService;
-
-    @Mock
-    private MerchantRepository merchantRepository;
-
-    private UUID merchantId;
-    private Merchant merchant;
+    private Merchant ownMerchant;
 
     @BeforeEach
     void setUp() {
-        MerchantController controller = new MerchantController(
-                merchantService, orderService, pricingService, webhookService, merchantRepository);
-
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice(new MerchantExceptionHandler())
-                .build();
-
-        merchantId = UUID.randomUUID();
-        merchant = Merchant.builder()
-                .id(merchantId)
-                .businessName("Galle Gems & Craft")
-                .registrationStatus(MerchantRegistrationStatus.APPROVED)
-                .build();
+        var controller = new MerchantController(merchantService, orderService, mock(MerchantPricingService.class),
+                mock(MerchantWebhookService.class), currentMerchantProvider);
+        mockMvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new MerchantExceptionHandler()).build();
+        ownMerchant = Merchant.builder().id(OWN_MERCHANT_ID).userId(OWN_USER_ID).businessName("Test Shop")
+                .registrationStatus(MerchantRegistrationStatus.APPROVED).build();
+        when(currentMerchantProvider.currentMerchant()).thenReturn(ownMerchant);
     }
 
     @Test
-    void testRegisterMerchant() throws Exception {
-        MerchantRegisterRequest req = MerchantRegisterRequest.builder()
-                .businessName("Lanka Organic Spices")
-                .contactPhone("0112345678")
-                .businessAddress("10 Flower Road, Colombo")
-                .build();
+    void ordersAreAlwaysTheSignedInMerchantsEvenIfAnotherIdIsSent() throws Exception {
+        when(orderService.getOrders(OWN_MERCHANT_ID, null, null)).thenReturn(List.of());
 
-        MerchantProfileResponse res = MerchantProfileResponse.builder()
-                .id(UUID.randomUUID())
-                .businessName("Lanka Organic Spices")
-                .registrationStatus(MerchantRegistrationStatus.PENDING)
-                .build();
+        mockMvc.perform(get("/api/v1/merchant/orders")
+                        .param("merchantId", OTHER_MERCHANT_ID.toString())
+                        .header("X-Merchant-Id", OTHER_MERCHANT_ID.toString()))
+                .andExpect(status().isOk());
 
-        when(merchantService.registerMerchant(any())).thenReturn(res);
+        verify(orderService).getOrders(OWN_MERCHANT_ID, null, null);
+        verify(orderService, never()).getOrders(eq(OTHER_MERCHANT_ID), any(), any());
+    }
 
-        mockMvc.perform(post("/api/v1/merchant/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+    @Test
+    void statsAndCancelUseTheSignedInMerchant() throws Exception {
+        mockMvc.perform(get("/api/v1/merchant/stats").param("merchantId", OTHER_MERCHANT_ID.toString()))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/merchant/orders/SDP0000001/cancel").param("merchantId", OTHER_MERCHANT_ID.toString()))
+                .andExpect(status().isOk());
+
+        verify(merchantService).getStats(OWN_MERCHANT_ID);
+        verify(orderService).cancelOrder(ownMerchant, "SDP0000001");
+    }
+
+    @Test
+    void registrationIsForTheSignedInUser() throws Exception {
+        var user = User.builder().id(OWN_USER_ID).email("test.merchant@example.com").fullName("Test Merchant").build();
+        when(currentMerchantProvider.currentUser()).thenReturn(user);
+        when(merchantService.registerMerchant(eq(OWN_USER_ID), any())).thenReturn(MerchantProfileResponse.builder()
+                .id(OWN_MERCHANT_ID).userId(OWN_USER_ID).businessName("Test Shop")
+                .registrationStatus(MerchantRegistrationStatus.PENDING).build());
+
+        mockMvc.perform(post("/api/v1/merchant/register").contentType("application/json").content("""
+                        {"userId":"%s","businessName":"Test Shop","contactPhone":"0000000000","businessAddress":"1 Sample Street"}
+                        """.formatted(OTHER_MERCHANT_ID)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.businessName").value("Lanka Organic Spices"))
-                .andExpect(jsonPath("$.registrationStatus").value("PENDING"));
+                .andExpect(jsonPath("$.userId").value(OWN_USER_ID.toString()));
+
+        verify(merchantService).registerMerchant(eq(OWN_USER_ID), any());
     }
 
     @Test
-    void testGetProfile() throws Exception {
-        when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(merchant));
-        when(merchantService.getProfile(merchantId)).thenReturn(
-                MerchantProfileResponse.builder()
-                        .id(merchantId)
-                        .businessName("Galle Gems & Craft")
-                        .registrationStatus(MerchantRegistrationStatus.APPROVED)
-                        .build()
-        );
+    void accountWithoutMerchantProfileGets404() throws Exception {
+        when(currentMerchantProvider.currentMerchant())
+                .thenThrow(new MerchantNotFoundException("No merchant profile exists for this account yet."));
 
-        mockMvc.perform(get("/api/v1/merchant/profile")
-                        .param("merchantId", merchantId.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.businessName").value("Galle Gems & Craft"));
-    }
-
-    @Test
-    void testGetStats() throws Exception {
-        when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(merchant));
-        when(merchantService.getStats(merchantId)).thenReturn(
-                MerchantStatsResponse.builder()
-                        .totalOrders(15)
-                        .activeShipments(5)
-                        .deliveredOrders(8)
-                        .pendingOrders(2)
-                        .build()
-        );
-
-        mockMvc.perform(get("/api/v1/merchant/stats")
-                        .param("merchantId", merchantId.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalOrders").value(15))
-                .andExpect(jsonPath("$.activeShipments").value(5));
-    }
-
-    @Test
-    void testCancelOrder() throws Exception {
-        String trackingNo = "SDP5566778";
-        when(merchantRepository.findById(merchantId)).thenReturn(Optional.of(merchant));
-        when(orderService.cancelOrder(merchantId, trackingNo)).thenReturn(
-                MerchantOrderResponse.builder()
-                        .trackingNumber(trackingNo)
-                        .status(ParcelStatus.CANCELLED)
-                        .statusLabel("Cancelled")
-                        .cancellable(false)
-                        .build()
-        );
-
-        mockMvc.perform(post("/api/v1/merchant/orders/{trackingNumber}/cancel", trackingNo)
-                        .param("merchantId", merchantId.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CANCELLED"));
+        mockMvc.perform(get("/api/v1/merchant/profile")).andExpect(status().isNotFound());
+        verify(merchantService, never()).mapToProfile(isNull());
     }
 }
-
