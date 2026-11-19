@@ -1,0 +1,213 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4, 16px);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 150ms ease-out;
+}
+
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--color-surface, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--color-border, #e2e8f0);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  padding: var(--space-6, 24px);
+  animation: slideUp 150ms ease-out;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4, 16px);
+  padding-bottom: var(--space-3, 12px);
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-navy, #0f172a);
+}
+
+.closeButton {
+  border: none;
+  background: transparent;
+  color: var(--color-muted, #64748b);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 120ms ease;
+}
+
+.closeButton:hover {
+  background: #f1f5f9;
+  color: var(--color-navy, #0f172a);
+}
+
+.parcelSummary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-4, 16px);
+  margin-bottom: var(--space-5, 20px);
+}
+
+.trackingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.trackingNumber {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-navy, #0f172a);
+}
+
+.serviceBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.serviceStandard {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.serviceExpress {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.serviceSameDay {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.routeText {
+  font-size: 13px;
+  color: #334155;
+  margin: 4px 0;
+}
+
+.recipientText {
+  font-size: 12px;
+  color: var(--color-muted, #64748b);
+  margin: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #0f172a);
+}
+
+.select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: var(--radius-sm, 6px);
+  background: #ffffff;
+  color: var(--color-text, #0f172a);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.select:focus {
+  border-color: var(--color-orange, #e06a1f);
+  box-shadow: 0 0 0 3px rgba(224, 106, 31, 0.15);
+}
+
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: var(--radius-sm, 6px);
+  background: #ffffff;
+  color: var(--color-text, #0f172a);
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 150ms ease;
+}
+
+.textarea:focus {
+  border-color: var(--color-orange, #e06a1f);
+  box-shadow: 0 0 0 3px rgba(224, 106, 31, 0.15);
+}
+
+.charCount {
+  align-self: flex-end;
+  font-size: 11px;
+  color: var(--color-muted, #64748b);
+}
+
+.validationError {
+  font-size: 12px;
+  color: var(--color-error, #dc2626);
+  margin: 0;
+}
+
+.successBanner {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3, 12px);
+  margin-top: var(--space-2, 8px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
