@@ -1,34 +1,37 @@
 package com.swiftdrop.backend.modules.merchant.security;
 
+import java.io.IOException;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.swiftdrop.backend.modules.merchant.entity.Merchant;
 import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-
-@Component
+/**
+ * Authenticates merchant API calls by the X-API-KEY header. Runs only inside the merchant
+ * security chain (/api/v1/merchant/**), never for other URLs.
+ *
+ * <p>No header: the request continues unauthenticated (or with its JWT) and the chain's rules
+ * decide. Unknown key: 401. Key of a merchant that is not APPROVED: 403. The authenticated
+ * principal carries the {@link #API_KEY_AUTHORITY} authority only.
+ */
 public class MerchantApiKeyAuthFilter extends OncePerRequestFilter {
 
-    private static final Logger log = LoggerFactory.getLogger(MerchantApiKeyAuthFilter.class);
-
     public static final String API_KEY_HEADER = "X-API-KEY";
-    public static final String AUTHENTICATED_MERCHANT_ATTR = "authenticatedMerchant";
+    public static final String API_KEY_AUTHORITY = "MERCHANT_API_KEY";
 
     private final MerchantRepository merchantRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -40,53 +43,40 @@ public class MerchantApiKeyAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-
         String apiKey = request.getHeader(API_KEY_HEADER);
-
         if (apiKey == null || apiKey.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        Optional<Merchant> merchantOpt = merchantRepository.findByApiKey(apiKey.trim());
-
-        if (merchantOpt.isEmpty()) {
-            writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid API Key provided.");
+        Merchant merchant = merchantRepository.findByApiKey(apiKey.strip()).orElse(null);
+        if (merchant == null) {
+            writeError(response, request, HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized", "Invalid API key.");
             return;
         }
-
-        Merchant merchant = merchantOpt.get();
-
         if (!merchant.isApproved()) {
-            writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
-                    "Merchant account is currently " + merchant.getRegistrationStatus() + ". An approved account is required.");
+            writeError(response, request, HttpServletResponse.SC_FORBIDDEN, "Forbidden",
+                    "This merchant account is not approved yet.");
             return;
         }
 
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                merchant.getId().toString(),
-                null,
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_MERCHANT"))
-        );
-        authentication.setDetails(merchant);
+        var authentication = new UsernamePasswordAuthenticationToken(
+                MerchantPrincipal.of(merchant), null, List.of(new SimpleGrantedAuthority(API_KEY_AUTHORITY)));
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        request.setAttribute(AUTHENTICATED_MERCHANT_ATTR, merchant);
-        log.debug("Authenticated merchant '{}' via API key", merchant.getBusinessName());
-
         filterChain.doFilter(request, response);
     }
 
-    private void writeErrorResponse(HttpServletResponse response, int status, String message) throws IOException {
+    /** Same JSON shape as the auth module's entry point, so merchant clients see one error format for 401/403. */
+    private void writeError(HttpServletResponse response, HttpServletRequest request, int status, String error,
+                            String message) throws IOException {
         response.setStatus(status);
         response.setContentType("application/json");
-
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", Instant.now().toString());
-        errorDetails.put("status", status);
-        errorDetails.put("error", status == 401 ? "Unauthorized" : "Forbidden");
-        errorDetails.put("message", message);
-
-        response.getWriter().write(objectMapper.writeValueAsString(errorDetails));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", Instant.now().toString());
+        body.put("status", status);
+        body.put("error", error);
+        body.put("message", message);
+        body.put("path", request.getRequestURI());
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }

@@ -1,11 +1,9 @@
 package com.swiftdrop.backend.modules.merchant.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import java.util.UUID;
 
+/** Merchant profile details. The account it belongs to is always the signed-in user. */
 public class MerchantRegisterRequest {
-
-    private UUID userId;
 
     @NotBlank(message = "Business name is required")
     private String businessName;
@@ -28,14 +26,12 @@ public class MerchantRegisterRequest {
     }
 
     public static class Builder {
-        private UUID userId;
         private String businessName;
         private String registrationNumber;
         private String contactPhone;
         private String businessAddress;
         private String email;
 
-        public Builder userId(UUID userId) { this.userId = userId; return this; }
         public Builder businessName(String businessName) { this.businessName = businessName; return this; }
         public Builder registrationNumber(String registrationNumber) { this.registrationNumber = registrationNumber; return this; }
         public Builder contactPhone(String contactPhone) { this.contactPhone = contactPhone; return this; }
@@ -44,7 +40,6 @@ public class MerchantRegisterRequest {
 
         public MerchantRegisterRequest build() {
             MerchantRegisterRequest r = new MerchantRegisterRequest();
-            r.userId = this.userId;
             r.businessName = this.businessName;
             r.registrationNumber = this.registrationNumber;
             r.contactPhone = this.contactPhone;
@@ -53,9 +48,6 @@ public class MerchantRegisterRequest {
             return r;
         }
     }
-
-    public UUID getUserId() { return userId; }
-    public void setUserId(UUID userId) { this.userId = userId; }
 
     public String getBusinessName() { return businessName; }
     public void setBusinessName(String businessName) { this.businessName = businessName; }
