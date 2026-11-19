@@ -7,6 +7,11 @@ public record ReportSummaryResponse(
         Long deliveredParcels,
         Long inTransitParcels,
         Long outForDeliveryParcels,
-        BigDecimal totalFees
+        BigDecimal totalFees,
+        Long failedParcels
 ) {
+    public ReportSummaryResponse(Long totalParcels, Long deliveredParcels, Long inTransitParcels,
+            Long outForDeliveryParcels, BigDecimal totalFees) {
+        this(totalParcels, deliveredParcels, inTransitParcels, outForDeliveryParcels, totalFees, null);
+    }
 }

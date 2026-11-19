@@ -9,7 +9,11 @@ import com.swiftdrop.backend.modules.reports.dto.DeliverySuccessRateResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -19,6 +23,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 @RestController
+@RequestMapping("/api/v1/admin/reports")
 @PreAuthorize("hasRole('ADMIN')")
 public class ReportController {
 
@@ -28,22 +33,22 @@ public class ReportController {
         this.reportService = reportService;
     }
 
-    @GetMapping("/api/reports/test")
+    @GetMapping("/test")
     public String testReport() {
         return "SwiftDrop Reports API is working!";
     }
 
-    @GetMapping("/api/reports/total-parcels")
+    @GetMapping("/total-parcels")
     public Long getTotalParcels() {
         return reportService.getTotalParcels();
     }
 
-    @GetMapping("/api/reports/summary")
+    @GetMapping("/summary")
     public ReportSummaryResponse getReportSummary() {
         return reportService.getReportSummary();
     }
 
-    @GetMapping("/api/reports/daily-deliveries")
+    @GetMapping("/daily-deliveries")
     public List<DailyDeliveryResponse> getDailyDeliveries(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -79,8 +84,25 @@ public class ReportController {
         );
     }
 
-    @GetMapping("/api/reports/success-rate")
-    public DeliverySuccessRateResponse getDeliverySuccessRate() {
-        return reportService.getDeliverySuccessRate();
+    @GetMapping("/success-rate")
+    public DeliverySuccessRateResponse getDeliverySuccessRate(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (startDate == null && endDate == null) return reportService.getDeliverySuccessRate();
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide a valid startDate and endDate.");
+        }
+        return reportService.getDeliverySuccessRate(startDate, endDate);
     }
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail handleStatus(ResponseStatusException exception) {
+        return ProblemDetail.forStatusAndDetail(exception.getStatusCode(), exception.getReason());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleInvalidDate(MethodArgumentTypeMismatchException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "Report dates must use YYYY-MM-DD format.");
+    }
+
 }

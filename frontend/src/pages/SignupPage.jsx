@@ -31,6 +31,8 @@ export default function SignupPage() {
   // Form Fields
   const [fullName, setFullName] = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [registrationNumber, setRegistrationNumber] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -72,6 +74,10 @@ export default function SignupPage() {
       setErrorMessage(role === 'ROLE_MERCHANT' ? 'Please enter your business name and contact person.' : 'Please enter your full name.');
       return;
     }
+    if (role === 'ROLE_MERCHANT' && (!businessName.trim() || !registrationNumber.trim() || !fullName.trim() || !businessAddress.trim() || !phone.trim())) {
+      setErrorMessage('Please complete your business name, registration number, contact person, phone and business address.');
+      return;
+    }
 
     setLoading(true);
 
@@ -80,7 +86,12 @@ export default function SignupPage() {
       password,
       fullName: payloadName,
       phone: phone.trim(),
-      role: role
+      role: role,
+      ...(role === 'ROLE_MERCHANT' ? {
+        businessName: businessName.trim(),
+        registrationNumber: registrationNumber.trim(),
+        businessAddress: businessAddress.trim(),
+      } : {})
     };
 
     const res = await signupUser(payload);
@@ -314,6 +325,7 @@ export default function SignupPage() {
                         <input
                           type="text"
                           placeholder="Your business name"
+                          maxLength={255}
                           value={businessName}
                           onChange={(e) => setBusinessName(e.target.value)}
                           required
@@ -322,6 +334,22 @@ export default function SignupPage() {
                       </div>
                     </div>
 
+                    <div className="signup-input-group">
+                      <label className="signup-label">Business Registration Number (Required)</label>
+                      <div className="signup-input-wrapper">
+                        <Building size={18} className="signup-input-icon" />
+                        <input type="text" placeholder="Business registration number" maxLength={100} required
+                          value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} className="signup-input" />
+                      </div>
+                    </div>
+                    <div className="signup-input-group">
+                      <label className="signup-label">Business Address</label>
+                      <div className="signup-input-wrapper">
+                        <Building size={18} className="signup-input-icon" />
+                        <input type="text" placeholder="Full business address" required
+                          value={businessAddress} onChange={(e) => setBusinessAddress(e.target.value)} className="signup-input" />
+                      </div>
+                    </div>
                     <div className="signup-input-group">
                       <label className="signup-label">Contact Person Full Name</label>
                       <div className="signup-input-wrapper">

@@ -6,16 +6,18 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.util.UUID;
+import java.time.LocalDate;
 
-@Entity
+@Entity(name = "CourierAssignmentView")
 @Table(name = "courier_assignments")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourierAssignment {
 
     @Id
+    private UUID id;
+
     @Column(name = "parcel_id")
     private UUID parcelId;
 
@@ -27,5 +29,9 @@ public class CourierAssignment {
     private UUID courierId;
 
     @Column(name = "scheduled_date", nullable = false)
+    @org.hibernate.annotations.ColumnDefault("CURRENT_DATE")
     private LocalDate scheduledDate;
+
+    @Column(nullable = false, length = 30)
+    private String status;
 }

@@ -146,6 +146,9 @@ CREATE TABLE IF NOT EXISTS pricing_rules (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Starter data only. Admins manage zones and prices in the app (/api/v1/admin/zones,
+-- /api/v1/admin/pricing-rules), so re-running this file must never overwrite their changes:
+-- existing rows are left alone (ON CONFLICT DO NOTHING) and only missing rows are added.
 INSERT INTO zones (id, code, name, surcharge, active) VALUES
     ('10000000-0000-4000-8000-000000000001', 'COLOMBO', 'Colombo', 0, TRUE),
     ('10000000-0000-4000-8000-000000000002', 'GAMPAHA', 'Gampaha', 0, TRUE),
@@ -155,22 +158,13 @@ INSERT INTO zones (id, code, name, surcharge, active) VALUES
     ('10000000-0000-4000-8000-000000000006', 'MATARA', 'Matara', 150, TRUE),
     ('10000000-0000-4000-8000-000000000007', 'KURUNEGALA', 'Kurunegala', 150, TRUE),
     ('10000000-0000-4000-8000-000000000008', 'JAFFNA', 'Jaffna', 350, TRUE)
-ON CONFLICT (code) DO UPDATE SET
-    name = EXCLUDED.name,
-    surcharge = EXCLUDED.surcharge,
-    active = EXCLUDED.active,
-    updated_at = now();
+ON CONFLICT DO NOTHING;
 
 INSERT INTO pricing_rules (id, service_type, base_fee, per_kg_fee, inter_zone_fee, active) VALUES
     ('20000000-0000-4000-8000-000000000001', 'STANDARD', 590, 100, 250, TRUE),
     ('20000000-0000-4000-8000-000000000002', 'EXPRESS', 990, 100, 400, TRUE),
     ('20000000-0000-4000-8000-000000000003', 'SAME_DAY', 1490, 100, 600, TRUE)
-ON CONFLICT (service_type) DO UPDATE SET
-    base_fee = EXCLUDED.base_fee,
-    per_kg_fee = EXCLUDED.per_kg_fee,
-    inter_zone_fee = EXCLUDED.inter_zone_fee,
-    active = EXCLUDED.active,
-    updated_at = now();
+ON CONFLICT DO NOTHING;
 
 -- =====================================================================
 -- Booking & Pricing: parcel booking columns            (added 2026-11-13)
@@ -190,6 +184,59 @@ ALTER TABLE parcels ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(30);
 CREATE INDEX IF NOT EXISTS idx_parcels_pickup_zone_id  ON parcels (pickup_zone_id);
 CREATE INDEX IF NOT EXISTS idx_parcels_dropoff_zone_id ON parcels (dropoff_zone_id);
 -- ===================== end Booking & Pricing section =====================
+
+-- =====================================================================
+-- =====================================================================
+-- Dispatch Management: courier assignments
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS courier_assignments (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    parcel_id     UUID         NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    courier_id    UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    dispatcher_id UUID         NOT NULL REFERENCES users(id),
+    status        VARCHAR(30)  NOT NULL DEFAULT 'ASSIGNED',
+    notes         VARCHAR(500),
+    scheduled_date DATE        NOT NULL DEFAULT CURRENT_DATE,
+    assigned_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    version       BIGINT       NOT NULL DEFAULT 0
+);
+
+-- Ensure scheduled_date column exists on pre-existing courier_assignments tables
+ALTER TABLE courier_assignments ADD COLUMN IF NOT EXISTS scheduled_date DATE NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE courier_assignments ALTER COLUMN assigned_at SET DEFAULT now();
+
+-- Unique index prevents duplicate active assignments for the same parcel
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_courier_assignment
+    ON courier_assignments (parcel_id)
+    WHERE status IN ('ASSIGNED', 'ACCEPTED');
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_courier_status
+    ON courier_assignments (courier_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_courier_assignments_parcel
+    ON courier_assignments (parcel_id);
+
+-- =====================================================================
+-- AI Assistant: chat conversation messages
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id     VARCHAR(64)  NOT NULL,
+    user_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
+    sender         VARCHAR(20)  NOT NULL,
+    content        TEXT         NOT NULL,
+    tool_name      VARCHAR(50),
+    tool_arguments TEXT,
+    tool_result    TEXT,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+    ON chat_messages (session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user
+    ON chat_messages (user_id);
 
 -- =====================================================================
 -- Messaging & Webhook Engine: transactional outbox and webhook deliveries
@@ -250,3 +297,56 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_merchant
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status
     ON webhook_deliveries (status);
 -- ================= end Messaging & Webhook Engine section =================
+
+-- =====================================================================
+-- Merchant Platform, Order API & Webhooks
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS merchants (
+    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID         NOT NULL UNIQUE REFERENCES users(id),
+    business_name       VARCHAR(255) NOT NULL,
+    registration_number VARCHAR(100),
+    contact_phone       VARCHAR(50),
+    business_address    TEXT,
+    registration_status VARCHAR(50)  NOT NULL DEFAULT 'PENDING',
+    approved_by         UUID,
+    approval_notes      TEXT,
+    api_key             VARCHAR(128) UNIQUE,
+    webhook_url         VARCHAR(500),
+    webhook_secret      VARCHAR(255),
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Backward compatibility for merchants tables created before these columns
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS webhook_url VARCHAR(500);
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(255);
+ALTER TABLE merchants ALTER COLUMN webhook_secret TYPE VARCHAR(255);
+
+CREATE INDEX IF NOT EXISTS idx_merchants_user_id ON merchants(user_id);
+CREATE INDEX IF NOT EXISTS idx_merchants_api_key ON merchants(api_key);
+CREATE INDEX IF NOT EXISTS idx_merchants_status ON merchants(registration_status);
+
+-- Merchant ownership on parcels (null for customer bookings)
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS merchant_id UUID REFERENCES merchants(id);
+CREATE INDEX IF NOT EXISTS idx_parcels_merchant_id ON parcels(merchant_id);
+
+-- Merchant webhook test pings and direct delivery log
+CREATE TABLE IF NOT EXISTS merchant_webhook_logs (
+    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    merchant_id     UUID         NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+    tracking_number VARCHAR(32)  NOT NULL,
+    event_type      VARCHAR(50)  NOT NULL,
+    payload         TEXT         NOT NULL,
+    endpoint_url    VARCHAR(500) NOT NULL,
+    response_code   INT,
+    delivery_status VARCHAR(30)  NOT NULL,
+    error_message   TEXT,
+    attempt_count   INT          NOT NULL DEFAULT 1,
+    created_at      TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_webhook_logs_merchant ON merchant_webhook_logs(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_webhook_logs_tracking ON merchant_webhook_logs(tracking_number);
+-- Demo merchant data lives in the dev-profile seeder, not here (no committed API keys or secrets).
+-- ================= end Merchant Platform section =====================

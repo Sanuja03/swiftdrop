@@ -1,7 +1,13 @@
+import Spinner from "@/shared/components/ui/Spinner";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
+import { getReportSummary, getSuccessRate, getDailyDeliveries } from "../services/reportApi";
+import ReportSnapshots from "./ReportSnapshots";
+import { reportPeriod as datePeriod } from "../services/reportPeriods";
 import "./ReportsDashboard.css";
+import PageHeader from "@/shared/components/ui/PageHeader";
+import Button from "@/shared/components/ui/Button";
 
 const TIME_ZONE = "Asia/Colombo";
 
@@ -21,12 +27,12 @@ function getSriLankaToday() {
 }
 
 // Get the date and time when a report is generated.
-function getGeneratedTime() {
+function getGeneratedTime(value) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: TIME_ZONE,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date());
+  }).format(value ? new Date(value) : new Date());
 }
 
 // Format a date as YYYY-MM-DD.
@@ -39,8 +45,8 @@ function formatDate(date) {
 }
 
 // Prepare every date for the daily deliveries chart and report.
-function buildChartDays(dailyDeliveries, numberOfDays) {
-  const [year, month, day] = getSriLankaToday()
+function buildChartDays(dailyDeliveries, numberOfDays, endDate = getSriLankaToday()) {
+  const [year, month, day] = endDate
     .split("-")
     .map(Number);
 
@@ -114,7 +120,7 @@ function createPDF(title, metadata, columns, rows, filename) {
   let y = 0;
 
   function addPageHeader() {
-    pdf.setFillColor(16, 42, 76);
+    pdf.setFillColor(15, 39, 71);
     pdf.rect(0, 0, pageWidth, 34, "F");
 
     pdf.setFont("helvetica", "bold");
@@ -125,7 +131,7 @@ function createPDF(title, metadata, columns, rows, filename) {
     pdf.setFontSize(11);
     pdf.text(title, margin, 25);
 
-    pdf.setTextColor(23, 43, 77);
+    pdf.setTextColor(30, 41, 59);
     y = 44;
   }
 
@@ -173,7 +179,7 @@ function createPDF(title, metadata, columns, rows, filename) {
 
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
-    pdf.setTextColor(16, 42, 76);
+    pdf.setTextColor(15, 39, 71);
 
     const colWidth = contentWidth / columns.length;
 
@@ -187,7 +193,7 @@ function createPDF(title, metadata, columns, rows, filename) {
 
     y += 9;
 
-    pdf.setTextColor(23, 43, 77);
+    pdf.setTextColor(30, 41, 59);
   }
 
   drawTableHeader();
@@ -248,6 +254,9 @@ export default function ReportsDashboard() {
   const [successRate, setSuccessRate] = useState(null);
 
   const [selectedPeriod, setSelectedPeriod] = useState(7);
+  const [selectedOutcomePeriod, setSelectedOutcomePeriod] = useState(0);
+  const [outcomeLoading, setOutcomeLoading] = useState(true);
+  const [outcomeError, setOutcomeError] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(true);
@@ -258,46 +267,70 @@ export default function ReportsDashboard() {
   const [showDailyReport, setShowDailyReport] = useState(false);
   const [showOutcomeReport, setShowOutcomeReport] = useState(false);
 
-  // Attach the saved login token to Reports API requests.
-  function getAuthHeaders() {
-    const token = localStorage.getItem("swiftdrop_token");
+  const [activeSnapshot, setActiveSnapshot] = useState(null);
+  const [revision, setRevision] = useState(0);
+  const reportViewRef = useRef(null);
+  const [openedReportRevision, setOpenedReportRevision] = useState(0);
+  const successPeriod = activeSnapshot ? activeSnapshot.data.successPeriod ?? null
+    : datePeriod(selectedOutcomePeriod, getSriLankaToday());
+  const outcomeStart = successPeriod?.startDate;
+  const outcomeEnd = successPeriod?.endDate;
+  const outcomePeriodLabel = successPeriod ? `${outcomeStart} to ${outcomeEnd}` : "All time";
 
-    return token
-      ? { Authorization: `Bearer ${token}` }
-      : {};
+  useEffect(() => {
+    if (openedReportRevision > 0) {
+      reportViewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [openedReportRevision]);
+
+  function openSnapshot(snapshot) {
+    setActiveSnapshot(snapshot);
+    setSummary(snapshot.data.summary);
+    setSuccessRate(snapshot.data.successRate);
+    setDailyDeliveries(snapshot.data.dailyDeliveries);
+    setLoading(false);
+    setChartLoading(false);
+    setError("");
+    setChartError("");
+    setOutcomeLoading(false);
+    setOutcomeError("");
+    setShowOutcomeReport(true);
+    setShowDailyReport(true);
+    setOpenedReportRevision((value) => value + 1);
   }
 
-  // Load parcel overview and delivery outcome statistics.
+  function returnToLive() {
+    setLoading(true);
+    setChartLoading(true);
+    setError("");
+    setChartError("");
+    setActiveSnapshot(null);
+    setOutcomeLoading(true);
+    setOutcomeError("");
+  }
+
+  function retryReports() {
+    setLoading(true);
+    setChartLoading(true);
+    setError("");
+    setChartError("");
+    setRevision((value) => value + 1);
+  }
+
+  // The overview remains overall and loads independently of report date filters.
   useEffect(() => {
+    if (activeSnapshot) return;
     const controller = new AbortController();
 
     async function loadOverview() {
       try {
-        const responses = await Promise.all([
-          fetch("/api/reports/summary", {
-            signal: controller.signal,
-            headers: getAuthHeaders(),
-          }),
-          fetch("/api/reports/success-rate", {
-            signal: controller.signal,
-            headers: getAuthHeaders(),
-          }),
-        ]);
-
-        if (responses.some((response) => !response.ok)) {
-          throw new Error("Unable to load parcel statistics.");
-        }
-
-        const [summaryData, rateData] = await Promise.all(
-          responses.map((response) => response.json())
-        );
+        const summaryData = await getReportSummary({ signal: controller.signal });
 
         if (!controller.signal.aborted) {
           setSummary(summaryData);
-          setSuccessRate(rateData);
         }
       } catch (err) {
-        if (err.name !== "AbortError") {
+        if (!controller.signal.aborted) {
           setError(err.message);
         }
       } finally {
@@ -310,10 +343,29 @@ export default function ReportsDashboard() {
     loadOverview();
 
     return () => controller.abort();
-  }, []);
+  }, [activeSnapshot, revision]);
+
+  useEffect(() => {
+    if (activeSnapshot) return;
+    const controller = new AbortController();
+    async function loadOutcomes() {
+      try {
+        const period = outcomeStart ? { startDate: outcomeStart, endDate: outcomeEnd } : null;
+        const data = await getSuccessRate({ signal: controller.signal }, period);
+        if (!controller.signal.aborted) setSuccessRate(data);
+      } catch (error) {
+        if (!controller.signal.aborted) setOutcomeError(error.message || "Unable to load delivery outcomes.");
+      } finally {
+        if (!controller.signal.aborted) setOutcomeLoading(false);
+      }
+    }
+    loadOutcomes();
+    return () => controller.abort();
+  }, [activeSnapshot, outcomeStart, outcomeEnd, revision]);
 
   // Load daily deliveries whenever the selected period changes.
   useEffect(() => {
+    if (activeSnapshot) return;
     const controller = new AbortController();
 
     async function loadDailyDeliveries() {
@@ -335,30 +387,13 @@ export default function ReportsDashboard() {
           start.getUTCDate() - (selectedPeriod - 1)
         );
 
-        const params = new URLSearchParams({
-          startDate: formatDate(start),
-          endDate: today,
-        });
-
-        const response = await fetch(
-          `/api/reports/daily-deliveries?${params.toString()}`,
-          {
-            signal: controller.signal,
-            headers: getAuthHeaders(),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Unable to load daily deliveries.");
-        }
-
-        const data = await response.json();
+        const data = await getDailyDeliveries(formatDate(start), today, { signal: controller.signal });
 
         if (!controller.signal.aborted) {
           setDailyDeliveries(data);
         }
       } catch (err) {
-        if (err.name !== "AbortError") {
+        if (!controller.signal.aborted) {
           setChartError(err.message);
         }
       } finally {
@@ -371,13 +406,19 @@ export default function ReportsDashboard() {
     loadDailyDeliveries();
 
     return () => controller.abort();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, activeSnapshot, revision]);
 
   // Prepare chart and report values.
-  const chartDays = buildChartDays(
-    dailyDeliveries,
-    selectedPeriod
-  );
+  const reportPeriod = activeSnapshot
+    ? Math.round((Date.parse(activeSnapshot.endDate) - Date.parse(activeSnapshot.startDate)) / 86400000) + 1
+    : selectedPeriod;
+  const chartDays = buildChartDays(dailyDeliveries, reportPeriod, activeSnapshot?.endDate);
+  const dailyFilename = activeSnapshot
+    ? `swiftdrop-daily-deliveries-snapshot-${activeSnapshot.id}`
+    : `swiftdrop-daily-deliveries-${selectedPeriod}-days`;
+  const outcomeFilename = activeSnapshot
+    ? `swiftdrop-success-failure-snapshot-${activeSnapshot.id}`
+    : "swiftdrop-success-failure-report";
 
   const maxDeliveries = Math.max(
     1,
@@ -397,22 +438,24 @@ export default function ReportsDashboard() {
     0
   );
 
-  const generatedAt = getGeneratedTime();
+  const generatedAt = getGeneratedTime(activeSnapshot?.createdAt);
 
   // Shared information for both report exports.
   const commonMetadata = [
     ["System", "SwiftDrop"],
+    ["Data Source", activeSnapshot ? "Saved report" : "Live report"],
+    ...(activeSnapshot ? [["Snapshot ID", activeSnapshot.id]] : []),
     ["Generated On", `${generatedAt} (Sri Lanka)`],
     ["Total Parcels (Overall)", summary?.totalParcels ?? 0],
-    ["Delivered", delivered],
-    ["Failed", failed],
+    ["Delivered (Overall)", summary?.deliveredParcels ?? 0],
+    ["Failed (Overall)", summary?.failedParcels ?? activeSnapshot?.data.successRate.failedParcels ?? 0],
   ];
 
   // Daily Deliveries report information.
   const dailyMetadata = [
     ["Report Type", "Daily Deliveries Report"],
     ...commonMetadata,
-    ["Reporting Period", `Last ${selectedPeriod} Days`],
+    ["Reporting Period", `${chartDays[0]?.date} to ${chartDays[chartDays.length - 1]?.date}`],
     ["Period Start", chartDays[0]?.date ?? "-"],
     ["Period End", chartDays[chartDays.length - 1]?.date ?? "-"],
     ["Completed in Period", completedInPeriod],
@@ -423,6 +466,9 @@ export default function ReportsDashboard() {
   const outcomeMetadata = [
     ["Report Type", "Delivery Success & Failure Report"],
     ...commonMetadata,
+    ["Outcome Reporting Period", outcomePeriodLabel],
+    ["Delivered in Outcome Period", delivered],
+    ["Failed in Outcome Period", failed],
     ["Completed Outcomes", totalOutcomes],
   ];
 
@@ -444,7 +490,7 @@ export default function ReportsDashboard() {
     if (chartLoading || chartError) return;
 
     downloadCSV(
-      `swiftdrop-daily-deliveries-${selectedPeriod}-days.csv`,
+      `${dailyFilename}.csv`,
       [
         ["SwiftDrop Daily Deliveries Report"],
         ...dailyMetadata,
@@ -464,14 +510,14 @@ export default function ReportsDashboard() {
       dailyMetadata,
       ["Date", "Completed Deliveries"],
       dailyRows,
-      `swiftdrop-daily-deliveries-${selectedPeriod}-days.pdf`
+      `${dailyFilename}.pdf`
     );
   }
 
   // Success & Failure CSV.
   function exportOutcomeCSV() {
     downloadCSV(
-      "swiftdrop-success-failure-report.csv",
+      `${outcomeFilename}.csv`,
       [
         ["SwiftDrop Delivery Success & Failure Report"],
         ...outcomeMetadata,
@@ -494,29 +540,38 @@ export default function ReportsDashboard() {
       outcomeMetadata,
       ["Metric", "Value"],
       outcomeRows,
-      "swiftdrop-success-failure-report.pdf"
+      `${outcomeFilename}.pdf`
     );
   }
 
   return (
-    <main className="reports-dashboard">
-      <header className="reports-header">
-        <h1>Delivery Reports</h1>
-        <p>
-          Monitor parcel deliveries and operational performance.
-        </p>
-      </header>
+    <div className="reports-dashboard" ref={reportViewRef}>
+      <PageHeader
+        title="Delivery Reports"
+        subtitle="Monitor parcel deliveries and operational performance."
+        action={<Button to="/admin/users" variant="secondary">Manage users</Button>}
+      />
+
+      {activeSnapshot && (
+        <div className="reports-snapshot-status" role="status">
+          <div>
+            <strong>Viewing saved report</strong>
+            <p>Saved {getGeneratedTime(activeSnapshot.createdAt)} (Sri Lanka), {activeSnapshot.startDate} to {activeSnapshot.endDate}.</p>
+            <p>The summary cards and reports below show this saved copy.</p>
+          </div>
+          <Button variant="secondary" onClick={returnToLive}>Return to live reports</Button>
+        </div>
+      )}
 
       {loading && (
-        <p className="reports-loading">
-          Loading reports...
-        </p>
+        <div className="reports-panel"><Spinner label="Loading reports..." /></div>
       )}
 
       {error && (
-        <p className="reports-error" role="alert">
-          {error}
-        </p>
+        <div className="reports-error" role="alert">
+          <p>{error}</p>
+          <Button variant="secondary" onClick={retryReports}>Try again</Button>
+        </div>
       )}
 
       {!loading && !error && (
@@ -550,7 +605,7 @@ export default function ReportsDashboard() {
               <div className="reports-card failed">
                 <h3>Failed</h3>
                 <p className="reports-value">
-                  {failed}
+                  {summary?.failedParcels ?? activeSnapshot?.data.successRate.failedParcels ?? 0}
                 </p>
               </div>
             </div>
@@ -565,7 +620,19 @@ export default function ReportsDashboard() {
               <div className="reports-panel">
                 <div className="reports-chart-header">
                   <h3>Success &amp; Failure</h3>
-
+                  <div className="reports-chart-actions">
+                    <select className="reports-period-select" aria-label="Select success and failure report period"
+                      disabled={Boolean(activeSnapshot)}
+                      value={activeSnapshot ? (successPeriod ? Math.round((Date.parse(outcomeEnd) - Date.parse(outcomeStart)) / 86400000) + 1 : 0) : selectedOutcomePeriod}
+                      onChange={(event) => {
+                        setOutcomeLoading(true);
+                        setOutcomeError("");
+                        setSelectedOutcomePeriod(Number(event.target.value));
+                      }}>
+                      <option value={0}>All Time</option>
+                      <option value={7}>Last 7 Days</option>
+                      <option value={30}>Last 30 Days</option>
+                    </select>
                   <button
                     type="button"
                     className="reports-view-button"
@@ -578,7 +645,17 @@ export default function ReportsDashboard() {
                       ? "Hide Report"
                       : "View Report"}
                   </button>
+                  </div>
                 </div>
+
+                <p className="reports-note">Outcome period: {outcomePeriodLabel}. {successPeriod
+                  ? "Current delivered/failed parcels whose latest completed outcome was recorded in this period."
+                  : "Current delivered and failed parcels across all dates."}</p>
+                {outcomeLoading && <Spinner label="Loading success and failure report..." />}
+                {outcomeError && <div className="reports-error" role="alert">{outcomeError}
+                  <Button variant="secondary" onClick={() => { setOutcomeLoading(true); setOutcomeError(""); setRevision((value) => value + 1); }}>Try again</Button>
+                </div>}
+                <div hidden={outcomeLoading || Boolean(outcomeError)}>
 
                 <div className="reports-donut-layout">
                   <div
@@ -592,10 +669,10 @@ export default function ReportsDashboard() {
                     style={{
                       background:
                         totalOutcomes === 0
-                          ? "#e2e8f0"
+                          ? "var(--color-border)"
                           : `conic-gradient(
-                              #16a34a 0% ${successPercentage}%,
-                              #dc2626 ${successPercentage}% 100%
+                              var(--color-success) 0% ${successPercentage}%,
+                              var(--color-error) ${successPercentage}% 100%
                             )`,
                     }}
                   >
@@ -675,6 +752,9 @@ export default function ReportsDashboard() {
                       </p>
 
                       <p>
+                        <strong>Outcome period:</strong> {outcomePeriodLabel}
+                      </p>
+                      <p>
                         <strong>Completed Outcomes:</strong>{" "}
                         {totalOutcomes}
                       </p>
@@ -684,7 +764,7 @@ export default function ReportsDashboard() {
                       Delivery Outcome Details
                     </h5>
 
-                    <div className="reports-table-wrapper">
+                    <div className="reports-table-wrapper" tabIndex={0} role="region" aria-label="Report details">
                       <table className="reports-table">
                         <thead>
                           <tr>
@@ -731,6 +811,8 @@ export default function ReportsDashboard() {
                 )}
               </div>
 
+              </div>
+
               {/* Daily Deliveries chart and report */}
               <div className="reports-panel">
                 <div className="reports-chart-header">
@@ -740,7 +822,8 @@ export default function ReportsDashboard() {
                     <select
                       className="reports-period-select"
                       aria-label="Select delivery report period"
-                      value={selectedPeriod}
+                      disabled={Boolean(activeSnapshot)}
+                      value={reportPeriod}
                       onChange={(event) =>
                         setSelectedPeriod(
                           Number(event.target.value)
@@ -767,20 +850,20 @@ export default function ReportsDashboard() {
                 </div>
 
                 {chartError && (
-                  <p className="reports-error" role="alert">
-                    {chartError}
-                  </p>
+                  <div className="reports-error" role="alert">
+                    <p>{chartError}</p>
+                    <Button variant="secondary" onClick={retryReports}>Try again</Button>
+                  </div>
                 )}
 
                 {chartLoading ? (
-                  <p className="reports-loading">
-                    Loading daily deliveries...
-                  </p>
+                  <Spinner label="Loading daily deliveries..." />
                 ) : !chartError ? (
                   <div
                     className="reports-mini-chart"
+                    tabIndex={0}
                     role="img"
-                    aria-label={`Completed deliveries over the last ${selectedPeriod} days`}
+                    aria-label={`Completed deliveries from ${chartDays[0]?.date} to ${chartDays[chartDays.length - 1]?.date}`}
                   >
                     {chartDays.map((day) => (
                       <div
@@ -833,7 +916,7 @@ export default function ReportsDashboard() {
 
                         <p>
                           <strong>Reporting Period:</strong>{" "}
-                          Last {selectedPeriod} Days
+                          {chartDays[0]?.date} to {chartDays[chartDays.length - 1]?.date}
                         </p>
 
                         <p>
@@ -852,11 +935,11 @@ export default function ReportsDashboard() {
                         </p>
 
                         <p>
-                          <strong>Delivered:</strong> {delivered}
+                          <strong>Delivered (overall):</strong> {summary?.deliveredParcels ?? 0}
                         </p>
 
                         <p>
-                          <strong>Failed:</strong> {failed}
+                          <strong>Failed (overall):</strong> {summary?.failedParcels ?? activeSnapshot?.data.successRate.failedParcels ?? 0}
                         </p>
 
                         <p>
@@ -869,7 +952,7 @@ export default function ReportsDashboard() {
                         Daily Delivery Details
                       </h5>
 
-                      <div className="reports-table-wrapper">
+                      <div className="reports-table-wrapper" tabIndex={0} role="region" aria-label="Report details">
                         <table className="reports-table">
                           <thead>
                             <tr>
@@ -930,6 +1013,15 @@ export default function ReportsDashboard() {
           </section>
         </>
       )}
-    </main>
+
+      <ReportSnapshots
+        startDate={chartDays[0]?.date}
+        endDate={chartDays[chartDays.length - 1]?.date}
+        successPeriod={successPeriod}
+        canSave={!loading && !chartLoading && !outcomeLoading && !error && !chartError && !outcomeError}
+        activeSnapshot={activeSnapshot}
+        onOpen={openSnapshot}
+      />
+    </div>
   );
 }

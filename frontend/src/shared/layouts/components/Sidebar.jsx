@@ -5,21 +5,25 @@ import Logo from '@/shared/components/brand/Logo'
 import { CUSTOMER_NAVIGATION } from './navigation'
 import styles from './Sidebar.module.css'
 
-export default function Sidebar({ isOpen, onClose }) {
+/**
+ * Side navigation. Defaults to the customer menu; other areas (admin) pass their own
+ * `items`, `homeTo` and `label`.
+ */
+export default function Sidebar({ isOpen, onClose, items = CUSTOMER_NAVIGATION, homeTo = ROUTES.app, label = 'Customer' }) {
   return (
     <>
       <aside id="customer-sidebar" className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}>
         <div className={styles.brandRow}>
-          <Link to={ROUTES.app} onClick={onClose}>
+          <Link to={homeTo} onClick={onClose}>
             <Logo />
           </Link>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Close menu">
             <X size={20} />
           </button>
         </div>
-        <nav aria-label="Customer">
+        <nav aria-label={label}>
           <ul className={styles.nav}>
-            {CUSTOMER_NAVIGATION.map(({ label, to, icon: Icon, end }) => (
+            {items.map(({ label: itemLabel, to, icon: Icon, end }) => (
               <li key={to}>
                 <NavLink
                   to={to}
@@ -28,7 +32,7 @@ export default function Sidebar({ isOpen, onClose }) {
                   className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
                 >
                   <Icon size={18} aria-hidden="true" />
-                  {label}
+                  {itemLabel}
                 </NavLink>
               </li>
             ))}

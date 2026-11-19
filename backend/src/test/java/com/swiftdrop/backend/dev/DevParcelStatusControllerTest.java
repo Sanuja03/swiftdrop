@@ -35,7 +35,7 @@ import com.swiftdrop.backend.support.TestParcels;
 class DevParcelStatusControllerTest {
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
-    private com.swiftdrop.backend.modules.auth.security.JwtTokenProvider jwtTokenProvider;
+    private JwtTokenProvider jwtTokenProvider;
 
     private static final UUID PARCEL_ID = UUID.randomUUID();
 

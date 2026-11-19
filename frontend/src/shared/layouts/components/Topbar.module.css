@@ -76,3 +76,17 @@
     display: none;
   }
 }
+
+.unreadBadge {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  min-width: 19px;
+  padding: 1px 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-navy);
+  color: var(--color-surface);
+  font-size: 10px;
+  font-weight: 700;
+}
+.iconButton { position: relative; }

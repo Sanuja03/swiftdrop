@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.swiftdrop.backend.modules.pricing.exception.PricingException;
 
@@ -28,8 +29,9 @@ public class PricingExceptionHandler {
         return problem(ex.getStatus(), ex.getTitle(), ex.getMessage());
     }
 
+    /** Also covers a malformed path value, such as a bad zone id or an unknown service type. */
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-            IllegalArgumentException.class})
+            MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
     public ProblemDetail handleInvalidRequest(Exception ex) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", "One or more values in the request are not valid.");
     }

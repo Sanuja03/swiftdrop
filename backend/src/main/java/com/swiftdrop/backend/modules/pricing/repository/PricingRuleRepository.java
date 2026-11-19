@@ -13,4 +13,6 @@ public interface PricingRuleRepository extends JpaRepository<PricingRule, UUID> 
     Optional<PricingRule> findByServiceType(ServiceType serviceType);
 
     List<PricingRule> findAllByActiveTrue();
+
+    long countByActiveTrue();
 }

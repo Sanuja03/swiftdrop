@@ -1,13 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Spinner from "@/shared/components/ui/Spinner";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+
 import {
   getAllUsers,
   suspendUser,
   restoreUser,
-  approveMerchant,
 } from "../services/userManagementApi";
+
+import {
+  getMerchantApplications,
+  approveMerchantApplication,
+  rejectMerchantApplication,
+} from "../services/merchantApprovalApi";
+
 import "./UserManagement.css";
+import PageHeader from "@/shared/components/ui/PageHeader";
+import Button from "@/shared/components/ui/Button";
 
 const PAGE_SIZE = 5;
+const REJECTION_REASONS = [
+  "Business information is incomplete",
+  "Business details are inconsistent",
+  "Contact details could not be verified",
+  "Duplicate merchant application",
+  "Other",
+];
 
 const USER_ROLES = [
   "CUSTOMER",
@@ -17,12 +36,16 @@ const USER_ROLES = [
   "ADMIN",
 ];
 
-const USER_STATUSES = ["ACTIVE", "SUSPENDED", "PENDING_APPROVAL"];
-
-const MERCHANT_STATUSES = [
-  "PENDING_APPROVAL",
+const USER_STATUSES = [
   "ACTIVE",
   "SUSPENDED",
+  "PENDING_APPROVAL",
+];
+
+const MERCHANT_STATUSES = [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
 ];
 
 function normalize(value) {
@@ -35,6 +58,16 @@ function normalizeRole(value) {
 
 function display(value) {
   return value ? String(value).replaceAll("_", " ") : "—";
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString();
 }
 
 function StatusBadge({ status }) {
@@ -58,6 +91,7 @@ function SummaryCard({ title, value, variant = "navy" }) {
 
 function Pagination({ page, totalItems, onPageChange }) {
   const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+
   if (totalPages <= 1) return null;
 
   const firstItem = (page - 1) * PAGE_SIZE + 1;
@@ -68,21 +102,41 @@ function Pagination({ page, totalItems, onPageChange }) {
       <span className="um-pagination-info">
         Showing {firstItem}–{lastItem} of {totalItems}
       </span>
+
       <div className="um-pagination-controls">
-        <button type="button" className="um-page-button"
-          disabled={page === 1} onClick={() => onPageChange(page - 1)}>
+        <button
+          type="button"
+          className="um-page-button"
+          disabled={page === 1}
+          onClick={() => onPageChange(page - 1)}
+        >
           Previous
         </button>
-        {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
-          <button type="button" key={number}
-            className={`um-page-button ${page === number ? "um-page-button--active" : ""}`}
-            aria-label={`Page ${number}`} aria-current={page === number ? "page" : undefined}
-            onClick={() => onPageChange(number)}>
+
+        {Array.from(
+          { length: totalPages },
+          (_, index) => index + 1
+        ).map((number) => (
+          <button
+            type="button"
+            key={number}
+            className={`um-page-button ${
+              page === number ? "um-page-button--active" : ""
+            }`}
+            aria-label={`Page ${number}`}
+            aria-current={page === number ? "page" : undefined}
+            onClick={() => onPageChange(number)}
+          >
             {number}
           </button>
         ))}
-        <button type="button" className="um-page-button"
-          disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>
+
+        <button
+          type="button"
+          className="um-page-button"
+          disabled={page === totalPages}
+          onClick={() => onPageChange(page + 1)}
+        >
           Next
         </button>
       </div>
@@ -106,12 +160,45 @@ function DetailRow({ label, value }) {
   return (
     <div className="um-detail-row">
       <span>{label}</span>
-      <strong>{value ?? "—"}</strong>
+      <strong>{value === null || value === undefined || value === "" ? "—" : value}</strong>
     </div>
   );
 }
 
 function Modal({ title, children, onClose, busy = false }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const dialog = dialogRef.current;
+    dialog.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function trapFocus(event) {
+      if (event.key !== "Tab") return;
+      const controls = [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex="0"]')];
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (!first) {
+        event.preventDefault();
+        dialog.focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    dialog.addEventListener("keydown", trapFocus);
+    return () => {
+      dialog.removeEventListener("keydown", trapFocus);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, []);
+
   useEffect(() => {
     function handleEscape(event) {
       if (event.key === "Escape" && !busy) {
@@ -137,6 +224,8 @@ function Modal({ title, children, onClose, busy = false }) {
     >
       <div
         className="um-modal"
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -162,13 +251,26 @@ function Modal({ title, children, onClose, busy = false }) {
 }
 
 export default function UserManagement() {
-  // Registered users are retrieved from the admin API.
+  // Registered users and merchant applications use separate APIs.
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState("");
 
-  // Tabs and filters.
-  const [activeTab, setActiveTab] = useState("users");
+  const [merchants, setMerchants] = useState([]);
+  const [merchantsLoading, setMerchantsLoading] = useState(true);
+  const [merchantsError, setMerchantsError] = useState("");
+
+  // Tabs, pagination and filters.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "merchants" ? "merchants" : "users";
+  function setActiveTab(tab) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === "merchants") next.set("tab", "merchants");
+      else next.delete("tab");
+      return next;
+    });
+  }
   const [userPage, setUserPage] = useState(1);
   const [merchantPage, setMerchantPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -176,14 +278,15 @@ export default function UserManagement() {
   const [userStatusFilter, setUserStatusFilter] = useState("ALL");
   const [merchantStatusFilter, setMerchantStatusFilter] = useState("ALL");
 
-  // Modal state.
+  // Modal and action state.
   const [selectedItem, setSelectedItem] = useState(null);
   const [modalType, setModalType] = useState(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [actionNotes, setActionNotes] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  // Identify the logged-in user when available.
-  // The backend must enforce authorization independently.
   const currentUserId = useMemo(() => {
     try {
       const savedUser = localStorage.getItem("swiftdrop_user");
@@ -193,14 +296,11 @@ export default function UserManagement() {
     }
   }, []);
 
-  // Retrieve all users from Spring Boot.
   const loadUsers = useCallback(async () => {
-    setUsersLoading(true);
-    setUsersError("");
-
     try {
       const data = await getAllUsers();
       setUsers(data);
+      setUsersError("");
     } catch (error) {
       setUsersError(
         error?.message || "Unable to retrieve registered users."
@@ -210,11 +310,27 @@ export default function UserManagement() {
     }
   }, []);
 
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  const loadMerchants = useCallback(async () => {
+    try {
+      const data = await getMerchantApplications();
+      setMerchants(data);
+      setMerchantsError("");
+    } catch (error) {
+      setMerchantsError(
+        error?.message || "Unable to retrieve merchant applications."
+      );
+    } finally {
+      setMerchantsLoading(false);
+    }
+  }, []);
 
-  // Filter registered users.
+  useEffect(() => {
+    // Initial loading state is already true. Updates in this loader follow awaited API requests.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadUsers();
+    loadMerchants();
+  }, [loadUsers, loadMerchants]);
+
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -228,65 +344,61 @@ export default function UserManagement() {
         .join(" ")
         .toLowerCase();
 
-      const matchesSearch =
-        !term || searchable.includes(term);
-
-      const matchesRole =
-        roleFilter === "ALL" ||
-        normalizeRole(user.role) === roleFilter;
-
-      const matchesStatus =
-        userStatusFilter === "ALL" ||
-        normalize(user.status) === userStatusFilter;
-
-      return matchesSearch && matchesRole && matchesStatus;
+      return (
+        (!term || searchable.includes(term)) &&
+        (roleFilter === "ALL" ||
+          normalizeRole(user.role) === roleFilter) &&
+        (userStatusFilter === "ALL" ||
+          normalize(user.status) === userStatusFilter)
+      );
     });
   }, [users, search, roleFilter, userStatusFilter]);
 
-  // Derive merchant accounts from the real users API.
-  const merchants = useMemo(() => {
-    return users.filter(
-      (user) => normalizeRole(user.role) === "MERCHANT"
-    );
-  }, [users]);
-
-  // Filter merchant accounts.
   const filteredMerchants = useMemo(() => {
     const term = search.trim().toLowerCase();
 
     return merchants.filter((merchant) => {
       const searchable = [
-        merchant.fullName,
-        merchant.email,
-        merchant.phone,
+        merchant.businessName,
+        merchant.registrationNumber,
+        merchant.contactPhone,
+        merchant.businessAddress,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      const matchesSearch =
-        !term || searchable.includes(term);
-
-      const matchesStatus =
-        merchantStatusFilter === "ALL" ||
-        normalize(merchant.status) === merchantStatusFilter;
-
-      return matchesSearch && matchesStatus;
+      return (
+        (!term || searchable.includes(term)) &&
+        (merchantStatusFilter === "ALL" ||
+          normalize(merchant.registrationStatus) === merchantStatusFilter)
+      );
     });
   }, [merchants, search, merchantStatusFilter]);
 
-  const userPageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const merchantPageCount = Math.max(1, Math.ceil(filteredMerchants.length / PAGE_SIZE));
-  const safeUserPage = Math.min(userPage, userPageCount);
-  const safeMerchantPage = Math.min(merchantPage, merchantPageCount);
-  const paginatedUsers = filteredUsers.slice(
-    (safeUserPage - 1) * PAGE_SIZE, safeUserPage * PAGE_SIZE
-  );
-  const paginatedMerchants = filteredMerchants.slice(
-    (safeMerchantPage - 1) * PAGE_SIZE, safeMerchantPage * PAGE_SIZE
+  const userPageCount = Math.max(
+    1,
+    Math.ceil(filteredUsers.length / PAGE_SIZE)
   );
 
-  // User statistics.
+  const merchantPageCount = Math.max(
+    1,
+    Math.ceil(filteredMerchants.length / PAGE_SIZE)
+  );
+
+  const safeUserPage = Math.min(userPage, userPageCount);
+  const safeMerchantPage = Math.min(merchantPage, merchantPageCount);
+
+  const paginatedUsers = filteredUsers.slice(
+    (safeUserPage - 1) * PAGE_SIZE,
+    safeUserPage * PAGE_SIZE
+  );
+
+  const paginatedMerchants = filteredMerchants.slice(
+    (safeMerchantPage - 1) * PAGE_SIZE,
+    safeMerchantPage * PAGE_SIZE
+  );
+
   const userCounts = {
     total: users.length,
     active: users.filter(
@@ -297,17 +409,18 @@ export default function UserManagement() {
     ).length,
   };
 
-  // Merchant statistics.
   const merchantCounts = {
     pending: merchants.filter(
       (merchant) =>
-        normalize(merchant.status) === "PENDING_APPROVAL"
+        normalize(merchant.registrationStatus) === "PENDING"
     ).length,
     approved: merchants.filter(
-      (merchant) => normalize(merchant.status) === "ACTIVE"
+      (merchant) =>
+        normalize(merchant.registrationStatus) === "APPROVED"
     ).length,
-    suspended: merchants.filter(
-      (merchant) => normalize(merchant.status) === "SUSPENDED"
+    rejected: merchants.filter(
+      (merchant) =>
+        normalize(merchant.registrationStatus) === "REJECTED"
     ).length,
   };
 
@@ -325,6 +438,9 @@ export default function UserManagement() {
     setModalType(type);
     setSelectedItem(item);
     setActionError("");
+    setActionNotes("");
+    setSuccessMessage("");
+    setRejectionReason("");
   }
 
   const closeModal = useCallback(() => {
@@ -333,15 +449,9 @@ export default function UserManagement() {
     setModalType(null);
     setSelectedItem(null);
     setActionError("");
+    setActionNotes("");
   }, [busy]);
 
-  function closeModalAfterSuccess() {
-    setModalType(null);
-    setSelectedItem(null);
-    setActionError("");
-  }
-
-  // Confirm account-management actions.
   async function confirmAction() {
     if (!selectedItem || busy) return;
 
@@ -354,9 +464,7 @@ export default function UserManagement() {
           currentUserId &&
           String(selectedItem.id) === String(currentUserId)
         ) {
-          throw new Error(
-            "You cannot suspend your own account."
-          );
+          throw new Error("You cannot suspend your own account.");
         }
 
         if (normalizeRole(selectedItem.role) === "ADMIN") {
@@ -366,6 +474,7 @@ export default function UserManagement() {
         }
 
         await suspendUser(selectedItem.id);
+        await loadUsers();
       } else if (modalType === "restore") {
         if (normalize(selectedItem.status) !== "SUSPENDED") {
           throw new Error(
@@ -374,29 +483,59 @@ export default function UserManagement() {
         }
 
         await restoreUser(selectedItem.id);
+        await loadUsers();
       } else if (modalType === "approve") {
-        if (normalizeRole(selectedItem.role) !== "MERCHANT") {
-          throw new Error(
-            "Only merchant accounts can be approved."
-          );
-        }
-
         if (
-          normalize(selectedItem.status) !== "PENDING_APPROVAL"
+          normalize(selectedItem.registrationStatus) !== "PENDING"
         ) {
           throw new Error(
-            "This merchant is not awaiting approval."
+            "Only pending merchant applications can be approved."
           );
         }
 
-        await approveMerchant(selectedItem.id);
+        await approveMerchantApplication(
+          selectedItem.id,
+          actionNotes.trim()
+        );
+
+        await loadMerchants();
+      } else if (modalType === "reject") {
+        if (!rejectionReason) throw new Error("Select a rejection reason.");
+        if (rejectionReason === "Other" && !actionNotes.trim()) {
+          throw new Error("Explain the rejection reason when selecting Other.");
+        }
+        const reasonText = rejectionReason === "Other" ? actionNotes.trim()
+          : rejectionReason + (actionNotes.trim() ? `\n\nDetails: ${actionNotes.trim()}` : "");
+        if (reasonText.length > 2000) throw new Error("The rejection reason must not exceed 2000 characters.");
+        if (
+          !["PENDING", "APPROVED"].includes(normalize(selectedItem.registrationStatus))
+        ) {
+          throw new Error(
+            "Only pending or approved merchant applications can be rejected."
+          );
+        }
+
+        await rejectMerchantApplication(
+          selectedItem.id,
+          reasonText
+        );
+
+        await loadMerchants();
       } else {
         return;
       }
 
-      // Refresh the user and merchant tables.
-      await loadUsers();
-      closeModalAfterSuccess();
+      const messages = {
+        suspend: "User suspended successfully.",
+        restore: "User reactivated successfully.",
+        approve: "Merchant application approved.",
+        reject: "Merchant application rejected.",
+      };
+      setSuccessMessage(messages[modalType]);
+      setModalType(null);
+      setSelectedItem(null);
+      setActionError("");
+      setActionNotes("");
     } catch (error) {
       setActionError(
         error?.message || "The action failed. Please try again."
@@ -409,25 +548,23 @@ export default function UserManagement() {
   const isUsersTab = activeTab === "users";
 
   return (
-    <main className="um-page">
+    <div className="um-page">
       <div className="um-container">
-        <header className="um-page-header">
-          <h1>User Management</h1>
-          <p>
-            Manage registered users and review merchant applications.
-          </p>
-        </header>
+        <PageHeader
+          title="User Management"
+          subtitle="Manage registered users and review merchant applications."
+          action={<Button to="/admin/reports" variant="secondary">Delivery reports</Button>}
+        />
+        {successMessage && <p className="um-success" role="status">{successMessage}</p>}
 
-        {/* Main tabs */}
         <div
           className="um-tabs"
-          role="tablist"
+          role="group"
           aria-label="Management sections"
         >
           <button
             type="button"
-            role="tab"
-            aria-selected={isUsersTab}
+            aria-pressed={isUsersTab}
             className={`um-tab ${
               isUsersTab ? "um-tab--active" : ""
             }`}
@@ -438,8 +575,7 @@ export default function UserManagement() {
 
           <button
             type="button"
-            role="tab"
-            aria-selected={!isUsersTab}
+            aria-pressed={!isUsersTab}
             className={`um-tab ${
               !isUsersTab ? "um-tab--active" : ""
             }`}
@@ -457,30 +593,26 @@ export default function UserManagement() {
 
         {isUsersTab ? (
           <>
-            {/* User summary cards */}
             <section
               className="um-summary-grid"
               aria-label="User summary"
             >
               <SummaryCard
                 title="Total Users"
-                value={usersLoading ? "—" : userCounts.total}
+                value={usersLoading || usersError ? "—" : userCounts.total}
               />
-
               <SummaryCard
                 title="Active Users"
-                value={usersLoading ? "—" : userCounts.active}
+                value={usersLoading || usersError ? "—" : userCounts.active}
                 variant="green"
               />
-
               <SummaryCard
                 title="Suspended Users"
-                value={usersLoading ? "—" : userCounts.suspended}
+                value={usersLoading || usersError ? "—" : userCounts.suspended}
                 variant="red"
               />
             </section>
 
-            {/* User table */}
             <section className="um-panel">
               <div className="um-panel-header">
                 <div>
@@ -504,9 +636,10 @@ export default function UserManagement() {
                     type="search"
                     placeholder="Search name, email or phone"
                     value={search}
-                    onChange={(event) =>
-                      { setSearch(event.target.value); setUserPage(1); }
-                    }
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                      setUserPage(1);
+                    }}
                   />
                 </label>
 
@@ -514,9 +647,10 @@ export default function UserManagement() {
                   <span>Role</span>
                   <select
                     value={roleFilter}
-                    onChange={(event) =>
-                      { setRoleFilter(event.target.value); setUserPage(1); }
-                    }
+                    onChange={(event) => {
+                      setRoleFilter(event.target.value);
+                      setUserPage(1);
+                    }}
                   >
                     <option value="ALL">All Roles</option>
 
@@ -532,9 +666,10 @@ export default function UserManagement() {
                   <span>Status</span>
                   <select
                     value={userStatusFilter}
-                    onChange={(event) =>
-                      { setUserStatusFilter(event.target.value); setUserPage(1); }
-                    }
+                    onChange={(event) => {
+                      setUserStatusFilter(event.target.value);
+                      setUserPage(1);
+                    }}
                   >
                     <option value="ALL">All Statuses</option>
 
@@ -548,18 +683,18 @@ export default function UserManagement() {
               </div>
 
               {usersLoading ? (
-                <EmptyState
-                  title="Loading Users"
-                  description="Retrieving registered users from SwiftDrop."
-                />
+                <Spinner label="Loading users..." />
               ) : usersError ? (
-                <div className="um-fetch-error">
+                <div className="um-fetch-error" role="alert">
                   <p>{usersError}</p>
-
                   <button
                     type="button"
                     className="um-button um-button--primary"
-                    onClick={loadUsers}
+                    onClick={() => {
+                      setUsersLoading(true);
+                      setUsersError("");
+                      loadUsers();
+                    }}
                   >
                     Try Again
                   </button>
@@ -578,7 +713,7 @@ export default function UserManagement() {
                   }
                 />
               ) : (
-                <div className="um-table-scroll">
+                <div className="um-table-scroll" role="region" aria-label="Management table" tabIndex={0}>
                   <table className="um-table">
                     <thead>
                       <tr>
@@ -598,28 +733,21 @@ export default function UserManagement() {
                           normalizeRole(user.role) === "ADMIN";
                         const isSelf =
                           currentUserId &&
-                          String(user.id) ===
-                            String(currentUserId);
+                          String(user.id) === String(currentUserId);
 
                         return (
                           <tr key={user.id}>
                             <td>
-                              <strong>
-                                {user.fullName || "—"}
-                              </strong>
+                              <strong>{user.fullName || "—"}</strong>
                             </td>
-
                             <td>{user.email || "—"}</td>
                             <td>{user.phone || "—"}</td>
-
                             <td>
                               {display(normalizeRole(user.role))}
                             </td>
-
                             <td>
                               <StatusBadge status={user.status} />
                             </td>
-
                             <td>
                               <div className="um-actions">
                                 <button
@@ -665,56 +793,50 @@ export default function UserManagement() {
                       })}
                     </tbody>
                   </table>
-                  <Pagination page={safeUserPage} totalItems={filteredUsers.length}
-                    onPageChange={setUserPage} />
+
+                  <Pagination
+                    page={safeUserPage}
+                    totalItems={filteredUsers.length}
+                    onPageChange={setUserPage}
+                  />
                 </div>
               )}
             </section>
           </>
         ) : (
           <>
-            {/* Merchant summary cards */}
             <section
               className="um-summary-grid"
               aria-label="Merchant summary"
             >
               <SummaryCard
                 title="Pending Applications"
-                value={
-                  usersLoading ? "—" : merchantCounts.pending
-                }
+                value={merchantsLoading || merchantsError ? "—" : merchantCounts.pending}
                 variant="orange"
               />
-
               <SummaryCard
                 title="Approved Merchants"
-                value={
-                  usersLoading ? "—" : merchantCounts.approved
-                }
+                value={merchantsLoading || merchantsError ? "—" : merchantCounts.approved}
                 variant="green"
               />
-
               <SummaryCard
-                title="Suspended Merchants"
-                value={
-                  usersLoading ? "—" : merchantCounts.suspended
-                }
+                title="Rejected Applications"
+                value={merchantsLoading || merchantsError ? "—" : merchantCounts.rejected}
                 variant="red"
               />
             </section>
 
-            {/* Merchant applications table */}
             <section className="um-panel">
               <div className="um-panel-header">
                 <div>
                   <h2>Merchant Applications</h2>
                   <p>
-                    Review merchant accounts and approve pending
-                    registrations.
+                    Review business registrations and approve or reject
+                    pending applications.
                   </p>
                 </div>
 
-                {!usersLoading && !usersError && (
+                {!merchantsLoading && !merchantsError && (
                   <span className="um-result-count">
                     {filteredMerchants.length} results
                   </span>
@@ -726,11 +848,12 @@ export default function UserManagement() {
                   <span>Search Merchants</span>
                   <input
                     type="search"
-                    placeholder="Search merchant name, email or phone"
+                    placeholder="Search business name, registration or phone"
                     value={search}
-                    onChange={(event) =>
-                      { setSearch(event.target.value); setMerchantPage(1); }
-                    }
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                      setMerchantPage(1);
+                    }}
                   />
                 </label>
 
@@ -738,13 +861,12 @@ export default function UserManagement() {
                   <span>Approval Status</span>
                   <select
                     value={merchantStatusFilter}
-                    onChange={(event) =>
-                      { setMerchantStatusFilter(event.target.value); setMerchantPage(1); }
-                    }
+                    onChange={(event) => {
+                      setMerchantStatusFilter(event.target.value);
+                      setMerchantPage(1);
+                    }}
                   >
-                    <option value="ALL">
-                      All Merchant Accounts
-                    </option>
+                    <option value="ALL">All Applications</option>
 
                     {MERCHANT_STATUSES.map((status) => (
                       <option key={status} value={status}>
@@ -755,19 +877,19 @@ export default function UserManagement() {
                 </label>
               </div>
 
-              {usersLoading ? (
-                <EmptyState
-                  title="Loading Merchants"
-                  description="Retrieving merchant accounts from SwiftDrop."
-                />
-              ) : usersError ? (
-                <div className="um-fetch-error">
-                  <p>{usersError}</p>
-
+              {merchantsLoading ? (
+                <Spinner label="Loading merchant applications..." />
+              ) : merchantsError ? (
+                <div className="um-fetch-error" role="alert">
+                  <p>{merchantsError}</p>
                   <button
                     type="button"
                     className="um-button um-button--primary"
-                    onClick={loadUsers}
+                    onClick={() => {
+                      setMerchantsLoading(true);
+                      setMerchantsError("");
+                      loadMerchants();
+                    }}
                   >
                     Try Again
                   </button>
@@ -776,22 +898,22 @@ export default function UserManagement() {
                 <EmptyState
                   title={
                     merchants.length === 0
-                      ? "No Merchant Accounts Found"
+                      ? "No Merchant Applications Found"
                       : "No Matching Merchants"
                   }
                   description={
                     merchants.length === 0
-                      ? "No merchant accounts were returned by the backend."
+                      ? "No merchant applications were returned by the backend."
                       : "Try changing your search or filters."
                   }
                 />
               ) : (
-                <div className="um-table-scroll">
+                <div className="um-table-scroll" role="region" aria-label="Management table" tabIndex={0}>
                   <table className="um-table">
                     <thead>
                       <tr>
-                        <th>Merchant</th>
-                        <th>Email</th>
+                        <th>Business Name</th>
+                        <th>Registration Number</th>
                         <th>Phone</th>
                         <th>Registered</th>
                         <th>Status</th>
@@ -801,42 +923,33 @@ export default function UserManagement() {
 
                     <tbody>
                       {paginatedMerchants.map((merchant) => {
-                        const status = normalize(merchant.status);
-
-                        const submitted =
-                          merchant.createdAt ??
-                          merchant.created_at;
-
-                        const submittedDate = submitted
-                          ? new Date(submitted)
-                          : null;
+                        const status = normalize(
+                          merchant.registrationStatus
+                        );
 
                         return (
                           <tr key={merchant.id}>
                             <td>
                               <strong>
-                                {merchant.fullName || "—"}
+                                {merchant.businessName || "—"}
                               </strong>
-
-                            </td>
-
-                            <td>{merchant.email || "—"}</td>
-                            <td>
-                              {merchant.phone || "—"}
                             </td>
 
                             <td>
-                              {submittedDate &&
-                              !Number.isNaN(
-                                submittedDate.getTime()
-                              )
-                                ? submittedDate.toLocaleDateString()
-                                : "—"}
+                              {merchant.registrationNumber || "—"}
+                            </td>
+
+                            <td>
+                              {merchant.contactPhone || "—"}
+                            </td>
+
+                            <td>
+                              {formatDate(merchant.createdAt)}
                             </td>
 
                             <td>
                               <StatusBadge
-                                status={merchant.status}
+                                status={merchant.registrationStatus}
                               />
                             </td>
 
@@ -855,30 +968,29 @@ export default function UserManagement() {
                                   Review
                                 </button>
 
-                                {status === "PENDING_APPROVAL" && (
+                                {status === "PENDING" && (
                                   <>
                                     <button
                                       type="button"
                                       className="um-button um-button--success"
                                       onClick={() =>
-                                        openModal(
-                                          "approve",
-                                          merchant
-                                        )
+                                        openModal("approve", merchant)
                                       }
                                     >
                                       Approve
                                     </button>
-
+                                  </>
+                                )}
+                                {["PENDING", "APPROVED"].includes(status) && (
                                     <button
                                       type="button"
                                       className="um-button um-button--danger-outline"
-                                      disabled
-                                      title="Merchant rejection is not supported by the backend yet"
+                                      onClick={() =>
+                                        openModal("reject", merchant)
+                                      }
                                     >
                                       Reject
                                     </button>
-                                  </>
                                 )}
                               </div>
                             </td>
@@ -887,17 +999,19 @@ export default function UserManagement() {
                       })}
                     </tbody>
                   </table>
-                  <Pagination page={safeMerchantPage} totalItems={filteredMerchants.length}
-                    onPageChange={setMerchantPage} />
+
+                  <Pagination
+                    page={safeMerchantPage}
+                    totalItems={filteredMerchants.length}
+                    onPageChange={setMerchantPage}
+                  />
                 </div>
               )}
             </section>
           </>
         )}
-
       </div>
 
-      {/* Details and confirmation dialogs */}
       {modalType && selectedItem && (
         <Modal
           title={
@@ -907,6 +1021,7 @@ export default function UserManagement() {
               suspend: "Suspend User",
               restore: "Restore User",
               approve: "Approve Merchant",
+              reject: "Reject Merchant",
             }[modalType]
           }
           onClose={closeModal}
@@ -918,32 +1033,29 @@ export default function UserManagement() {
                 label="Full Name"
                 value={selectedItem.fullName}
               />
-
               <DetailRow
                 label="Email"
                 value={selectedItem.email}
               />
-
               <DetailRow
                 label="Phone"
                 value={selectedItem.phone}
               />
-
               <DetailRow
                 label="Role"
-                value={display(
-                  normalizeRole(selectedItem.role)
-                )}
+                value={display(normalizeRole(selectedItem.role))}
               />
-
               <DetailRow
                 label="Status"
                 value={display(selectedItem.status)}
               />
-
               <DetailRow
                 label="Login Provider"
                 value={display(selectedItem.provider)}
+              />
+              <DetailRow
+                label="Email Verified"
+                value={selectedItem.emailVerified ? "Yes" : "No"}
               />
 
               <div className="um-modal-footer">
@@ -961,35 +1073,36 @@ export default function UserManagement() {
           {modalType === "merchantDetails" && (
             <div className="um-details">
               <DetailRow
-                label="Merchant Name"
-                value={selectedItem.fullName}
+                label="Business Name"
+                value={selectedItem.businessName}
               />
-
               <DetailRow
-                label="Email"
-                value={selectedItem.email}
+                label="Registration Number"
+                value={selectedItem.registrationNumber}
               />
-
               <DetailRow
-                label="Phone"
-                value={selectedItem.phone}
+                label="Contact Phone"
+                value={selectedItem.contactPhone}
               />
-
               <DetailRow
-                label="Role"
-                value={display(
-                  normalizeRole(selectedItem.role)
-                )}
+                label="Business Address"
+                value={selectedItem.businessAddress}
               />
-
               <DetailRow
-                label="Account Status"
-                value={display(selectedItem.status)}
+                label="Registration Status"
+                value={display(selectedItem.registrationStatus)}
               />
-
               <DetailRow
-                label="Login Provider"
-                value={display(selectedItem.provider)}
+                label="Registered"
+                value={formatDate(selectedItem.createdAt)}
+              />
+              <DetailRow label={normalize(selectedItem.registrationStatus) === "REJECTED" ? "Rejection Reason" : "Review Notes"}
+                value={selectedItem.approvalNotes} />
+              <DetailRow
+                label="Webhook Configured"
+                value={
+                  selectedItem.webhookConfigured ? "Yes" : "No"
+                }
               />
 
               <div className="um-modal-footer">
@@ -1004,7 +1117,7 @@ export default function UserManagement() {
             </div>
           )}
 
-          {["suspend", "restore", "approve"].includes(
+          {["suspend", "restore", "approve", "reject"].includes(
             modalType
           ) && (
             <>
@@ -1016,11 +1129,46 @@ export default function UserManagement() {
                   "Are you sure you want to restore this suspended user's account?"}
 
                 {modalType === "approve" &&
-                  "Are you sure you want to approve this merchant account? The account status will change from PENDING_APPROVAL to ACTIVE."}
+                  `Approve ${selectedItem.businessName}? Its registration status will change from PENDING to APPROVED.`}
+
+                {modalType === "reject" &&
+                  `Reject ${selectedItem.businessName}? Its status will change from ${normalize(selectedItem.registrationStatus)} to REJECTED and merchant access will be blocked.`}
               </p>
 
+              {modalType === "reject" && (
+                <label className="um-field">
+                  <span>Rejection Reason (Required)</span>
+                  <select required value={rejectionReason} disabled={busy}
+                    onChange={(event) => { setRejectionReason(event.target.value); setActionError(""); }}>
+                    <option value="">Select a reason</option>
+                    {REJECTION_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+                  </select>
+                </label>
+              )}
+              {["approve", "reject"].includes(modalType) && (
+                <>
+                <label className="um-field">
+                  <span>{modalType === "reject"
+                    ? rejectionReason === "Other" ? "Explain the Reason (Required)" : "Additional Details (Optional)"
+                    : "Admin Notes (Optional)"}</span>
+                  <textarea
+                    rows={3}
+                    required={modalType === "reject" && rejectionReason === "Other"}
+                    maxLength={modalType === "reject" && rejectionReason !== "Other" ? 1800 : 2000}
+                    value={actionNotes}
+                    placeholder="Enter a reason or review notes"
+                    onChange={(event) =>
+                      setActionNotes(event.target.value)
+                    }
+                    disabled={busy}
+                  />
+                </label>
+                {modalType === "reject" && <small>This reason will be included in the email to the applicant.</small>}
+                </>
+              )}
+
               {actionError && (
-                <p className="um-error">{actionError}</p>
+                <p className="um-error" role="alert">{actionError}</p>
               )}
 
               <div className="um-modal-footer">
@@ -1036,7 +1184,7 @@ export default function UserManagement() {
                 <button
                   type="button"
                   className={`um-button ${
-                    modalType === "suspend"
+                    ["suspend", "reject"].includes(modalType)
                       ? "um-button--danger"
                       : "um-button--primary"
                   }`}
@@ -1050,6 +1198,6 @@ export default function UserManagement() {
           )}
         </Modal>
       )}
-    </main>
+    </div>
   );
 }

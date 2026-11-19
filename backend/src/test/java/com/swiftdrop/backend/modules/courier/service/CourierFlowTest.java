@@ -4,8 +4,6 @@ import com.swiftdrop.backend.modules.auth.entity.Role;
 import com.swiftdrop.backend.modules.auth.entity.User;
 import com.swiftdrop.backend.modules.auth.repository.UserRepository;
 import com.swiftdrop.backend.modules.courier.dto.CourierDeliveryResponse;
-import com.swiftdrop.backend.modules.courier.entity.Courier;
-import com.swiftdrop.backend.modules.courier.repository.CourierRepository;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
 import com.swiftdrop.backend.modules.tracking.exception.ParcelStatusRequirementException;
@@ -39,7 +37,6 @@ class CourierFlowTest {
     @Autowired DeliveryProofService proofs;
     @Autowired ParcelStatusService statuses;
     @Autowired UserRepository users;
-    @Autowired CourierRepository couriers;
     @Autowired ParcelRepository parcels;
     @Autowired JdbcTemplate jdbc;
     @Autowired Clock clock;
@@ -48,21 +45,74 @@ class CourierFlowTest {
     private final Principal courier = () -> "first@courier.test";
     private final Principal other = () -> "second@courier.test";
     private UUID parcelId;
+    private UUID courierUserId;
+    private UUID dispatcherId;
 
     @BeforeEach
     void setUp() {
-        UUID courierId = createCourier(courier);
+        // Hibernate creates only the courier read view's columns. Include the shared
+        // dispatch columns and constraints so JDBC fixtures match schema.sql too.
+        jdbc.execute("alter table courier_assignments add column if not exists dispatcher_id UUID not null references users(id)");
+        jdbc.execute("alter table courier_assignments add column if not exists assigned_at timestamp with time zone default current_timestamp not null");
+        jdbc.execute("alter table courier_assignments add column if not exists updated_at timestamp with time zone default current_timestamp not null");
+        jdbc.execute("alter table courier_assignments add column if not exists version bigint default 0 not null");
+        dispatcherId = users.saveAndFlush(User.builder().email("dispatcher@courier.test")
+                .fullName("Test dispatcher").role(Role.ROLE_DISPATCHER).build()).getId();
+        courierUserId = createCourier(courier);
         UUID otherId = createCourier(other);
         LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
-        parcelId = assignedParcel(courierId, today, "SDP-TODAY");
-        assignedParcel(courierId, today.minusDays(1), "SDP-OVERDUE");
+        parcelId = assignedParcel(courierUserId, today, "SDP-TODAY");
+        assignedParcel(courierUserId, today.minusDays(1), "SDP-OVERDUE");
+        assignedParcel(courierUserId, today.plusDays(1), "SDP-TOMORROW");
         assignedParcel(otherId, today, "SDP-OTHER");
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
+                + " values (?, ?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId, dispatcherId);
     }
 
     @Test
     void onlyShowsOwnDeliveriesScheduledForToday() {
         assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
                 .containsExactly(parcelId);
+    }
+
+    @Test
+    void scheduleControlsTodayEvenWhenParcelEstimateDiffersOrIsMissing() {
+        LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
+        UUID noEstimate = assignedParcel(courierUserId, today, "SDP-NO-ESTIMATE");
+        jdbc.update("update parcels set estimated_delivery_at = null where id = ?", noEstimate);
+        jdbc.update("update parcels set estimated_delivery_at = ? where id = ?",
+                today.plusDays(2).atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant(), parcelId);
+        UUID later = assignedParcel(courierUserId, today.plusDays(1), "SDP-LATER");
+        jdbc.update("update parcels set estimated_delivery_at = ? where id = ?",
+                today.atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant(), later);
+
+        assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
+                .containsExactlyInAnyOrder(parcelId, noEstimate);
+        assertThat(deliveries.details(parcelId, courier).scheduledDate()).isEqualTo(today);
+    }
+
+    @Test
+    void todayExcludesAssignmentsWithAnyOtherStatus() {
+        LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
+        for (String status : new String[]{"ACCEPTED", "CANCELLED", "REJECTED", "COMPLETED"}) {
+            UUID id = assignedParcel(courierUserId, today, "SDP-" + status);
+            jdbc.update("update courier_assignments set status = ? where parcel_id = ?", status, id);
+        }
+        assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
+                .containsExactly(parcelId);
+    }
+
+    @Test
+    void reassignedParcelOnlyAppearsForNewCourier() {
+        jdbc.update("update courier_assignments set status = 'CANCELLED' where parcel_id = ?", parcelId);
+        UUID otherId = users.findByEmail(other.getName()).orElseThrow().getId();
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
+                + " values (?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), parcelId, otherId, dispatcherId);
+
+        assertThat(deliveries.today(courier)).isEmpty();
+        assertThat(deliveries.today(other)).extracting(CourierDeliveryResponse::parcelId).contains(parcelId);
+        assertThat(assertThrows(ResponseStatusException.class, () -> deliveries.details(parcelId, courier))
+                .getStatusCode().value()).isEqualTo(404);
     }
 
     @Test
@@ -108,7 +158,10 @@ class CourierFlowTest {
     @Test
     void proofPermitsDeliveryAndCorrectionKeepsOriginal() {
         goOutForDelivery();
+        assertThat(deliveries.details(parcelId, courier).hasSavedProof()).isFalse();
         var initial = proofs.save(parcelId, courier, "Original name", null, null);
+        assertThat(deliveries.details(parcelId, courier).hasSavedProof()).isTrue();
+        assertThat(initial.courierId()).isEqualTo(courierUserId);
         deliveries.updateStatus(parcelId, ParcelStatus.DELIVERED, null, courier);
         var correction = proofs.save(parcelId, courier, "Corrected name", null, "Spelling");
 
@@ -127,15 +180,19 @@ class CourierFlowTest {
     private UUID createCourier(Principal principal) {
         User user = users.save(User.builder().email(principal.getName())
                 .fullName("Test courier").role(Role.ROLE_COURIER).build());
-        return couriers.save(new Courier(user.getId())).getId();
+        return user.getId();
     }
 
     private UUID assignedParcel(UUID courierId, LocalDate date, String trackingNumber) {
         var parcel = TestParcels.withId(null);
         org.springframework.test.util.ReflectionTestUtils.setField(parcel, "trackingNumber", trackingNumber);
+        if (date != null) {
+            org.springframework.test.util.ReflectionTestUtils.setField(parcel, "estimatedDeliveryAt",
+                    date.atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant());
+        }
         UUID id = parcels.saveAndFlush(parcel).getId();
-        jdbc.update("insert into courier_assignments (parcel_id, courier_id, scheduled_date) values (?, ?, ?)",
-                id, courierId, java.sql.Date.valueOf(date));
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, scheduled_date, status)"
+                + " values (?, ?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), id, courierId, dispatcherId, date);
         return id;
     }
 }

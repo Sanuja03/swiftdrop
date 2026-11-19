@@ -3,8 +3,9 @@ import process from 'node:process'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 
-// Forward API and WebSocket requests to the backend.
-// VITE_DEV_PROXY_TARGET can override the default backend address.
+// The dev server forwards API and WebSocket calls to the backend, so the
+// browser only ever talks to one origin (no CORS setup needed).
+// VITE_DEV_PROXY_TARGET points it at a backend other than the local default.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd())
   const backendUrl = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
@@ -12,21 +13,14 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
-      },
+      // '@/shared/...' and '@/features/...' instead of long ../../../ paths
+      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
     server: {
+      port: 5173,
       proxy: {
-        '/api': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-        '/ws': {
-          target: backendUrl,
-          changeOrigin: true,
-          ws: true,
-        },
+        '/api': { target: backendUrl, changeOrigin: true },
+        '/ws': { target: backendUrl, ws: true },
       },
     },
   }

@@ -41,6 +41,7 @@ public class ReportService {
                 COUNT(*) FILTER (
                     WHERE status = 'OUT_FOR_DELIVERY'
                 ) AS out_for_delivery_parcels,
+                COUNT(*) FILTER (WHERE status = 'FAILED') AS failed_parcels,
                 COALESCE(SUM(fee), 0) AS total_fees
             FROM public.parcels
             """;
@@ -51,7 +52,8 @@ public class ReportService {
                 rs.getLong("delivered_parcels"),
                 rs.getLong("in_transit_parcels"),
                 rs.getLong("out_for_delivery_parcels"),
-                rs.getBigDecimal("total_fees")
+                rs.getBigDecimal("total_fees"),
+                rs.getLong("failed_parcels")
             )
         );
     }
@@ -87,6 +89,14 @@ public class ReportService {
 
     // Get delivery success and failure rates
     public DeliverySuccessRateResponse getDeliverySuccessRate() {
+        return querySuccessRate(null, null);
+    }
+
+    public DeliverySuccessRateResponse getDeliverySuccessRate(LocalDate startDate, LocalDate endDate) {
+        return querySuccessRate(startDate, endDate);
+    }
+
+    private DeliverySuccessRateResponse querySuccessRate(LocalDate startDate, LocalDate endDate) {
         String sql = """
             SELECT
                 COUNT(*) FILTER (
@@ -95,10 +105,24 @@ public class ReportService {
                 COUNT(*) FILTER (
                     WHERE status = 'FAILED'
                 ) AS failed
-            FROM public.parcels
+            FROM public.parcels p
             """;
 
-        return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> {
+        // Current completed outcomes, dated by the latest delivered/failed status event.
+        // Aggregate history first so retries never duplicate a parcel in the percentages.
+        if (startDate != null && endDate != null) {
+            sql += """
+                JOIN (
+                    SELECT parcel_id, MAX(changed_at) AS outcome_at
+                    FROM public.parcel_status_history
+                    WHERE to_status IN ('DELIVERED', 'FAILED')
+                    GROUP BY parcel_id
+                ) h ON h.parcel_id = p.id
+                WHERE (h.outcome_at AT TIME ZONE 'Asia/Colombo')::date BETWEEN ? AND ?
+                """;
+        }
+
+        org.springframework.jdbc.core.RowMapper<DeliverySuccessRateResponse> rowMapper = (rs, rowNum) -> {
 
             long delivered = rs.getLong("delivered");
             long failed = rs.getLong("failed");
@@ -119,6 +143,8 @@ public class ReportService {
                 successRate,
                 failureRate
             );
-        });
+        };
+        return startDate == null ? jdbcTemplate.queryForObject(sql, rowMapper)
+                : jdbcTemplate.queryForObject(sql, rowMapper, startDate, endDate);
     }
 }

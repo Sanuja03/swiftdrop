@@ -33,6 +33,14 @@ public class PricingRule {
     @Column(name = "created_at", nullable = false, updatable = false) private Instant createdAt;
     @Column(name = "updated_at", nullable = false) private Instant updatedAt;
 
+    /** Replaces the fees and the active flag; the service type never changes. */
+    public void update(BigDecimal baseFee, BigDecimal perKgFee, BigDecimal interZoneFee, boolean active) {
+        this.baseFee = baseFee;
+        this.perKgFee = perKgFee;
+        this.interZoneFee = interZoneFee;
+        this.active = active;
+    }
+
     @PrePersist void onCreate() { var now = Instant.now(); createdAt = now; updatedAt = now; }
     @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
 }
