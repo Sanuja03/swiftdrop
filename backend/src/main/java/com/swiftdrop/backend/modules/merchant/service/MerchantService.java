@@ -33,31 +33,45 @@ public class MerchantService {
         this.parcelRepository = parcelRepository;
     }
 
+    /**
+     * Creates a PENDING merchant profile for the signed-in user's own account. The user id always
+     * comes from the authenticated principal, never from the request.
+     */
     @Transactional
-    public MerchantProfileResponse registerMerchant(MerchantRegisterRequest request) {
-        UUID effectiveUserId = request.getUserId() != null ? request.getUserId() : UUID.randomUUID();
-
-        if (merchantRepository.findByUserId(effectiveUserId).isPresent()) {
+    public MerchantProfileResponse registerMerchant(UUID userId, MerchantRegisterRequest request) {
+        if (merchantRepository.findByUserId(userId).isPresent()) {
             throw new IllegalArgumentException("A merchant profile already exists for this user account.");
         }
 
-        byte[] secretBytes = new byte[24];
-        secureRandom.nextBytes(secretBytes);
-        String webhookSecret = "whsec_" + Base64.getUrlEncoder().withoutPadding().encodeToString(secretBytes);
-
         Merchant merchant = Merchant.builder()
-                .userId(effectiveUserId)
+                .userId(userId)
                 .businessName(request.getBusinessName())
                 .registrationNumber(request.getRegistrationNumber())
                 .contactPhone(request.getContactPhone())
                 .businessAddress(request.getBusinessAddress())
                 .registrationStatus(MerchantRegistrationStatus.PENDING)
-                .webhookSecret(webhookSecret)
+                .webhookSecret(newWebhookSecret())
                 .build();
 
         Merchant saved = merchantRepository.save(merchant);
-        log.info("New merchant registered: {} (id={}, status={})", saved.getBusinessName(), saved.getId(), saved.getRegistrationStatus());
+        log.info("New merchant registered (id={}, status={})", saved.getId(), saved.getRegistrationStatus());
         return mapToProfile(saved);
+    }
+
+    /** A new random API key. The only place keys are generated (approval, regeneration, dev seed). */
+    public String newApiKey() {
+        return "sdp_live_" + randomToken(32);
+    }
+
+    /** A new random webhook signing secret. */
+    public String newWebhookSecret() {
+        return "whsec_" + randomToken(24);
+    }
+
+    private String randomToken(int bytes) {
+        byte[] buffer = new byte[bytes];
+        secureRandom.nextBytes(buffer);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer);
     }
 
     @Transactional(readOnly = true)
@@ -100,13 +114,10 @@ public class MerchantService {
         Merchant merchant = merchantRepository.findById(merchantId)
                 .orElseThrow(() -> new MerchantNotFoundException(merchantId));
 
-        byte[] keyBytes = new byte[32];
-        secureRandom.nextBytes(keyBytes);
-        String newKey = "sdp_live_" + Base64.getUrlEncoder().withoutPadding().encodeToString(keyBytes);
-
+        String newKey = newApiKey();
         merchant.setApiKey(newKey);
         merchantRepository.save(merchant);
-        log.info("Regenerated API Key for merchant: {}", merchant.getBusinessName());
+        log.info("Regenerated API key for merchant {}", merchant.getId());
         return newKey;
     }
 
@@ -131,7 +142,17 @@ public class MerchantService {
                 .build();
     }
 
+    /** The merchant's own view of their profile (includes their API key). */
     public MerchantProfileResponse mapToProfile(Merchant m) {
+        return toProfile(m, true);
+    }
+
+    /** What admins see: the same profile without the merchant's API key. */
+    public MerchantProfileResponse mapToAdminProfile(Merchant m) {
+        return toProfile(m, false);
+    }
+
+    private MerchantProfileResponse toProfile(Merchant m, boolean includeApiKey) {
         return MerchantProfileResponse.builder()
                 .id(m.getId())
                 .userId(m.getUserId())
@@ -140,7 +161,7 @@ public class MerchantService {
                 .contactPhone(m.getContactPhone())
                 .businessAddress(m.getBusinessAddress())
                 .registrationStatus(m.getRegistrationStatus())
-                .apiKey(m.getApiKey())
+                .apiKey(includeApiKey ? m.getApiKey() : null)
                 .webhookUrl(m.getWebhookUrl())
                 .webhookConfigured(m.getWebhookUrl() != null && !m.getWebhookUrl().isBlank())
                 .createdAt(m.getCreatedAt())

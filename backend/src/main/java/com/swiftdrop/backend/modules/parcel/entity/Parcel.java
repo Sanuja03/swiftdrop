@@ -137,12 +137,8 @@ public class Parcel {
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
-        if (createdAt == null) {
-            createdAt = now;
-        }
-        if (updatedAt == null) {
-            updatedAt = now;
-        }
+        createdAt = now;
+        updatedAt = now;
     }
 
     @PreUpdate

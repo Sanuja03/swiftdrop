@@ -11,4 +11,9 @@ import com.swiftdrop.backend.modules.zone.entity.Zone;
 public interface ZoneRepository extends JpaRepository<Zone, UUID> {
     List<Zone> findAllByActiveTrueOrderByNameAsc();
     Optional<Zone> findByIdAndActiveTrue(UUID id);
+
+    /** For integrations that send a city/zone name instead of a zone id (merchant API). */
+    Optional<Zone> findFirstByNameIgnoreCaseAndActiveTrue(String name);
+
+    Optional<Zone> findFirstByCodeIgnoreCaseAndActiveTrue(String code);
 }

@@ -45,8 +45,10 @@ public class MerchantWebhookService {
             .connectTimeout(Duration.ofSeconds(4))
             .build();
 
-    @Value("${swiftdrop.webhooks.direct-delivery.enabled:true}")
-    private boolean directDeliveryEnabled = true;
+    // Off by default: parcel status webhooks are delivered by the shared messaging & webhook engine
+    // (outbox -> RabbitMQ -> WebhookDispatchService). This service keeps the webhook test and log feature.
+    @Value("${swiftdrop.webhooks.direct-delivery.enabled:false}")
+    private boolean directDeliveryEnabled = false;
 
     public MerchantWebhookService(MerchantRepository merchantRepository,
                                   MerchantWebhookLogRepository webhookLogRepository) {
