@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import '../styles/merchant.css';
 import { merchantApi } from '../services/merchantApi';
 
 export default function MerchantPortal() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ROLE_ADMIN';
   const [activeTab, setActiveTab] = useState('dashboard');
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({
@@ -57,8 +60,25 @@ export default function MerchantPortal() {
     let ignore = false;
     async function fetchData() {
       try {
-        const prof = await merchantApi.getProfile();
+        // Merchant approval is an admin task; merchants are not allowed to list other merchants.
+        if (isAdmin) {
+          const adminList = await merchantApi.listAdminMerchants();
+          if (ignore) return;
+          setAdminMerchants(adminList);
+          return;
+        }
+
+        // No merchant profile yet (404): show the registration form instead of an error.
+        const prof = await merchantApi.getProfile().catch((err) => {
+          if (err.isNotFound) return null;
+          throw err;
+        });
         if (ignore) return;
+        if (!prof) {
+          setProfile(null);
+          setActiveTab('registration');
+          return;
+        }
         setProfile(prof);
         setWebhookUrl(prof.webhookUrl || '');
         setWebhookSecret(prof.webhookSecret || '');
@@ -74,10 +94,6 @@ export default function MerchantPortal() {
         const logs = await merchantApi.getWebhookLogs(prof.id);
         if (ignore) return;
         setWebhookLogs(logs);
-
-        const adminList = await merchantApi.listAdminMerchants();
-        if (ignore) return;
-        setAdminMerchants(adminList);
       } catch (err) {
         if (!ignore) {
           console.error(err);
@@ -94,7 +110,7 @@ export default function MerchantPortal() {
     return () => {
       ignore = true;
     };
-  }, [orderFilter, searchQuery, reloadKey]);
+  }, [orderFilter, searchQuery, reloadKey, isAdmin]);
 
   // Recalculate price estimate when weight/service/cities change
   useEffect(() => {
@@ -502,7 +518,7 @@ export default function MerchantPortal() {
                 <input
                   type="text"
                   className="search-input"
-                  placeholder="🔍 Search by tracking # (e.g. SDP7845621), recipient name, or city..."
+                  placeholder="🔍 Search by tracking # (e.g. SDP1234567), recipient name, or city..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -633,7 +649,7 @@ export default function MerchantPortal() {
                       <input
                         type="text"
                         className="form-input"
-                        placeholder="e.g. No. 42, Galle Road"
+                        placeholder="Pickup street address"
                         required
                         value={orderForm.pickupAddress}
                         onChange={(e) => setOrderForm({ ...orderForm, pickupAddress: e.target.value })}
@@ -644,7 +660,7 @@ export default function MerchantPortal() {
                       <input
                         type="text"
                         className="form-input"
-                        placeholder="Colombo"
+                        placeholder="Pickup zone"
                         required
                         value={orderForm.pickupCity}
                         onChange={(e) => setOrderForm({ ...orderForm, pickupCity: e.target.value })}
@@ -659,7 +675,7 @@ export default function MerchantPortal() {
                       <input
                         type="text"
                         className="form-input"
-                        placeholder="Kamal Perera"
+                        placeholder="Recipient full name"
                         required
                         value={orderForm.recipientName}
                         onChange={(e) => setOrderForm({ ...orderForm, recipientName: e.target.value })}
@@ -670,7 +686,7 @@ export default function MerchantPortal() {
                       <input
                         type="text"
                         className="form-input"
-                        placeholder="0771234567"
+                        placeholder="Recipient phone number"
                         required
                         value={orderForm.recipientPhone}
                         onChange={(e) => setOrderForm({ ...orderForm, recipientPhone: e.target.value })}
@@ -684,7 +700,7 @@ export default function MerchantPortal() {
                       <input
                         type="text"
                         className="form-input"
-                        placeholder="No. 12, Kandy Road"
+                        placeholder="Drop-off street address"
                         required
                         value={orderForm.dropoffAddress}
                         onChange={(e) => setOrderForm({ ...orderForm, dropoffAddress: e.target.value })}
@@ -695,7 +711,7 @@ export default function MerchantPortal() {
                       <input
                         type="text"
                         className="form-input"
-                        placeholder="Kandy / Dehiwala / Galle"
+                        placeholder="Drop-off zone"
                         required
                         value={orderForm.dropoffCity}
                         onChange={(e) => setOrderForm({ ...orderForm, dropoffCity: e.target.value })}
@@ -887,7 +903,7 @@ export default function MerchantPortal() {
                   <input
                     type="url"
                     className="form-input"
-                    placeholder="https://yourdomain.com/api/swiftdrop-events"
+                    placeholder="https://example.com/webhook"
                     required
                     value={webhookUrl}
                     onChange={(e) => setWebhookUrl(e.target.value)}
@@ -1019,7 +1035,7 @@ export default function MerchantPortal() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="e.g. Ceylon Spices & Crafts"
+                      placeholder="Business name"
                       required
                       value={regForm.businessName}
                       onChange={(e) => setRegForm({ ...regForm, businessName: e.target.value })}
@@ -1031,7 +1047,7 @@ export default function MerchantPortal() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="PV-789012"
+                      placeholder="Business registration number"
                       value={regForm.registrationNumber}
                       onChange={(e) => setRegForm({ ...regForm, registrationNumber: e.target.value })}
                     />
@@ -1042,7 +1058,7 @@ export default function MerchantPortal() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="0112345678"
+                      placeholder="Contact phone number"
                       required
                       value={regForm.contactPhone}
                       onChange={(e) => setRegForm({ ...regForm, contactPhone: e.target.value })}
@@ -1054,7 +1070,7 @@ export default function MerchantPortal() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="No. 100, Havelock Road, Colombo"
+                      placeholder="Business address"
                       required
                       value={regForm.businessAddress}
                       onChange={(e) => setRegForm({ ...regForm, businessAddress: e.target.value })}
