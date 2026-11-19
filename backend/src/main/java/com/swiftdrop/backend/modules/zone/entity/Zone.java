@@ -26,6 +26,24 @@ public class Zone {
     @Column(name = "created_at", nullable = false, updatable = false) private Instant createdAt;
     @Column(name = "updated_at", nullable = false) private Instant updatedAt;
 
+    /** A new, active zone. The code never changes after this. */
+    public static Zone create(String code, String name, BigDecimal surcharge) {
+        var zone = new Zone();
+        zone.id = UUID.randomUUID();
+        zone.code = code;
+        zone.name = name;
+        zone.surcharge = surcharge;
+        zone.active = true;
+        return zone;
+    }
+
+    public void update(String name, BigDecimal surcharge) {
+        this.name = name;
+        this.surcharge = surcharge;
+    }
+
+    public void setActive(boolean active) { this.active = active; }
+
     @PrePersist void onCreate() { var now = Instant.now(); createdAt = now; updatedAt = now; }
     @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
 }

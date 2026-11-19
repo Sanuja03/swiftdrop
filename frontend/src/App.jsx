@@ -32,6 +32,10 @@ import {
 // Merchant portal (orders, API key, webhooks)
 import MerchantPortal from './features/merchant/pages/MerchantPortal'
 
+// Admin area (zones and pricing)
+import AdminLayout from '@/shared/layouts/AdminLayout'
+import { AdminPricingPage, AdminZonesPage } from '@/features/admin'
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -77,9 +81,15 @@ export function AppRoutes() {
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 
-      {/* Logged-in: courier app */}
-      <Route path={ROUTES.courier} element={<ProtectedRoute><CourierPage /></ProtectedRoute>} />
-      <Route path={`${ROUTES.courier}/:parcelId`} element={<ProtectedRoute><CourierPage /></ProtectedRoute>} />
+      {/* Logged-in couriers only */}
+      <Route
+        path={ROUTES.courier}
+        element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>}
+      />
+      <Route
+        path={`${ROUTES.courier}/:parcelId`}
+        element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>}
+      />
 
       {/* Logged-in: dispatcher operations */}
       <Route
@@ -94,15 +104,29 @@ export function AppRoutes() {
         <Route path="workload" element={<CourierWorkloadPage />} />
       </Route>
 
-      {/* Logged-in: merchant portal */}
+      {/* Logged-in merchants only */}
       <Route
         path="/merchant/*"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute roles={['ROLE_MERCHANT']}>
             <MerchantPortal />
           </ProtectedRoute>
         }
       />
+
+      {/* Logged-in admins only: anyone else is sent to their own home page */}
+      <Route
+        path={ROUTES.admin}
+        element={
+          <ProtectedRoute roles={['ROLE_ADMIN']}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to={ROUTES.adminZones} replace />} />
+        <Route path="zones" element={<AdminZonesPage />} />
+        <Route path="pricing" element={<AdminPricingPage />} />
+      </Route>
 
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />

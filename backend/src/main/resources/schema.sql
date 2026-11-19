@@ -146,6 +146,9 @@ CREATE TABLE IF NOT EXISTS pricing_rules (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Starter data only. Admins manage zones and prices in the app (/api/v1/admin/zones,
+-- /api/v1/admin/pricing-rules), so re-running this file must never overwrite their changes:
+-- existing rows are left alone (ON CONFLICT DO NOTHING) and only missing rows are added.
 INSERT INTO zones (id, code, name, surcharge, active) VALUES
     ('10000000-0000-4000-8000-000000000001', 'COLOMBO', 'Colombo', 0, TRUE),
     ('10000000-0000-4000-8000-000000000002', 'GAMPAHA', 'Gampaha', 0, TRUE),
@@ -155,22 +158,13 @@ INSERT INTO zones (id, code, name, surcharge, active) VALUES
     ('10000000-0000-4000-8000-000000000006', 'MATARA', 'Matara', 150, TRUE),
     ('10000000-0000-4000-8000-000000000007', 'KURUNEGALA', 'Kurunegala', 150, TRUE),
     ('10000000-0000-4000-8000-000000000008', 'JAFFNA', 'Jaffna', 350, TRUE)
-ON CONFLICT (code) DO UPDATE SET
-    name = EXCLUDED.name,
-    surcharge = EXCLUDED.surcharge,
-    active = EXCLUDED.active,
-    updated_at = now();
+ON CONFLICT DO NOTHING;
 
 INSERT INTO pricing_rules (id, service_type, base_fee, per_kg_fee, inter_zone_fee, active) VALUES
     ('20000000-0000-4000-8000-000000000001', 'STANDARD', 590, 100, 250, TRUE),
     ('20000000-0000-4000-8000-000000000002', 'EXPRESS', 990, 100, 400, TRUE),
     ('20000000-0000-4000-8000-000000000003', 'SAME_DAY', 1490, 100, 600, TRUE)
-ON CONFLICT (service_type) DO UPDATE SET
-    base_fee = EXCLUDED.base_fee,
-    per_kg_fee = EXCLUDED.per_kg_fee,
-    inter_zone_fee = EXCLUDED.inter_zone_fee,
-    active = EXCLUDED.active,
-    updated_at = now();
+ON CONFLICT DO NOTHING;
 
 -- =====================================================================
 -- Booking & Pricing: parcel booking columns            (added 2026-11-13)

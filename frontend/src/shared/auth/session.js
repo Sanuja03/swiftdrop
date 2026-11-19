@@ -74,8 +74,16 @@ export function onSessionChange(listener) {
   return () => listeners.delete(listener)
 }
 
-/** Default landing page after sign-in. */
+/** Where each role lands after signing in. */
+const HOME_BY_ROLE = {
+  ROLE_CUSTOMER: '/app',
+  ROLE_ADMIN: '/admin',
+  ROLE_COURIER: '/courier/deliveries',
+  ROLE_DISPATCHER: '/dispatch',
+  ROLE_MERCHANT: '/merchant',
+}
+
+/** Where a user goes after signing in; anyone without a specific area goes to their profile. */
 export function homePathFor(user) {
-  if (user?.role === 'ROLE_COURIER') return '/courier/deliveries'
-  return user?.role === 'ROLE_CUSTOMER' ? '/app' : '/profile'
+  return HOME_BY_ROLE[user?.role] ?? '/profile'
 }
