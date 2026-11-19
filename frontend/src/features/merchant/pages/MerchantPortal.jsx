@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import '../styles/merchant.css';
 import { merchantApi } from '../services/merchantApi';
+import MyNotifications from '@/features/notifications/pages/MyNotifications';
 
 export default function MerchantPortal() {
   const { user } = useAuth();
@@ -273,6 +274,8 @@ export default function MerchantPortal() {
         </div>
 
         <nav className="merchant-nav">
+          <button type="button" className={`merchant-nav-tab ${activeTab === 'notifications' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notifications')}>🔔 Notifications</button>
           <button
             type="button"
             className={`merchant-nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
@@ -360,6 +363,7 @@ export default function MerchantPortal() {
 
       {/* Main Content */}
       <main className="merchant-main">
+        {activeTab === 'notifications' && <MyNotifications />}
         {/* TAB 1: DASHBOARD */}
         {activeTab === 'dashboard' && (
           <div>
@@ -1043,11 +1047,13 @@ export default function MerchantPortal() {
                   </div>
 
                   <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label className="form-label">Business Registration (BR) Number</label>
+                    <label className="form-label">Business Registration (BR) Number *</label>
                     <input
                       type="text"
                       className="form-input"
                       placeholder="Business registration number"
+                      required
+                      maxLength={100}
                       value={regForm.registrationNumber}
                       onChange={(e) => setRegForm({ ...regForm, registrationNumber: e.target.value })}
                     />

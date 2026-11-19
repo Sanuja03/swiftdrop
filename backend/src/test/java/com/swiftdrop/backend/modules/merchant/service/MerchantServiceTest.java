@@ -28,12 +28,18 @@ class MerchantServiceTest {
 
     private final MerchantRepository merchantRepository = mock(MerchantRepository.class);
     private final ParcelRepository parcelRepository = mock(ParcelRepository.class);
-    private final MerchantService service = new MerchantService(merchantRepository, parcelRepository);
+    private final com.swiftdrop.backend.modules.messaging.service.OutboxService outboxService =
+            mock(com.swiftdrop.backend.modules.messaging.service.OutboxService.class);
+    private final MerchantService service = new MerchantService(merchantRepository, parcelRepository, outboxService);
 
     @Test
     void registrationIsLinkedToTheCallersOwnAccountAndStartsPending() {
         when(merchantRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
-        when(merchantRepository.save(any(Merchant.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(merchantRepository.save(any(Merchant.class))).thenAnswer(invocation -> {
+            Merchant merchant = invocation.getArgument(0);
+            merchant.setId(MERCHANT_ID);
+            return merchant;
+        });
 
         var response = service.registerMerchant(USER_ID, registerRequest());
 
@@ -43,6 +49,8 @@ class MerchantServiceTest {
         assertThat(saved.getValue().getWebhookSecret()).startsWith("whsec_");
         assertThat(response.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.PENDING);
         assertThat(response.getApiKey()).isNull();
+        verify(outboxService).publishEvent("MERCHANT", MERCHANT_ID, "MERCHANT_REGISTERED",
+                "merchant.registered", new com.swiftdrop.backend.modules.merchant.event.MerchantRegisteredPayload(MERCHANT_ID));
     }
 
     @Test
@@ -52,6 +60,7 @@ class MerchantServiceTest {
         assertThatThrownBy(() -> service.registerMerchant(USER_ID, registerRequest()))
                 .isInstanceOf(IllegalArgumentException.class);
         verify(merchantRepository, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(outboxService);
     }
 
     @Test
@@ -107,6 +116,7 @@ class MerchantServiceTest {
     private static MerchantRegisterRequest registerRequest() {
         return MerchantRegisterRequest.builder()
                 .businessName("Test Shop")
+                .registrationNumber("TEST-REG")
                 .contactPhone("0000000000")
                 .businessAddress("1 Sample Street")
                 .build();

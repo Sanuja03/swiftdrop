@@ -6,6 +6,7 @@ import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -36,10 +37,12 @@ import lombok.extern.slf4j.Slf4j;
  * </ul>
  * Idempotent: if the user or the merchant already exists, it is left untouched (so the key is
  * only shown the first time; regenerate it in the merchant portal if you lose it).
+ * Set app.dev.seed-merchant=false when running against a shared database.
  */
 @Slf4j
 @Profile(DevProfile.NAME)
 @Component
+@ConditionalOnProperty(name = "app.dev.seed-merchant", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class DemoMerchantSeeder implements ApplicationRunner {
 

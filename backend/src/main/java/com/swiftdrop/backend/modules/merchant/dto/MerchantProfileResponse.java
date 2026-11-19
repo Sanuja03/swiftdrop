@@ -11,6 +11,7 @@ public class MerchantProfileResponse {
     private String registrationNumber;
     private String contactPhone;
     private String businessAddress;
+    private String approvalNotes;
     private MerchantRegistrationStatus registrationStatus;
     private String apiKey;
     private String webhookUrl;
@@ -32,6 +33,7 @@ public class MerchantProfileResponse {
         private String registrationNumber;
         private String contactPhone;
         private String businessAddress;
+        private String approvalNotes;
         private MerchantRegistrationStatus registrationStatus;
         private String apiKey;
         private String webhookUrl;
@@ -45,6 +47,7 @@ public class MerchantProfileResponse {
         public Builder registrationNumber(String registrationNumber) { this.registrationNumber = registrationNumber; return this; }
         public Builder contactPhone(String contactPhone) { this.contactPhone = contactPhone; return this; }
         public Builder businessAddress(String businessAddress) { this.businessAddress = businessAddress; return this; }
+        public Builder approvalNotes(String approvalNotes) { this.approvalNotes = approvalNotes; return this; }
         public Builder registrationStatus(MerchantRegistrationStatus registrationStatus) { this.registrationStatus = registrationStatus; return this; }
         public Builder apiKey(String apiKey) { this.apiKey = apiKey; return this; }
         public Builder webhookUrl(String webhookUrl) { this.webhookUrl = webhookUrl; return this; }
@@ -60,6 +63,7 @@ public class MerchantProfileResponse {
             r.registrationNumber = this.registrationNumber;
             r.contactPhone = this.contactPhone;
             r.businessAddress = this.businessAddress;
+            r.approvalNotes = this.approvalNotes;
             r.registrationStatus = this.registrationStatus;
             r.apiKey = this.apiKey;
             r.webhookUrl = this.webhookUrl;
@@ -87,6 +91,8 @@ public class MerchantProfileResponse {
 
     public String getBusinessAddress() { return businessAddress; }
     public void setBusinessAddress(String businessAddress) { this.businessAddress = businessAddress; }
+    public String getApprovalNotes() { return approvalNotes; }
+    public void setApprovalNotes(String approvalNotes) { this.approvalNotes = approvalNotes; }
 
     public MerchantRegistrationStatus getRegistrationStatus() { return registrationStatus; }
     public void setRegistrationStatus(MerchantRegistrationStatus registrationStatus) { this.registrationStatus = registrationStatus; }

@@ -27,14 +27,14 @@ public class UserController {
         return ResponseEntity.ok(profile);
     }
 
-    // Admin / Dispatcher only: List all users
+    // Admin only: List all users
     @GetMapping("/admin/users")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserProfileDto>> getAllUsers() {
         return ResponseEntity.ok(authService.getAllUsers());
     }
 
-    // Admin only: Approve or suspend a user (e.g. merchant approval)
+    // Admin: manage user account status.
     @PatchMapping("/admin/users/{userId}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserProfileDto> updateUserStatus(

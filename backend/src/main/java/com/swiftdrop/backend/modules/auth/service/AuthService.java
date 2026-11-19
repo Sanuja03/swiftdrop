@@ -10,6 +10,8 @@ import com.swiftdrop.backend.modules.auth.repository.PasswordResetTokenRepositor
 import com.swiftdrop.backend.modules.auth.repository.RefreshTokenRepository;
 import com.swiftdrop.backend.modules.auth.repository.UserRepository;
 import com.swiftdrop.backend.modules.auth.security.JwtTokenProvider;
+import com.swiftdrop.backend.modules.merchant.service.MerchantService;
+import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +34,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final String MERCHANT_REJECTED_MESSAGE = "Your merchant application has been rejected. Please check your email for the rejection reason or contact SwiftDrop support.";
+    private static final String MERCHANT_PENDING_MESSAGE = "Your merchant application is pending admin approval. You can sign in after it is approved.";
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -40,12 +44,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
+    private final MerchantService merchantService;
 
     @Value("${app.jwt.refresh-token-expiration-ms:604800000}")
     private long refreshTokenDurationMs;
 
     @Transactional
     public AuthResponse register(SignUpRequest request) {
+        if (!request.isMerchantDetailsComplete()) {
+            throw new IllegalArgumentException("Merchant signup requires business name, business registration number, contact phone and business address");
+        }
         String normalizedEmail = request.getEmail().trim().toLowerCase();
 
         if (userRepository.existsByEmail(normalizedEmail)) {
@@ -71,6 +79,14 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+        if (assignedRole == Role.ROLE_MERCHANT) {
+            merchantService.registerMerchant(savedUser.getId(), MerchantRegisterRequest.builder()
+                    .businessName(request.getBusinessName().trim())
+                    .registrationNumber(request.getRegistrationNumber())
+                    .contactPhone(request.getPhone().trim())
+                    .businessAddress(request.getBusinessAddress().trim())
+                    .build());
+        }
         log.info("Registered new user [{}] with role [{}] and status [{}], emailVerified=[false]", 
                 savedUser.getEmail(), savedUser.getRole(), savedUser.getStatus());
 
@@ -108,12 +124,16 @@ public class AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
 
+        if (user.getStatus() == AccountStatus.PENDING_APPROVAL && isRejectedMerchant(user)) {
+            throw new AccountNotActiveException(MERCHANT_REJECTED_MESSAGE);
+        }
+
         if (!user.isEmailVerified()) {
             throw new AccountNotActiveException("Your email address is not verified yet. Please check your inbox or click 'Verify Email' to activate your account.");
         }
 
         if (user.getStatus() == AccountStatus.PENDING_APPROVAL) {
-            throw new AccountNotActiveException("Your merchant account is currently under verification. We will activate your account within 24 hours.");
+            throw new AccountNotActiveException(MERCHANT_PENDING_MESSAGE);
         }
 
         if (user.getStatus() == AccountStatus.SUSPENDED) {
@@ -131,6 +151,17 @@ public class AuthService {
                 .expiresIn(jwtTokenProvider.getAccessTokenExpirationMs())
                 .user(UserProfileDto.fromEntity(user))
                 .build();
+    }
+
+    private boolean isRejectedMerchant(User user) {
+        if (user.getRole() != Role.ROLE_MERCHANT) return false;
+        try {
+            var profile = merchantService.getProfileByUserId(user.getId());
+            return profile != null && profile.getRegistrationStatus()
+                    == com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus.REJECTED;
+        } catch (com.swiftdrop.backend.modules.merchant.exception.MerchantNotFoundException missingProfile) {
+            return false;
+        }
     }
 
     @Transactional
@@ -189,6 +220,10 @@ public class AuthService {
             throw new AccountNotActiveException("Your account has been suspended. Please contact customer support.");
         }
 
+        if (user.getStatus() != AccountStatus.ACTIVE) {
+            throw new AccountNotActiveException(isRejectedMerchant(user) ? MERCHANT_REJECTED_MESSAGE : MERCHANT_PENDING_MESSAGE);
+        }
+
         if (user.getProvider() == null || user.getProvider() == AuthProvider.LOCAL) {
             user.setProvider(AuthProvider.GOOGLE);
             user.setProviderId(sub);
@@ -223,6 +258,9 @@ public class AuthService {
         }
 
         User user = token.getUser();
+        if (user.getStatus() != AccountStatus.ACTIVE || !user.isEmailVerified()) {
+            throw new AccountNotActiveException("Email verification and an active account are required");
+        }
         String newAccessToken = jwtTokenProvider.generateAccessToken(user);
 
         return AuthResponse.builder()
@@ -348,6 +386,10 @@ public class AuthService {
 
         if (user.isEmailVerified()) {
             log.info("Email [{}] is already verified", normalizedEmail);
+            if (user.getStatus() != AccountStatus.ACTIVE) {
+                return AuthResponse.builder().user(UserProfileDto.fromEntity(user))
+                        .accessToken(null).refreshToken(null).expiresIn(0).build();
+            }
             String accessToken = jwtTokenProvider.generateAccessToken(user);
             RefreshToken refreshToken = createRefreshToken(user);
             return AuthResponse.builder()
@@ -374,7 +416,7 @@ public class AuthService {
         log.info("Email successfully verified for user [{}]", normalizedEmail);
 
         // If merchant is pending admin approval, do not issue active JWT
-        if (savedUser.getStatus() == AccountStatus.PENDING_APPROVAL) {
+        if (savedUser.getStatus() != AccountStatus.ACTIVE) {
             return AuthResponse.builder()
                     .user(UserProfileDto.fromEntity(savedUser))
                     .accessToken(null)

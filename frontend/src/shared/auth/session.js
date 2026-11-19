@@ -74,16 +74,16 @@ export function onSessionChange(listener) {
   return () => listeners.delete(listener)
 }
 
-/** Where each role lands after signing in. */
 const HOME_BY_ROLE = {
-  ROLE_CUSTOMER: '/app',
-  ROLE_ADMIN: '/admin',
-  ROLE_COURIER: '/courier/deliveries',
-  ROLE_DISPATCHER: '/dispatch',
-  ROLE_MERCHANT: '/merchant',
+  CUSTOMER: '/app',
+  COURIER: '/courier/deliveries',
+  MERCHANT: '/merchant',
+  ADMIN: '/admin',
+  DISPATCHER: '/dispatch',
 }
 
-/** Where a user goes after signing in; anyone without a specific area goes to their profile. */
+/** Each role lands in its own workspace after signing in. */
 export function homePathFor(user) {
-  return HOME_BY_ROLE[user?.role] ?? '/profile'
+  const role = user?.role?.replace(/^ROLE_/, '')
+  return HOME_BY_ROLE[role] ?? '/profile'
 }

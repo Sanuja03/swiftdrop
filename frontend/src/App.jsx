@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 // Auth (identity & accounts)
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -32,9 +32,22 @@ import {
 // Merchant portal (orders, API key, webhooks)
 import MerchantPortal from './features/merchant/pages/MerchantPortal'
 
-// Admin area (zones and pricing)
 import AdminLayout from '@/shared/layouts/AdminLayout'
-import { AdminPricingPage, AdminZonesPage } from '@/features/admin'
+import ReportsDashboard from './features/reports/pages/ReportsDashboard'
+import UserManagement from './features/users/pages/UserManagement'
+import MyNotifications from './features/notifications/pages/MyNotifications'
+import { AdminZonesPage, AdminPricingPage } from '@/features/admin'
+
+function OperationsLayout() {
+  const { user } = useAuth()
+  return user?.role?.replace(/^ROLE_/, '') === 'DISPATCHER' ? <DispatcherLayout /> : <AdminLayout />
+}
+
+function NotificationsLayout() {
+  const { user } = useAuth()
+  const role = user?.role?.replace(/^ROLE_/, '')
+  return ['ADMIN', 'DISPATCHER'].includes(role) ? <OperationsLayout /> : <CustomerLayout />
+}
 
 export function AppRoutes() {
   return (
@@ -81,22 +94,33 @@ export function AppRoutes() {
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 
+      {/* Administrator workspace */}
+      <Route
+        path={ROUTES.admin}
+        element={<ProtectedRoute roles={['ROLE_ADMIN']}><AdminLayout /></ProtectedRoute>}
+      >
+        <Route index element={<Navigate to={ROUTES.adminReports} replace />} />
+        <Route path="reports" element={<ReportsDashboard />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="zones" element={<ProtectedRoute roles={['ROLE_ADMIN']}><AdminZonesPage /></ProtectedRoute>} />
+        <Route path="pricing" element={<ProtectedRoute roles={['ROLE_ADMIN']}><AdminPricingPage /></ProtectedRoute>} />
+      </Route>
+
+      {/* Notifications use the signed-in account's layout. */}
+      <Route path="/notifications" element={<ProtectedRoute><NotificationsLayout /></ProtectedRoute>}>
+        <Route index element={<MyNotifications />} />
+      </Route>
+
       {/* Logged-in couriers only */}
-      <Route
-        path={ROUTES.courier}
-        element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>}
-      />
-      <Route
-        path={`${ROUTES.courier}/:parcelId`}
-        element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>}
-      />
+      <Route path={ROUTES.courier} element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>} />
+      <Route path={`${ROUTES.courier}/:parcelId`} element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>} />
 
       {/* Logged-in: dispatcher operations */}
       <Route
         path={ROUTES.dispatch}
         element={
           <DispatcherRoute>
-            <DispatcherLayout />
+            <OperationsLayout />
           </DispatcherRoute>
         }
       >
@@ -113,20 +137,6 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
-      {/* Logged-in admins only: anyone else is sent to their own home page */}
-      <Route
-        path={ROUTES.admin}
-        element={
-          <ProtectedRoute roles={['ROLE_ADMIN']}>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Navigate to={ROUTES.adminZones} replace />} />
-        <Route path="zones" element={<AdminZonesPage />} />
-        <Route path="pricing" element={<AdminPricingPage />} />
-      </Route>
 
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />

@@ -12,7 +12,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice(basePackages = "com.swiftdrop.backend.modules.merchant")
+@org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
 public class MerchantExceptionHandler {
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleReviewConflict(org.springframework.web.server.ResponseStatusException ex) {
+        return buildResponse(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason());
+    }
 
     @ExceptionHandler(MerchantNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(MerchantNotFoundException ex) {

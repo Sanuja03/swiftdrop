@@ -32,7 +32,7 @@ class DemoMerchantSeederTest {
     private final MerchantRepository merchantRepository = mock(MerchantRepository.class);
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     private final DemoMerchantSeeder seeder = new DemoMerchantSeeder(userRepository, merchantRepository,
-            new MerchantService(merchantRepository, mock(ParcelRepository.class)), passwordEncoder);
+            new MerchantService(merchantRepository, mock(ParcelRepository.class), mock(com.swiftdrop.backend.modules.messaging.service.OutboxService.class)), passwordEncoder);
 
     @Test
     void createsAnActiveMerchantUserAndAnApprovedMerchantWithAGeneratedKey() {

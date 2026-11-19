@@ -34,10 +34,13 @@ public class MerchantApiKeyAuthFilter extends OncePerRequestFilter {
     public static final String API_KEY_AUTHORITY = "MERCHANT_API_KEY";
 
     private final MerchantRepository merchantRepository;
+    private final com.swiftdrop.backend.modules.auth.repository.UserRepository userRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public MerchantApiKeyAuthFilter(MerchantRepository merchantRepository) {
+    public MerchantApiKeyAuthFilter(MerchantRepository merchantRepository,
+            com.swiftdrop.backend.modules.auth.repository.UserRepository userRepository) {
         this.merchantRepository = merchantRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -57,6 +60,14 @@ public class MerchantApiKeyAuthFilter extends OncePerRequestFilter {
         if (!merchant.isApproved()) {
             writeError(response, request, HttpServletResponse.SC_FORBIDDEN, "Forbidden",
                     "This merchant account is not approved yet.");
+            return;
+        }
+        var user = userRepository.findById(merchant.getUserId()).orElse(null);
+        if (user == null || user.getRole() != com.swiftdrop.backend.modules.auth.entity.Role.ROLE_MERCHANT
+                || user.getStatus() != com.swiftdrop.backend.modules.auth.entity.AccountStatus.ACTIVE
+                || !user.isEmailVerified()) {
+            writeError(response, request, HttpServletResponse.SC_FORBIDDEN, "Forbidden",
+                    "Email verification and an active merchant account are required.");
             return;
         }
 

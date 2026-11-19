@@ -39,6 +39,7 @@ public class MerchantSecurityConfig {
     @Order(3)
     public SecurityFilterChain merchantSecurityFilterChain(HttpSecurity http,
                                                            MerchantRepository merchantRepository,
+                                                           com.swiftdrop.backend.modules.auth.repository.UserRepository userRepository,
                                                            JwtAuthenticationFilter jwtAuthenticationFilter,
                                                            CustomAuthenticationEntryPoint authenticationEntryPoint,
                                                            CustomAccessDeniedHandler accessDeniedHandler) throws Exception {
@@ -54,9 +55,20 @@ public class MerchantSecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(API_PATH + "/**").hasAuthority(MerchantApiKeyAuthFilter.API_KEY_AUTHORITY)
-                        .anyRequest().hasRole("MERCHANT"))
+                        .anyRequest().access((authentication, context) -> {
+                            var signedIn = authentication.get();
+                            boolean merchantRole = signedIn != null && signedIn.getAuthorities().stream()
+                                    .anyMatch(authority -> "ROLE_MERCHANT".equals(authority.getAuthority()));
+                            var account = merchantRole ? userRepository.findByEmail(signedIn.getName()).orElse(null) : null;
+                            boolean allowed = account != null && account.isEmailVerified()
+                                    && account.getStatus() == com.swiftdrop.backend.modules.auth.entity.AccountStatus.ACTIVE
+                                    && account.getRole() == com.swiftdrop.backend.modules.auth.entity.Role.ROLE_MERCHANT
+                                    && merchantRepository.findByUserId(account.getId())
+                                            .map(com.swiftdrop.backend.modules.merchant.entity.Merchant::isApproved).orElse(true);
+                            return new org.springframework.security.authorization.AuthorizationDecision(allowed);
+                        }))
                 // Not a Spring bean on purpose: as a bean, Spring Boot would also run it for every URL.
-                .addFilterBefore(new MerchantApiKeyAuthFilter(merchantRepository), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new MerchantApiKeyAuthFilter(merchantRepository, userRepository), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

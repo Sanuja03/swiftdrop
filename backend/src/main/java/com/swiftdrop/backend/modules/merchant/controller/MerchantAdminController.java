@@ -24,7 +24,7 @@ import com.swiftdrop.backend.modules.merchant.service.MerchantAdminService;
 
 /**
  * Admin review of merchant registrations. Lives under /api/v1/admin/**, so the main
- * SecurityConfig's ADMIN rule applies; @PreAuthorize repeats it as a second check.
+ * SecurityConfig's ADMIN-only rule applies; @PreAuthorize repeats it.
  * The approving admin is always the signed-in user, never an id from the request body.
  */
 @RestController
