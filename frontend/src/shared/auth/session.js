@@ -74,7 +74,16 @@ export function onSessionChange(listener) {
   return () => listeners.delete(listener)
 }
 
-/** Where a user goes after signing in: customers to their dashboard, everyone else to their profile. */
+/** Where each role lands after signing in. */
+const HOME_BY_ROLE = {
+  ROLE_CUSTOMER: '/app',
+  ROLE_ADMIN: '/admin',
+  ROLE_COURIER: '/courier/deliveries',
+  ROLE_DISPATCHER: '/dispatch',
+  ROLE_MERCHANT: '/merchant',
+}
+
+/** Where a user goes after signing in; anyone without a specific area goes to their profile. */
 export function homePathFor(user) {
-  return user?.role === 'ROLE_CUSTOMER' ? '/app' : '/profile'
+  return HOME_BY_ROLE[user?.role] ?? '/profile'
 }

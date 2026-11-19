@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Delivery service levels a customer can book.
+ * Delivery service levels a customer or merchant can book.
  */
 @Getter
 @RequiredArgsConstructor

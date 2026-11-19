@@ -1,7 +1,6 @@
 package com.swiftdrop.backend.modules.courier.service;
 
 import com.swiftdrop.backend.modules.courier.dto.CourierDeliveryResponse;
-import com.swiftdrop.backend.modules.courier.entity.Courier;
 import com.swiftdrop.backend.modules.courier.entity.CourierAssignment;
 import com.swiftdrop.backend.modules.courier.repository.CourierAssignmentRepository;
 import com.swiftdrop.backend.modules.courier.repository.DeliveryProofRepository;
@@ -37,37 +36,42 @@ public class CourierDeliveryService {
 
     @Transactional(readOnly = true)
     public List<CourierDeliveryResponse> today(Principal principal) {
-        var courier = couriers.requireCurrentCourier(principal);
-        return assignments.findByCourierIdAndScheduledDateOrderByParcelId(courier.getId(),
-                        LocalDate.now(clock.withZone(DELIVERY_ZONE)))
-                .stream().map(CourierDeliveryResponse::from).toList();
+        UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
+        LocalDate today = LocalDate.now(clock.withZone(DELIVERY_ZONE));
+        return assignments.findToday(courierUserId, today)
+                .stream().map(assignment -> CourierDeliveryResponse.from(assignment, DELIVERY_ZONE)).toList();
     }
 
     @Transactional(readOnly = true)
     public CourierDeliveryResponse details(UUID parcelId, Principal principal) {
-        var courier = couriers.requireCurrentCourier(principal);
-        return CourierDeliveryResponse.from(requireAssignment(assignments.findById(parcelId), courier));
+        UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
+        var assignment = requireAssignment(assignments.findActiveByParcelId(parcelId), courierUserId);
+        return CourierDeliveryResponse.from(assignment, DELIVERY_ZONE, hasSavedProof(parcelId, courierUserId));
     }
 
     @Transactional
     public void updateStatus(UUID parcelId, ParcelStatus status, String note, Principal principal) {
-        var courier = couriers.requireCurrentCourier(principal);
+        UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
         parcels.lockById(parcelId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned parcel not found"));
-        lockAssignment(parcelId, courier);
-        if (status == ParcelStatus.DELIVERED && proofs.findCurrentByParcelId(parcelId)
-                .filter(proof -> courier.getId().equals(proof.getCourierId())).isEmpty()) {
+        lockAssignment(parcelId, courierUserId);
+        if (status == ParcelStatus.DELIVERED && !hasSavedProof(parcelId, courierUserId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Save delivery proof first");
         }
-        statuses.updateStatus(parcelId, status, note, courier.getUserId());
+        statuses.updateStatus(parcelId, status, note, courierUserId);
     }
 
-    CourierAssignment lockAssignment(UUID parcelId, Courier courier) {
-        return requireAssignment(assignments.lockByParcelId(parcelId), courier);
+    private boolean hasSavedProof(UUID parcelId, UUID courierUserId) {
+        return proofs.findCurrentByParcelId(parcelId)
+                .filter(proof -> courierUserId.equals(proof.getCourierId())).isPresent();
     }
 
-    private CourierAssignment requireAssignment(Optional<CourierAssignment> assignment, Courier courier) {
-        return assignment.filter(value -> value.getCourierId().equals(courier.getId()))
+    CourierAssignment lockAssignment(UUID parcelId, UUID courierUserId) {
+        return requireAssignment(assignments.lockByParcelId(parcelId), courierUserId);
+    }
+
+    private CourierAssignment requireAssignment(Optional<CourierAssignment> assignment, UUID courierUserId) {
+        return assignment.filter(value -> value.getCourierId().equals(courierUserId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned parcel not found"));
     }
 }
