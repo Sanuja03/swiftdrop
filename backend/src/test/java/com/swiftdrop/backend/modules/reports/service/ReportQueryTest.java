@@ -17,8 +17,11 @@ class ReportQueryTest {
 
     @BeforeEach
     void setUp() {
+        // H2 keeps AT TIME ZONE results zoned and casts them to DATE in the session
+        // zone. PostgreSQL returns a local timestamp here. Initialize every H2
+        // connection explicitly so these Colombo-boundary checks also work on UTC CI.
         var datasource = new DriverManagerDataSource("jdbc:h2:mem:report-query-" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "sa", "");
+                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;INIT=SET TIME ZONE 'Asia/Colombo'", "sa", "");
         jdbc = new JdbcTemplate(datasource);
         jdbc.execute("CREATE TABLE parcels (id UUID PRIMARY KEY, status VARCHAR(30), fee NUMERIC(12,2))");
         jdbc.execute("CREATE TABLE parcel_status_history (parcel_id UUID, to_status VARCHAR(30), changed_at TIMESTAMP WITH TIME ZONE)");
