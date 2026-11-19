@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import { useAuth } from '../context/AuthContext';
+import { homePathFor } from '@/shared/auth/session';
 import { testEndpoint, updateUserProfile, changeUserPassword } from '../services/api';
 import './ProfilePage.css';
 
@@ -470,17 +471,10 @@ export default function ProfilePage() {
 
           {/* Action Navigation Buttons */}
           <div className="profile-actions-row">
-            {user.role === 'ROLE_CUSTOMER' ? (
-              <Link to="/app" className="btn-profile-primary">
-                <Home size={18} />
-                <span>Go to Customer Portal</span>
-              </Link>
-            ) : (
-              <Link to="/" className="btn-profile-primary">
-                <Home size={18} />
-                <span>Go to Home Page</span>
-              </Link>
-            )}
+            <Link to={homePathFor(user) !== '/profile' ? homePathFor(user) : '/'} className="btn-profile-primary">
+              <Home size={18} />
+              <span>{homePathFor(user) !== '/profile' ? 'Go to My Portal' : 'Go to Home Page'}</span>
+            </Link>
             <button onClick={handleLogout} className="btn-profile-secondary">
               <LogOut size={18} />
               <span>Sign Out</span>

@@ -21,10 +21,21 @@ import Logo from '../components/common/Logo';
 import DeliveryVanIllustration from '../components/common/DeliveryVanIllustration';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '@/shared/config/routes';
+import { homePathFor } from '@/shared/auth/session';
 import './LandingPage.css';
+
+const PORTAL_LABEL_BY_ROLE = {
+  ROLE_CUSTOMER: 'Customer Portal',
+  ROLE_ADMIN: 'Admin Portal',
+  ROLE_DISPATCHER: 'Dispatch Portal',
+  ROLE_COURIER: 'Courier Portal',
+  ROLE_MERCHANT: 'Merchant Portal',
+};
 
 export default function LandingPage() {
   const { user, isAuthenticated, logout } = useAuth();
+  const portalPath = homePathFor(user);
+  const portalLabel = PORTAL_LABEL_BY_ROLE[user?.role] ?? 'My Portal';
   const navigate = useNavigate();
   const [trackingInput, setTrackingInput] = useState('');
   // The dashboard section below is an illustration with sample values, not live data.
@@ -59,9 +70,9 @@ export default function LandingPage() {
             {isAuthenticated ? (
               <div className="landing-nav-user-group">
                 <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
-                  <Link to={ROUTES.app} className="btn-nav-portal">
+                  <Link to={portalPath} className="btn-nav-portal">
                     <LayoutDashboard size={15} />
-                    <span>Customer Portal</span>
+                    <span>{portalLabel}</span>
                   </Link>
                 </motion.div>
                 <Link to="/profile" className="btn-nav-profile" title="View Account Profile">
@@ -129,8 +140,8 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
-                <Link to={ROUTES.app} className="btn-hero-portal-cta">
-                  <span>Open Customer Portal</span>
+                <Link to={portalPath} className="btn-hero-portal-cta">
+                  <span>Open {portalLabel}</span>
                   <ArrowRight size={16} />
                 </Link>
               </motion.div>
@@ -542,8 +553,8 @@ export default function LandingPage() {
             <div className="cta-banner-buttons">
               {isAuthenticated ? (
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Link to={ROUTES.app} className="btn-cta-primary">
-                    Open Customer Portal
+                  <Link to={portalPath} className="btn-cta-primary">
+                    Open {portalLabel}
                     <ArrowRight size={18} />
                   </Link>
                 </motion.div>
