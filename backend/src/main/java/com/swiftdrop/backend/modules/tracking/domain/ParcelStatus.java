@@ -12,7 +12,8 @@ import lombok.Getter;
  *
  * <pre>
  * CREATED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY -> DELIVERED
- *                                                       \-> FAILED
+ *    |                                                   \-> FAILED
+ *    \-----> CANCELLED (merchant or customer can cancel while CREATED)
  * </pre>
  */
 @Getter
@@ -21,7 +22,7 @@ public enum ParcelStatus {
     CREATED("Order Created") {
         @Override
         public Set<ParcelStatus> nextStatuses() {
-            return Set.of(PICKED_UP);
+            return Set.of(PICKED_UP, CANCELLED);
         }
     },
     PICKED_UP("Picked Up") {
@@ -49,6 +50,12 @@ public enum ParcelStatus {
         }
     },
     FAILED("Delivery Failed") {
+        @Override
+        public Set<ParcelStatus> nextStatuses() {
+            return Set.of();
+        }
+    },
+    CANCELLED("Cancelled") {
         @Override
         public Set<ParcelStatus> nextStatuses() {
             return Set.of();

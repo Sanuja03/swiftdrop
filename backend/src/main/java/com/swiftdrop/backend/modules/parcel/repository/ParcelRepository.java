@@ -21,8 +21,19 @@ public interface ParcelRepository extends JpaRepository<Parcel, UUID> {
     /** A customer's parcels, newest booking first. */
     List<Parcel> findByCustomerIdOrderByCreatedAtDesc(UUID customerId);
 
+    /** Locks the parcel row so two couriers can't update it at the same time. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Parcel p where p.id = :id")
     Optional<Parcel> lockById(UUID id);
-}
 
+    // Merchant API
+    List<Parcel> findByMerchantIdOrderByCreatedAtDesc(UUID merchantId);
+
+    List<Parcel> findByMerchantIdAndStatusOrderByCreatedAtDesc(UUID merchantId, ParcelStatus status);
+
+    Optional<Parcel> findByTrackingNumberAndMerchantId(String trackingNumber, UUID merchantId);
+
+    long countByMerchantId(UUID merchantId);
+
+    long countByMerchantIdAndStatus(UUID merchantId, ParcelStatus status);
+}

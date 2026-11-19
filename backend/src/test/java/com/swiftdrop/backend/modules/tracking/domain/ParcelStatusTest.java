@@ -18,6 +18,7 @@ class ParcelStatusTest {
     @ParameterizedTest(name = "{0} -> {1} is allowed")
     @CsvSource({
             "CREATED, PICKED_UP",
+            "CREATED, CANCELLED",
             "PICKED_UP, IN_TRANSIT",
             "IN_TRANSIT, OUT_FOR_DELIVERY",
             "OUT_FOR_DELIVERY, DELIVERED",
@@ -35,7 +36,14 @@ class ParcelStatusTest {
             "PICKED_UP, CREATED",
             "IN_TRANSIT, FAILED",
             "DELIVERED, CREATED",
-            "FAILED, OUT_FOR_DELIVERY"
+            "FAILED, OUT_FOR_DELIVERY",
+            // Cancelling is only possible before pickup, and a cancelled parcel never moves again
+            "PICKED_UP, CANCELLED",
+            "IN_TRANSIT, CANCELLED",
+            "OUT_FOR_DELIVERY, CANCELLED",
+            "DELIVERED, CANCELLED",
+            "CANCELLED, CREATED",
+            "CANCELLED, PICKED_UP"
     })
     void rejectsSkippingOrGoingBackwards(ParcelStatus from, ParcelStatus to) {
         assertThat(from.canTransitionTo(to)).isFalse();
@@ -58,14 +66,20 @@ class ParcelStatusTest {
     }
 
     @Test
-    void onlyDeliveredAndFailedAreTerminal() {
+    void onlyDeliveredFailedAndCancelledAreTerminal() {
         EnumSet<ParcelStatus> terminal = EnumSet.noneOf(ParcelStatus.class);
         for (ParcelStatus status : ParcelStatus.values()) {
             if (status.isTerminal()) {
                 terminal.add(status);
             }
         }
-        assertThat(terminal).containsExactlyInAnyOrder(ParcelStatus.DELIVERED, ParcelStatus.FAILED);
+        assertThat(terminal).containsExactlyInAnyOrder(ParcelStatus.DELIVERED, ParcelStatus.FAILED, ParcelStatus.CANCELLED);
+    }
+
+    @Test
+    void createdCanOnlyMoveToPickedUpOrCancelled() {
+        assertThat(ParcelStatus.CREATED.nextStatuses())
+                .containsExactlyInAnyOrder(ParcelStatus.PICKED_UP, ParcelStatus.CANCELLED);
     }
 
     @Test

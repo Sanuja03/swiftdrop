@@ -29,6 +29,9 @@ import {
   CourierWorkloadPage,
 } from '@/features/dispatch'
 
+// Merchant portal (orders, API key, webhooks)
+import MerchantPortal from './features/merchant/pages/MerchantPortal'
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -74,6 +77,7 @@ export function AppRoutes() {
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 
+      {/* Logged-in: courier app */}
       <Route path={ROUTES.courier} element={<ProtectedRoute><CourierPage /></ProtectedRoute>} />
       <Route path={`${ROUTES.courier}/:parcelId`} element={<ProtectedRoute><CourierPage /></ProtectedRoute>} />
 
@@ -89,6 +93,16 @@ export function AppRoutes() {
         <Route index element={<DispatchManagementPage />} />
         <Route path="workload" element={<CourierWorkloadPage />} />
       </Route>
+
+      {/* Logged-in: merchant portal */}
+      <Route
+        path="/merchant/*"
+        element={
+          <ProtectedRoute>
+            <MerchantPortal />
+          </ProtectedRoute>
+        }
+      />
 
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />
