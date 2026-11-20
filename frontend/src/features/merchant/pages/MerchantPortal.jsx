@@ -177,7 +177,7 @@ export default function MerchantPortal() {
           dropoffCity: orderForm.dropoffCity,
         });
         if (!ignore) setPriceEstimate(est);
-      } catch (err) {
+      } catch {
         if (!ignore) setPriceEstimate(null);
       }
     }
@@ -208,9 +208,30 @@ export default function MerchantPortal() {
 
   // Run calculator automatically when calculator parameters change
   useEffect(() => {
-    if (activeTab === 'calculator') {
-      handleRunCalculator();
+    if (activeTab !== 'calculator') return;
+    let ignore = false;
+    async function calculateAuto() {
+      if (!calcForm.weightKg || isNaN(parseFloat(calcForm.weightKg))) return;
+      try {
+        const res = await merchantApi.calculateFee({
+          serviceType: calcForm.serviceType,
+          weightKg: parseFloat(calcForm.weightKg),
+          pickupCity: calcForm.pickupCity,
+          dropoffCity: calcForm.dropoffCity,
+        });
+        if (!ignore) {
+          setCalcResult(res);
+          setCalcError(null);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setCalcError(err.message || 'Fee calculation failed');
+          setCalcResult(null);
+        }
+      }
     }
+    calculateAuto();
+    return () => { ignore = true; };
   }, [calcForm.serviceType, calcForm.weightKg, calcForm.pickupCity, calcForm.dropoffCity, activeTab]);
 
   // Pre-fill Order Form with Calculator Quote
