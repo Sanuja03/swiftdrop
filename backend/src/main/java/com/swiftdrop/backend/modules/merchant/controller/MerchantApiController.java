@@ -1,6 +1,8 @@
 package com.swiftdrop.backend.modules.merchant.controller;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,10 +46,25 @@ public class MerchantApiController {
         this.currentMerchantProvider = currentMerchantProvider;
     }
 
+    private final Map<String, MerchantOrderResponse> idempotencyCache = new ConcurrentHashMap<>();
+
     @PostMapping("/orders")
-    public ResponseEntity<MerchantOrderResponse> createOrder(@Valid @RequestBody CreateMerchantOrderRequest orderRequest) {
+    public ResponseEntity<MerchantOrderResponse> createOrder(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody CreateMerchantOrderRequest orderRequest) {
+        var merchant = currentMerchantProvider.currentMerchant();
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            String cacheKey = merchant.getId() + ":" + idempotencyKey.strip();
+            MerchantOrderResponse cached = idempotencyCache.get(cacheKey);
+            if (cached != null) {
+                return ResponseEntity.ok(cached);
+            }
+            MerchantOrderResponse created = orderService.createOrder(merchant, orderRequest);
+            idempotencyCache.put(cacheKey, created);
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(orderService.createOrder(currentMerchantProvider.currentMerchant(), orderRequest));
+                .body(orderService.createOrder(merchant, orderRequest));
     }
 
     @GetMapping("/orders/{trackingNumber}")

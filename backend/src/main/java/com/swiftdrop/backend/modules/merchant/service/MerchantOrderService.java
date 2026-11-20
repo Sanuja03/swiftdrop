@@ -72,8 +72,13 @@ public class MerchantOrderService {
                 ? request.getSenderName().strip()
                 : merchant.getBusinessName();
 
+        String trackingNumber = trackingNumberGenerator.nextMerchantTrackingNumber();
+        if (trackingNumber == null) {
+            trackingNumber = trackingNumberGenerator.next();
+        }
+
         Parcel parcel = parcelRepository.save(Parcel.builder()
-                .trackingNumber(trackingNumberGenerator.next())
+                .trackingNumber(trackingNumber)
                 .merchantId(merchant.getId())
                 .senderName(senderName)
                 .pickupAddress(request.getPickupAddress().strip())

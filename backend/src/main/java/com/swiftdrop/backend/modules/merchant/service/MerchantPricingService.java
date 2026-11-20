@@ -61,6 +61,8 @@ public class MerchantPricingService {
         return FeeCalculationResponse.builder()
                 .serviceType(request.getServiceType())
                 .weightKg(request.getWeightKg())
+                .pickupCity(quote.pickupZone().getName())
+                .dropoffCity(quote.dropoffZone().getName())
                 .baseFee(fee.baseFee())
                 .weightCharge(fee.weightCharge())
                 .zoneSurcharge(fee.zoneCharge())

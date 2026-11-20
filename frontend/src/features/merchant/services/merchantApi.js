@@ -34,6 +34,23 @@ export const merchantApi = {
     return request(`${BASE}/orders${query({ status: status && status !== 'ALL' ? status : undefined, search })}`)
   },
 
+  getOrder(merchantId, trackingNumber) {
+    return request(`${BASE}/orders/${encodeURIComponent(trackingNumber)}`)
+  },
+
+  getActiveZones() {
+    return request('/zones').catch(() => [
+      { id: '1', name: 'Colombo', code: 'CMB' },
+      { id: '2', name: 'Gampaha', code: 'GMP' },
+      { id: '3', name: 'Kandy', code: 'KDY' },
+      { id: '4', name: 'Galle', code: 'GLE' },
+      { id: '5', name: 'Matara', code: 'MTR' },
+      { id: '6', name: 'Kurunegala', code: 'KRN' },
+      { id: '7', name: 'Jaffna', code: 'JFN' },
+      { id: '8', name: 'Negombo', code: 'NEG' },
+    ])
+  },
+
   createOrder(merchantId, orderData) {
     return request(`${BASE}/orders`, { json: orderData })
   },

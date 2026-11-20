@@ -157,7 +157,7 @@
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
-			<scope>test</scope>
+			<scope>runtime</scope>
 		</dependency>
 		<!-- Real RabbitMQ broker for the event-flow integration test (skipped when Docker is unavailable) -->
 		<dependency>
@@ -189,6 +189,12 @@
 				<version>3.14.1</version>
 				<configuration>
 					<release>21</release>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
 			<!-- JaCoCo: measures test coverage and writes a report to target/site/jacoco -->

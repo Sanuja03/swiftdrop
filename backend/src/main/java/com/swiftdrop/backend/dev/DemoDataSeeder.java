@@ -13,16 +13,19 @@ import org.springframework.stereotype.Component;
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
 import com.swiftdrop.backend.modules.parcel.entity.ServiceType;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
+import com.swiftdrop.backend.modules.pricing.entity.PricingRule;
+import com.swiftdrop.backend.modules.pricing.repository.PricingRuleRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
 import com.swiftdrop.backend.modules.tracking.service.ParcelStatusService;
+import com.swiftdrop.backend.modules.zone.entity.Zone;
+import com.swiftdrop.backend.modules.zone.repository.ZoneRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Local development only: adds a few demo parcels (once) so the tracking pages
- * have something to show. Uses the real status service, so the history and
- * events are exactly what production would produce.
+ * Local development only: adds default zones, pricing rules, and a few demo parcels (once)
+ * so the tracking and merchant pricing pages have data to show.
  */
 @Slf4j
 @Profile(DevProfile.NAME)
@@ -32,6 +35,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 
     private final ParcelRepository parcelRepository;
     private final ParcelStatusService parcelStatusService;
+    private final ZoneRepository zoneRepository;
+    private final PricingRuleRepository pricingRuleRepository;
     private final Clock clock;
 
     private record DemoParcel(String trackingNumber, String recipient, String dropoffAddress, String dropoffCity,
@@ -48,6 +53,29 @@ public class DemoDataSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (zoneRepository.count() == 0) {
+            zoneRepository.saveAll(List.of(
+                    Zone.create("COLOMBO", "Colombo", BigDecimal.ZERO),
+                    Zone.create("GAMPAHA", "Gampaha", BigDecimal.ZERO),
+                    Zone.create("KALUTARA", "Kalutara", BigDecimal.ZERO),
+                    Zone.create("KANDY", "Kandy", new BigDecimal("150")),
+                    Zone.create("GALLE", "Galle", new BigDecimal("150")),
+                    Zone.create("MATARA", "Matara", new BigDecimal("150")),
+                    Zone.create("KURUNEGALA", "Kurunegala", new BigDecimal("150")),
+                    Zone.create("JAFFNA", "Jaffna", new BigDecimal("350"))
+            ));
+            log.info("Seeded default zones for dev profile");
+        }
+
+        if (pricingRuleRepository.count() == 0) {
+            pricingRuleRepository.saveAll(List.of(
+                    PricingRule.create(ServiceType.STANDARD, new BigDecimal("590"), new BigDecimal("100"), new BigDecimal("250")),
+                    PricingRule.create(ServiceType.EXPRESS, new BigDecimal("990"), new BigDecimal("100"), new BigDecimal("400")),
+                    PricingRule.create(ServiceType.SAME_DAY, new BigDecimal("1490"), new BigDecimal("100"), new BigDecimal("600"))
+            ));
+            log.info("Seeded default pricing rules for dev profile");
+        }
+
         DEMO_PARCELS.stream()
                 .filter(demo -> parcelRepository.findByTrackingNumber(demo.trackingNumber()).isEmpty())
                 .forEach(this::seed);

@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { initialsOf } from '@/shared/utils/format'
 import styles from './Topbar.module.css'
 
-export default function Topbar({ onOpenMenu, isMenuOpen }) {
+export default function Topbar({ onOpenMenu, isMenuOpen, onNotificationClick, notificationAriaLabel }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const fullName = user?.fullName ?? ''
@@ -53,8 +53,8 @@ export default function Topbar({ onOpenMenu, isMenuOpen }) {
         <button
           type="button"
           className={styles.iconButton}
-          onClick={() => navigate('/notifications')}
-          aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+          onClick={onNotificationClick || (() => navigate('/notifications'))}
+          aria-label={notificationAriaLabel || `Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
           title="View notifications"
         >
           <Bell size={20} aria-hidden="true" />

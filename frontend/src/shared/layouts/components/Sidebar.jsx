@@ -23,17 +23,31 @@ export default function Sidebar({ isOpen, onClose, items = CUSTOMER_NAVIGATION, 
         </div>
         <nav aria-label={label}>
           <ul className={styles.nav}>
-            {items.map(({ label: itemLabel, to, icon: Icon, end }) => (
-              <li key={to}>
-                <NavLink
-                  to={to}
-                  end={end}
-                  onClick={onClose}
-                  className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
-                >
-                  <Icon size={18} aria-hidden="true" />
-                  {itemLabel}
-                </NavLink>
+            {items.map(({ label: itemLabel, to, icon: Icon, end, onClick, isActive }) => (
+              <li key={to || itemLabel}>
+                {onClick ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClick()
+                      onClose?.()
+                    }}
+                    className={`${styles.link} ${isActive ? styles.active : ''}`}
+                  >
+                    {Icon && <Icon size={18} aria-hidden="true" />}
+                    {itemLabel}
+                  </button>
+                ) : (
+                  <NavLink
+                    to={to}
+                    end={end}
+                    onClick={onClose}
+                    className={({ isActive: navActive }) => `${styles.link} ${navActive ? styles.active : ''}`}
+                  >
+                    {Icon && <Icon size={18} aria-hidden="true" />}
+                    {itemLabel}
+                  </NavLink>
+                )}
               </li>
             ))}
           </ul>

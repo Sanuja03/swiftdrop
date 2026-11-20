@@ -38,6 +38,7 @@ class DemoMerchantSeederTest {
     void createsAnActiveMerchantUserAndAnApprovedMerchantWithAGeneratedKey() {
         ReflectionTestUtils.setField(seeder, "configuredPassword", "");
         when(userRepository.findByEmail(DemoMerchantSeeder.EMAIL)).thenReturn(Optional.empty());
+        when(userRepository.findByEmail(DemoMerchantSeeder.SWIFTDROP_MERCHANT_EMAIL)).thenReturn(Optional.empty());
         when(passwordEncoder.encode(any())).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -49,24 +50,27 @@ class DemoMerchantSeederTest {
         seeder.run(null);
 
         var user = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(user.capture());
+        verify(userRepository, org.mockito.Mockito.atLeastOnce()).save(user.capture());
         assertThat(user.getValue().getRole()).isEqualTo(Role.ROLE_MERCHANT);
         assertThat(user.getValue().getStatus()).isEqualTo(AccountStatus.ACTIVE);
         assertThat(user.getValue().getPasswordHash()).isEqualTo("hashed");
 
         var merchant = ArgumentCaptor.forClass(Merchant.class);
-        verify(merchantRepository).save(merchant.capture());
-        assertThat(merchant.getValue().getBusinessName()).isEqualTo("Demo Merchant");
-        assertThat(merchant.getValue().getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.APPROVED);
-        assertThat(merchant.getValue().getWebhookUrl()).isEqualTo("https://example.com/webhook");
-        assertThat(merchant.getValue().getApiKey()).startsWith("sdp_live_").hasSizeGreaterThan(30);
+        verify(merchantRepository, org.mockito.Mockito.atLeastOnce()).save(merchant.capture());
+        assertThat(merchant.getAllValues().get(0).getBusinessName()).isEqualTo("Demo Merchant");
+        assertThat(merchant.getAllValues().get(0).getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.APPROVED);
+        assertThat(merchant.getAllValues().get(0).getWebhookUrl()).isEqualTo("https://example.com/webhook");
+        assertThat(merchant.getAllValues().get(0).getApiKey()).startsWith("sdp_live_").hasSizeGreaterThan(30);
     }
 
     @Test
     void doesNothingWhenTheDemoMerchantAlreadyExists() {
         var existing = User.builder().id(USER_ID).email(DemoMerchantSeeder.EMAIL).fullName("Demo Merchant").build();
+        var existing2 = User.builder().id(UUID.fromString("70000000-0000-4000-8000-000000000002")).email(DemoMerchantSeeder.SWIFTDROP_MERCHANT_EMAIL).fullName(DemoMerchantSeeder.SWIFTDROP_MERCHANT_NAME).build();
         when(userRepository.findByEmail(DemoMerchantSeeder.EMAIL)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail(DemoMerchantSeeder.SWIFTDROP_MERCHANT_EMAIL)).thenReturn(Optional.of(existing2));
         when(merchantRepository.findByUserId(USER_ID)).thenReturn(Optional.of(Merchant.builder().userId(USER_ID).build()));
+        when(merchantRepository.findByUserId(existing2.getId())).thenReturn(Optional.of(Merchant.builder().userId(existing2.getId()).build()));
 
         seeder.run(null);
 

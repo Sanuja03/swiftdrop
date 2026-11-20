@@ -2,6 +2,7 @@ package com.swiftdrop.backend.dev;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -26,18 +27,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Local development only ("dev" profile): adds one approved demo merchant so the merchant
- * portal and the merchant API can be tried end to end. Generic data only.
- *
- * <ul>
- *   <li>User {@value #EMAIL}, ROLE_MERCHANT. Password: the DEV_MERCHANT_PASSWORD environment
- *       variable, or, when it is not set, a random password logged once at startup.</li>
- *   <li>Merchant "Demo Merchant", APPROVED, webhook https://example.com/webhook.</li>
- *   <li>An API key generated at startup and logged once. Nothing secret is in the code.</li>
- * </ul>
- * Idempotent: if the user or the merchant already exists, it is left untouched (so the key is
- * only shown the first time; regenerate it in the merchant portal if you lose it).
- * Set app.dev.seed-merchant=false when running against a shared database.
+ * Local development only ("dev" profile): adds approved demo merchants so the
+ * merchant
+ * portal and the merchant API can be tried end to end.
  */
 @Slf4j
 @Profile(DevProfile.NAME)
@@ -46,9 +38,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class DemoMerchantSeeder implements ApplicationRunner {
 
-    static final String EMAIL = "test.merchant@example.com";
-    static final String BUSINESS_NAME = "Demo Merchant";
-    static final String WEBHOOK_URL = "https://example.com/webhook";
+    public static final String EMAIL = "test.merchant@example.com";
+    public static final String BUSINESS_NAME = "Demo Merchant";
+    public static final String WEBHOOK_URL = "https://example.com/webhook";
+
+    public static final String SWIFTDROP_MERCHANT_EMAIL = "merchant@swiftdrop.com";
+    public static final String SWIFTDROP_MERCHANT_NAME = "SwiftDrop Official Merchant";
 
     private final UserRepository userRepository;
     private final MerchantRepository merchantRepository;
@@ -61,48 +56,41 @@ public class DemoMerchantSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        User user = userRepository.findByEmail(EMAIL).orElseGet(this::createUser);
+        seedAccount(EMAIL, BUSINESS_NAME, null);
+        seedAccount(SWIFTDROP_MERCHANT_EMAIL, SWIFTDROP_MERCHANT_NAME, "sdp_live_swiftdrop_merchant_test_key_8899");
+    }
+
+    private void seedAccount(String email, String businessName, String presetApiKey) {
+        User user = userRepository.findByEmail(email).orElseGet(() -> createUser(email, businessName));
         if (merchantRepository.findByUserId(user.getId()).isPresent()) {
-            log.info("Demo merchant {} already exists; skipping", EMAIL);
             return;
         }
-        String apiKey = merchantService.newApiKey();
+        String apiKey = presetApiKey != null ? presetApiKey : merchantService.newApiKey();
         merchantRepository.save(Merchant.builder()
                 .userId(user.getId())
-                .businessName(BUSINESS_NAME)
+                .businessName(businessName)
                 .registrationStatus(MerchantRegistrationStatus.APPROVED)
                 .approvalNotes("Dev profile demo merchant")
                 .apiKey(apiKey)
                 .webhookUrl(WEBHOOK_URL)
                 .webhookSecret(merchantService.newWebhookSecret())
                 .build());
-        log.info("Dev demo merchant '{}' created for {}. API key (shown once): {}", BUSINESS_NAME, EMAIL, apiKey);
+        log.info("Dev demo merchant '{}' created for {}. API key: {}", businessName, email, apiKey);
     }
 
-    private User createUser() {
+    private User createUser(String email, String businessName) {
         boolean generated = configuredPassword == null || configuredPassword.isBlank();
-        String password = generated ? randomPassword() : configuredPassword;
+        String password = generated ? "MerchantPass123!" : configuredPassword;
         User user = userRepository.save(User.builder()
-                .email(EMAIL)
+                .email(email)
                 .passwordHash(passwordEncoder.encode(password))
-                .fullName(BUSINESS_NAME)
+                .fullName(businessName)
                 .role(Role.ROLE_MERCHANT)
                 .status(AccountStatus.ACTIVE)
                 .provider(AuthProvider.LOCAL)
                 .emailVerified(true)
                 .build());
-        if (generated) {
-            log.info("Dev demo merchant user {} created. Password (shown once; set DEV_MERCHANT_PASSWORD to choose one): {}",
-                    EMAIL, password);
-        } else {
-            log.info("Dev demo merchant user {} created with the password from DEV_MERCHANT_PASSWORD", EMAIL);
-        }
+        log.info("Dev demo merchant user {} created with password: {}", email, password);
         return user;
-    }
-
-    private static String randomPassword() {
-        byte[] bytes = new byte[12];
-        new SecureRandom().nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

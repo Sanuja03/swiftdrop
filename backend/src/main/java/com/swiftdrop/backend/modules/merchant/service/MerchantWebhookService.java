@@ -188,6 +188,10 @@ public class MerchantWebhookService {
             long start = System.currentTimeMillis();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             long latency = System.currentTimeMillis() - start;
+            String respBody = response.body();
+            if (respBody != null && respBody.length() > 2000) {
+                respBody = respBody.substring(0, 2000) + "... [truncated]";
+            }
 
             boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
 
@@ -199,7 +203,8 @@ public class MerchantWebhookService {
                     .endpointUrl(targetUrl)
                     .responseCode(response.statusCode())
                     .deliveryStatus(success ? WebhookDeliveryStatus.SUCCESS : WebhookDeliveryStatus.FAILED)
-                    .errorMessage(success ? null : "Target endpoint responded with HTTP " + response.statusCode())
+                    .errorMessage(success ? (respBody != null && !respBody.isBlank() ? "Response: " + respBody : null)
+                            : "Target responded with HTTP " + response.statusCode() + (respBody != null && !respBody.isBlank() ? ": " + respBody : ""))
                     .attemptCount(1)
                     .build();
             webhookLogRepository.save(webhookLog);
@@ -211,6 +216,7 @@ public class MerchantWebhookService {
                     .latencyMs(latency)
                     .endpointUrl(targetUrl)
                     .simulatedPayload(jsonPayload)
+                    .responseBody(respBody)
                     .build();
 
         } catch (Exception ex) {
