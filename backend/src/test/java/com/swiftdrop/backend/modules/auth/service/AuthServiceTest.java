@@ -23,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -62,6 +63,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "refreshTokenDurationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "mockGoogleTokensEnabled", true);
     }
 
     @Test
@@ -203,6 +205,18 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("existing@swiftdrop.com")).thenReturn(true);
 
         assertThrows(UserAlreadyExistsException.class, () -> authService.register(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Public signup refuses staff roles")
+    void registerRefusesStaffRoles() {
+        for (Role staff : List.of(Role.ROLE_ADMIN, Role.ROLE_DISPATCHER, Role.ROLE_COURIER)) {
+            SignUpRequest request = SignUpRequest.builder()
+                    .email("staff@example.test").password("password123").fullName("Test Staff").role(staff).build();
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> authService.register(request));
+        }
         verify(userRepository, never()).save(any());
     }
 

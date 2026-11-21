@@ -39,6 +39,12 @@ public class SignUpRequest {
 
     private String businessAddress;
 
+    /** Public signup creates customers and merchants only; staff roles are never self-assigned. */
+    @AssertTrue(message = "Sign up as a customer or a merchant")
+    public boolean isSelfServiceRole() {
+        return role == null || role == Role.ROLE_CUSTOMER || role == Role.ROLE_MERCHANT;
+    }
+
     @AssertTrue(message = "Merchant signup requires business name, business registration number, contact phone and business address")
     public boolean isMerchantDetailsComplete() {
         return role != Role.ROLE_MERCHANT || (hasText(businessName) && hasText(registrationNumber) && hasText(phone) && hasText(businessAddress));
