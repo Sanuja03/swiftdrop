@@ -1,3 +1,4 @@
+import NotificationBell from '@/features/notifications/components/NotificationBell'
 import { Menu, LogOut } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import styles from './DispatcherTopbar.module.css'
@@ -39,6 +40,7 @@ export default function DispatcherTopbar({ onOpenMenu, isMenuOpen }) {
       </div>
 
       <div className={styles.userGroup}>
+        <NotificationBell />
         <div className={styles.account}>
           <span className={styles.avatar} aria-hidden="true">
             {initials}

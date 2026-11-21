@@ -85,6 +85,18 @@ class RoleAccessSecurityTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    void invalidMerchantStatusOverrideReturnsItsIntendedErrorInsteadOf500() throws Exception {
+        when(authService.updateUserStatus(TEST_USER_ID, AccountStatus.REJECTED)).thenThrow(
+                new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.BAD_REQUEST, "Use merchant review to change application status"));
+        mockMvc.perform(patch("/api/v1/admin/users/{id}/status", TEST_USER_ID)
+                .param("status", "REJECTED"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Use merchant review to change application status"));
+    }
+
+    @Test
     @DisplayName("Unauthenticated request to admin endpoint should return 401 Unauthorized")
     void unauthenticatedRequestToAdminReturns401() throws Exception {
         mockMvc.perform(get("/api/v1/admin/users"))

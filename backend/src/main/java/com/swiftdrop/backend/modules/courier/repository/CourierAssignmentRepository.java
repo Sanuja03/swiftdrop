@@ -22,7 +22,7 @@ public interface CourierAssignmentRepository extends JpaRepository<CourierAssign
     @EntityGraph(attributePaths = "parcel")
     @Query("select a from CourierAssignmentView a where a.courierId = :courierId"
             + " and a.scheduledDate = :today"
-            + " and a.status = 'ASSIGNED' order by a.parcelId")
+            + ACTIVE + " order by a.parcelId")
     List<CourierAssignment> findToday(UUID courierId, LocalDate today);
 
     @EntityGraph(attributePaths = "parcel")

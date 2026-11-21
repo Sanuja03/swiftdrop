@@ -1,6 +1,7 @@
+import NotificationBell from '@/features/notifications/components/NotificationBell'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ChevronRight, MapPin, Package, RefreshCw } from 'lucide-react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, Outlet, useParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { request } from '@/shared/api/httpClient'
 import Logo from '@/shared/components/brand/Logo'
@@ -14,9 +15,8 @@ const dateFormat = new Intl.DateTimeFormat('en-LK', {
   timeZone: 'Asia/Colombo', weekday: 'long', day: 'numeric', month: 'long',
 })
 
-export default function CourierPage() {
+export function CourierLayout() {
   const { user } = useAuth()
-  const { parcelId } = useParams()
 
   if (user?.role !== 'ROLE_COURIER') return <Navigate to="/profile" replace />
 
@@ -25,14 +25,19 @@ export default function CourierPage() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link to={ROUTES.courier} aria-label="SwiftDrop courier deliveries"><Logo /></Link>
-          <Link to="/profile" className={styles.profile}>My account</Link>
+          <div className={styles.headerActions}><NotificationBell /><Link to="/profile" className={styles.profile}>My account</Link></div>
         </div>
       </header>
       <main className={styles.main}>
-        <DeliveryContent key={parcelId ?? 'today'} parcelId={parcelId} />
+        <Outlet />
       </main>
     </div>
   )
+}
+
+export default function CourierPage() {
+  const { parcelId } = useParams()
+  return <DeliveryContent key={parcelId ?? 'today'} parcelId={parcelId} />
 }
 
 function DeliveryContent({ parcelId }) {

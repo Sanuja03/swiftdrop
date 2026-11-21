@@ -48,6 +48,7 @@ public class DispatchServiceImpl implements DispatchService {
     private final ParcelRepository parcelRepository;
     private final DispatchCourierAssignmentRepository courierAssignmentRepository;
     private final UserRepository userRepository;
+    private final com.swiftdrop.backend.modules.messaging.service.OutboxService notificationOutbox;
 
     @Override
     public List<Parcel> getUnassignedParcels() {
@@ -129,6 +130,7 @@ public class DispatchServiceImpl implements DispatchService {
 
         try {
             CourierAssignment saved = courierAssignmentRepository.saveAndFlush(assignment);
+            publishAssignmentNotice(saved, "ASSIGNMENT_CREATED", "assignment.created", null);
             log.info("Assigned parcel [{}] to courier [{}] by dispatcher [{}]",
                     parcel.getId(), courier.getId(), dispatcher.getId());
             return AssignmentResponse.fromEntity(saved);
@@ -184,6 +186,7 @@ public class DispatchServiceImpl implements DispatchService {
 
         assignment.cancel(reason);
         CourierAssignment updated = courierAssignmentRepository.save(assignment);
+        publishAssignmentNotice(updated, "ASSIGNMENT_CANCELLED", "assignment.cancelled", reason);
         log.info("Cancelled assignment [{}] for parcel [{}] with reason: {}",
                 assignment.getId(), assignment.getParcelId(), reason);
 
@@ -246,6 +249,7 @@ public class DispatchServiceImpl implements DispatchService {
 
         assignment.reject(reason);
         CourierAssignment updated = courierAssignmentRepository.save(assignment);
+        publishAssignmentNotice(updated, "ASSIGNMENT_REJECTED", "assignment.rejected", reason);
         log.info("Courier [{}] rejected assignment [{}] for parcel [{}] with reason: {}",
                 courierId, assignment.getId(), assignment.getParcelId(), reason);
 
@@ -276,6 +280,13 @@ public class DispatchServiceImpl implements DispatchService {
                 courierId, assignment.getId(), assignment.getParcelId());
 
         return AssignmentResponse.fromEntity(updated);
+    }
+
+    private void publishAssignmentNotice(CourierAssignment assignment, String type, String routingKey, String reason) {
+        notificationOutbox.publishEvent("ASSIGNMENT", assignment.getId(), type, routingKey,
+                new com.swiftdrop.backend.modules.notifications.event.AssignmentNoticePayload(
+                        assignment.getId(), assignment.getParcelId(), assignment.getCourierId(),
+                        assignment.getDispatcherId(), reason));
     }
 
     private String determineWorkloadStatus(long activeCount) {

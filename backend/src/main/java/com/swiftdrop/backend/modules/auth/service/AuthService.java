@@ -46,6 +46,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
     private final MerchantService merchantService;
+    private final com.swiftdrop.backend.modules.messaging.service.OutboxService notificationOutbox;
 
     @Value("${app.jwt.refresh-token-expiration-ms:604800000}")
     private long refreshTokenDurationMs;
@@ -138,7 +139,8 @@ public class AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
 
-        if (user.getStatus() == AccountStatus.PENDING_APPROVAL && isRejectedMerchant(user)) {
+        if (user.getStatus() == AccountStatus.REJECTED
+                || (user.getStatus() == AccountStatus.PENDING_APPROVAL && isRejectedMerchant(user))) {
             throw new AccountNotActiveException(MERCHANT_REJECTED_MESSAGE);
         }
 
@@ -246,7 +248,8 @@ public class AuthService {
         }
 
         if (user.getStatus() != AccountStatus.ACTIVE) {
-            throw new AccountNotActiveException(isRejectedMerchant(user) ? MERCHANT_REJECTED_MESSAGE : MERCHANT_PENDING_MESSAGE);
+            throw new AccountNotActiveException(user.getStatus() == AccountStatus.REJECTED || isRejectedMerchant(user)
+                    ? MERCHANT_REJECTED_MESSAGE : MERCHANT_PENDING_MESSAGE);
         }
 
         if (user.getProvider() == null || user.getProvider() == AuthProvider.LOCAL) {
@@ -339,8 +342,34 @@ public class AuthService {
     public UserProfileDto updateUserStatus(UUID userId, AccountStatus newStatus) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userId));
+        if (user.getRole() == Role.ROLE_MERCHANT) {
+            // Legacy suspensions can be removed without bypassing the business decision.
+            if (user.getStatus() == AccountStatus.SUSPENDED && newStatus == AccountStatus.ACTIVE) {
+                var profile = merchantService.getProfileByUserId(userId);
+                AccountStatus restored = switch (profile.getRegistrationStatus()) {
+                    case APPROVED -> AccountStatus.ACTIVE;
+                    case PENDING -> AccountStatus.PENDING_APPROVAL;
+                    case REJECTED -> AccountStatus.REJECTED;
+                };
+                user.setStatus(restored);
+                return UserProfileDto.fromEntity(userRepository.save(user));
+            }
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, "Use Merchant Approvals to approve or reject merchant accounts");
+        }
+        if (newStatus != AccountStatus.ACTIVE && newStatus != AccountStatus.SUSPENDED) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Use merchant review to change application status");
+        }
+        AccountStatus previousStatus = user.getStatus();
         user.setStatus(newStatus);
         User updated = userRepository.save(user);
+        if (previousStatus != newStatus && (newStatus == AccountStatus.SUSPENDED || previousStatus == AccountStatus.SUSPENDED)) {
+            boolean suspended = newStatus == AccountStatus.SUSPENDED;
+            notificationOutbox.publishEvent("USER", userId, suspended ? "ACCOUNT_SUSPENDED" : "ACCOUNT_RESTORED",
+                    suspended ? "account.suspended" : "account.restored",
+                    new com.swiftdrop.backend.modules.notifications.event.AccountAccessPayload(userId));
+        }
         return UserProfileDto.fromEntity(updated);
     }
 

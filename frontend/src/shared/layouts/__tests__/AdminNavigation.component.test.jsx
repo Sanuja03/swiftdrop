@@ -8,7 +8,7 @@ vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({
   user: { id: 'test-user', role, fullName: 'Test Operations User' }, isAuthenticated: true, loading: false, logout: vi.fn(),
 }) }))
 vi.mock('@react-oauth/google', () => ({ GoogleLogin: () => null }))
-vi.mock('@/features/notifications/services/notificationApi', () => ({ getUnreadCount: vi.fn(async () => 0) }))
+vi.mock('@/features/notifications/services/notificationApi', () => ({ getUnreadCount: vi.fn(async () => 0), getMyNotifications: vi.fn(async () => []), markNotificationAsRead: vi.fn() }))
 vi.mock('@/features/admin/api/adminApi', () => ({
   getAllZones: vi.fn(async () => []), getPricingRules: vi.fn(async () => []),
   createZone: vi.fn(), updateZone: vi.fn(), setZoneActive: vi.fn(), updatePricingRule: vi.fn(),
@@ -82,4 +82,19 @@ for (const operationsRole of ['ROLE_ADMIN', 'ROLE_DISPATCHER']) {
       }
     })
   }
+}
+
+for (const notificationRole of ['ROLE_DISPATCHER', 'ROLE_COURIER']) {
+  it(`keeps the correct role layout and bell on notifications for ${notificationRole}`, async () => {
+    role = notificationRole
+    render(<MemoryRouter initialEntries={['/notifications']}><AppRoutes /></MemoryRouter>)
+    expect(await screen.findByRole('heading', { name: 'My Notifications', exact: true })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Notifications', exact: true })).toHaveAttribute('href', '/notifications')
+    if (notificationRole === 'ROLE_DISPATCHER') {
+      expect(screen.getByRole('navigation', { name: 'Dispatch Operations' })).toBeInTheDocument()
+    } else {
+      expect(screen.getByRole('link', { name: 'SwiftDrop courier deliveries' })).toHaveAttribute('href', '/courier/deliveries')
+      expect(screen.queryByRole('link', { name: 'Create Delivery' })).not.toBeInTheDocument()
+    }
+  })
 }

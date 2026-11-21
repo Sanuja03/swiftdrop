@@ -86,7 +86,7 @@ public class NotificationDeliveryService {
         mail.setSubject("SwiftDrop - " + title);
         mail.setText(message);
         mailSender.send(mail);
-        log.info("Merchant decision email accepted by SMTP server; inbox delivery is not confirmed");
+        log.info("Notification email accepted by SMTP server; inbox delivery is not confirmed");
     }
 
     private void sendMockSms(String phone, String message) {
