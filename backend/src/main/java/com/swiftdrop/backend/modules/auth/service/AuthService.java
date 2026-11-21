@@ -85,7 +85,7 @@ public class AuthService {
                 .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName().trim())
-                .phone(request.getPhone())
+                .phone(request.getPhone() != null ? request.getPhone().trim() : null)
                 .role(assignedRole)
                 .status(initialStatus)
                 .provider(AuthProvider.LOCAL)

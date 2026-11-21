@@ -21,6 +21,17 @@ import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
 import './SignupPage.css';
 
+const MOBILE_REGEX = /^(?:\+94[\s-]?|0)7[01245678](?:[\s-]?\d){7}$/;
+
+const PASSWORD_RULES = [
+  { id: 'length', label: '8-16 characters', test: (pwd) => pwd.length >= 8 && pwd.length <= 16 },
+  { id: 'upper', label: '1 uppercase (A-Z)', test: (pwd) => /[A-Z]/.test(pwd) },
+  { id: 'lower', label: '1 lowercase (a-z)', test: (pwd) => /[a-z]/.test(pwd) },
+  { id: 'number', label: '1 number (0-9)', test: (pwd) => /\d/.test(pwd) },
+  { id: 'special', label: '1 special char (!@#$...)', test: (pwd) => /[^A-Za-z0-9\s]/.test(pwd) },
+  { id: 'nospace', label: 'No spaces', test: (pwd) => pwd.length > 0 && !/\s/.test(pwd) },
+];
+
 export default function SignupPage() {
   const navigate = useNavigate();
   const { loginWithGoogle } = useAuth();
@@ -61,8 +72,25 @@ export default function SignupPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters long.');
+    if (password.length < 8 || password.length > 16) {
+      setErrorMessage('Password must be between 8 and 16 characters long.');
+      return;
+    }
+
+    if (/\s/.test(password)) {
+      setErrorMessage('Password must not contain spaces.');
+      return;
+    }
+
+    if (
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/\d/.test(password) ||
+      !/[^A-Za-z0-9\s]/.test(password)
+    ) {
+      setErrorMessage(
+        'Password must include at least one uppercase letter, one lowercase letter, one number, and one special character.'
+      );
       return;
     }
 
@@ -76,6 +104,10 @@ export default function SignupPage() {
     }
     if (role === 'ROLE_MERCHANT' && (!businessName.trim() || !registrationNumber.trim() || !fullName.trim() || !businessAddress.trim() || !phone.trim())) {
       setErrorMessage('Please complete your business name, registration number, contact person, phone and business address.');
+      return;
+    }
+    if (!MOBILE_REGEX.test(phone.trim())) {
+      setErrorMessage('Please enter a valid Sri Lankan mobile number (e.g., 077 123 4567 or +94 77 123 4567).');
       return;
     }
 
@@ -421,7 +453,7 @@ export default function SignupPage() {
                       <Lock size={18} className="signup-input-icon" />
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Min 6 characters"
+                        placeholder="8-16 characters"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -452,6 +484,23 @@ export default function SignupPage() {
                       />
                     </div>
                   </div>
+                </div>
+
+                <div className="signup-password-rules" aria-label="Password requirements">
+                  {PASSWORD_RULES.map((rule) => {
+                    const met = rule.test(password);
+                    const stateClass = password ? (met ? 'met' : 'unmet') : '';
+                    return (
+                      <div key={rule.id} className={`signup-password-rule ${stateClass}`}>
+                        {met ? (
+                          <CheckCircle2 size={13} />
+                        ) : (
+                          <span className="signup-password-rule-dot" />
+                        )}
+                        <span>{rule.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="signup-terms-row">
