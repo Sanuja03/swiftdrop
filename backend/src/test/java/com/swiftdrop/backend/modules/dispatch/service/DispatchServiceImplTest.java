@@ -69,6 +69,9 @@ class DispatchServiceImplTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.swiftdrop.backend.modules.messaging.service.OutboxService notificationOutbox;
+
     private DispatchServiceImpl dispatchService;
 
     private User activeCourier;
@@ -79,7 +82,8 @@ class DispatchServiceImplTest {
         dispatchService = new DispatchServiceImpl(
                 parcelRepository,
                 courierAssignmentRepository,
-                userRepository
+                userRepository,
+                notificationOutbox
         );
 
         activeCourier = User.builder()
@@ -593,6 +597,7 @@ class DispatchServiceImplTest {
         AssignmentResponse response = dispatchService.cancelAssignment(ASSIGNMENT_ID, "Courier unavailable");
 
         assertThat(response.getStatus()).isEqualTo(AssignmentStatus.CANCELLED);
+        verify(notificationOutbox).publishEvent(eq("ASSIGNMENT"), eq(ASSIGNMENT_ID), eq("ASSIGNMENT_CANCELLED"), eq("assignment.cancelled"), any());
         assertThat(response.getNotes()).contains("Cancel reason: Courier unavailable");
         verify(courierAssignmentRepository).save(assignment);
     }

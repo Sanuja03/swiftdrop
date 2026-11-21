@@ -31,7 +31,7 @@ describe('Merchant approval notification review', () => {
     markNotificationAsRead.mockResolvedValue({ ...alert, isRead: true })
   })
 
-  for (const operationsRole of ['ROLE_ADMIN', 'ROLE_DISPATCHER']) {
+  for (const operationsRole of ['ROLE_ADMIN']) {
     it(`${operationsRole} can open the Merchant Approvals tab directly from its alert`, async () => {
       role = operationsRole
       view()
@@ -40,6 +40,13 @@ describe('Merchant approval notification review', () => {
       expect(screen.queryByRole('heading', { name: 'Registered Users' })).not.toBeInTheDocument()
     })
   }
+
+  it('dispatchers do not receive an admin-only review link even for an older saved alert', async () => {
+    role = 'ROLE_DISPATCHER'
+    view()
+    expect(await screen.findByText('Merchant Approval Pending')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Review merchant applications' })).not.toBeInTheDocument()
+  })
 
   it('read action clears the unread filter and keeps the saved alert in All', async () => {
     view()

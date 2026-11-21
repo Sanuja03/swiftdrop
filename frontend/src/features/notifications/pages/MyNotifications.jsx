@@ -22,7 +22,8 @@ function formatDate(dateString) {
 
 export default function MyNotifications() {
   const { user } = useAuth();
-  const isOperations = ["ADMIN", "DISPATCHER"].includes(user?.role?.replace(/^ROLE_/, ""));
+  const role = user?.role?.replace(/^ROLE_/, "");
+  const isOperations = ["ADMIN", "DISPATCHER"].includes(role);
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -84,7 +85,7 @@ export default function MyNotifications() {
       <div className="my-notifications__container">
         <PageHeader
           title="My Notifications"
-          subtitle={isOperations ? "Stay updated on merchant applications and operations activity." : "Stay updated on your parcels and account activity."}
+          subtitle={isOperations ? "Stay updated on important operations activity." : "Stay updated on your parcels and account activity."}
           action={<div className="my-notifications__count" aria-live="polite"><strong>{unreadCount}</strong><span>Unread</span></div>}
         />
 
@@ -150,7 +151,7 @@ export default function MyNotifications() {
               <p>
                 {filter === "unread"
                   ? "You have no unread notifications."
-                  : isOperations ? "New merchant application alerts will appear here." : "Your parcel and account updates will appear here."}
+                  : isOperations ? "Important operations alerts will appear here." : "Your parcel and account updates will appear here."}
               </p>
             </div>
           ) : (
@@ -178,10 +179,25 @@ export default function MyNotifications() {
                     </div>
 
                     <p>{notification.message}</p>
-                    {notification.notificationType === "MERCHANT_APPROVAL" && isOperations && (
+                    {notification.notificationType === "MERCHANT_APPROVAL" && role === "ADMIN" && (
                       <Link to="/admin/users?tab=merchants">Review merchant applications</Link>
                     )}
 
+                    {notification.notificationType === "ASSIGNMENT_CREATED" && role === "COURIER" && notification.parcelId && (
+                      <Link to={`/courier/deliveries/${encodeURIComponent(notification.parcelId)}`}>View assignment</Link>
+                    )}
+                    {notification.notificationType === "ASSIGNMENT_CANCELLED" && role === "COURIER" && (
+                      <Link to="/courier/deliveries">View current deliveries</Link>
+                    )}
+                    {notification.notificationType === "ASSIGNMENT_REJECTED" && isOperations && (
+                      <Link to="/dispatch">Review dispatch queue</Link>
+                    )}
+                    {notification.notificationType === "DELIVERY_FAILED" && isOperations && (
+                      <Link to="/dispatch/workload">Review courier workloads</Link>
+                    )}
+                    {notification.notificationType === "MERCHANT_PARCEL_OUTCOME" && role === "MERCHANT" && (
+                      <Link to="/merchant">View merchant portal</Link>
+                    )}
                     <time dateTime={notification.createdAt}>
                       {formatDate(notification.createdAt)}
                     </time>

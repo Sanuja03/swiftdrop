@@ -40,6 +40,7 @@ const USER_STATUSES = [
   "ACTIVE",
   "SUSPENDED",
   "PENDING_APPROVAL",
+  "REJECTED",
 ];
 
 const MERCHANT_STATUSES = [
@@ -331,10 +332,20 @@ export default function UserManagement() {
     loadMerchants();
   }, [loadUsers, loadMerchants]);
 
+  const visibleUsers = useMemo(() => {
+    const eligibleMerchantIds = new Set(merchants
+      .filter((merchant) => ["PENDING", "APPROVED"].includes(normalize(merchant.registrationStatus))
+        || users.some((user) => String(user.id) === String(merchant.userId) && normalize(user.status) === "SUSPENDED"))
+      .map((merchant) => String(merchant.userId)));
+    return users.filter((user) => normalizeRole(user.role) !== "MERCHANT"
+      || eligibleMerchantIds.has(String(user.id)));
+  }, [users, merchants]);
+  const usersUnavailable = usersLoading || merchantsLoading || usersError || merchantsError;
+
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
 
-    return users.filter((user) => {
+    return visibleUsers.filter((user) => {
       const searchable = [
         user.fullName,
         user.email,
@@ -352,7 +363,7 @@ export default function UserManagement() {
           normalize(user.status) === userStatusFilter)
       );
     });
-  }, [users, search, roleFilter, userStatusFilter]);
+  }, [visibleUsers, search, roleFilter, userStatusFilter]);
 
   const filteredMerchants = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -400,11 +411,11 @@ export default function UserManagement() {
   );
 
   const userCounts = {
-    total: users.length,
-    active: users.filter(
+    total: visibleUsers.length,
+    active: visibleUsers.filter(
       (user) => normalize(user.status) === "ACTIVE"
     ).length,
-    suspended: users.filter(
+    suspended: visibleUsers.filter(
       (user) => normalize(user.status) === "SUSPENDED"
     ).length,
   };
@@ -459,6 +470,9 @@ export default function UserManagement() {
     setActionError("");
 
     try {
+      if (modalType === "suspend" && normalizeRole(selectedItem.role) === "MERCHANT") {
+        throw new Error("Use Merchant Approvals to approve or reject merchant accounts.");
+      }
       if (modalType === "suspend") {
         if (
           currentUserId &&
@@ -486,10 +500,10 @@ export default function UserManagement() {
         await loadUsers();
       } else if (modalType === "approve") {
         if (
-          normalize(selectedItem.registrationStatus) !== "PENDING"
+          !["PENDING", "REJECTED"].includes(normalize(selectedItem.registrationStatus))
         ) {
           throw new Error(
-            "Only pending merchant applications can be approved."
+            "Only pending or rejected merchant applications can be approved."
           );
         }
 
@@ -499,6 +513,7 @@ export default function UserManagement() {
         );
 
         await loadMerchants();
+        await loadUsers();
       } else if (modalType === "reject") {
         if (!rejectionReason) throw new Error("Select a rejection reason.");
         if (rejectionReason === "Other" && !actionNotes.trim()) {
@@ -521,13 +536,16 @@ export default function UserManagement() {
         );
 
         await loadMerchants();
+        await loadUsers();
       } else {
         return;
       }
 
       const messages = {
         suspend: "User suspended successfully.",
-        restore: "User reactivated successfully.",
+        restore: normalizeRole(selectedItem.role) === "MERCHANT"
+          ? "Account suspension removed. Merchant access still requires approval and verified email."
+          : "User reactivated successfully.",
         approve: "Merchant application approved.",
         reject: "Merchant application rejected.",
       };
@@ -599,16 +617,16 @@ export default function UserManagement() {
             >
               <SummaryCard
                 title="Total Users"
-                value={usersLoading || usersError ? "—" : userCounts.total}
+                value={usersUnavailable ? "—" : userCounts.total}
               />
               <SummaryCard
                 title="Active Users"
-                value={usersLoading || usersError ? "—" : userCounts.active}
+                value={usersUnavailable ? "—" : userCounts.active}
                 variant="green"
               />
               <SummaryCard
                 title="Suspended Users"
-                value={usersLoading || usersError ? "—" : userCounts.suspended}
+                value={usersUnavailable ? "—" : userCounts.suspended}
                 variant="red"
               />
             </section>
@@ -682,18 +700,21 @@ export default function UserManagement() {
                 </label>
               </div>
 
-              {usersLoading ? (
+              {usersLoading || merchantsLoading ? (
                 <Spinner label="Loading users..." />
-              ) : usersError ? (
+              ) : usersError || merchantsError ? (
                 <div className="um-fetch-error" role="alert">
-                  <p>{usersError}</p>
+                  <p>{usersError || merchantsError}</p>
                   <button
                     type="button"
                     className="um-button um-button--primary"
                     onClick={() => {
                       setUsersLoading(true);
                       setUsersError("");
+                      setMerchantsLoading(true);
+                      setMerchantsError("");
                       loadUsers();
+                      loadMerchants();
                     }}
                   >
                     Try Again
@@ -702,12 +723,12 @@ export default function UserManagement() {
               ) : filteredUsers.length === 0 ? (
                 <EmptyState
                   title={
-                    users.length === 0
+                    visibleUsers.length === 0
                       ? "No Users Found"
                       : "No Matching Users"
                   }
                   description={
-                    users.length === 0
+                    visibleUsers.length === 0
                       ? "No registered users were returned by the backend."
                       : "Try changing your search or filters."
                   }
@@ -761,6 +782,7 @@ export default function UserManagement() {
                                 </button>
 
                                 {status === "ACTIVE" &&
+                                  normalizeRole(user.role) !== "MERCHANT" &&
                                   !isAdmin &&
                                   !isSelf && (
                                     <button
@@ -832,7 +854,7 @@ export default function UserManagement() {
                   <h2>Merchant Applications</h2>
                   <p>
                     Review business registrations and approve or reject
-                    pending applications.
+                    pending applications and reconsider rejected applications.
                   </p>
                 </div>
 
@@ -968,7 +990,7 @@ export default function UserManagement() {
                                   Review
                                 </button>
 
-                                {status === "PENDING" && (
+                                {["PENDING", "REJECTED"].includes(status) && (
                                   <>
                                     <button
                                       type="button"
@@ -1129,7 +1151,7 @@ export default function UserManagement() {
                   "Are you sure you want to restore this suspended user's account?"}
 
                 {modalType === "approve" &&
-                  `Approve ${selectedItem.businessName}? Its registration status will change from PENDING to APPROVED.`}
+                  `Approve ${selectedItem.businessName}? Its registration status will change from ${normalize(selectedItem.registrationStatus)} to APPROVED. Email verification is still required to sign in.`}
 
                 {modalType === "reject" &&
                   `Reject ${selectedItem.businessName}? Its status will change from ${normalize(selectedItem.registrationStatus)} to REJECTED and merchant access will be blocked.`}
