@@ -12,8 +12,9 @@ the repository root. Examples use PowerShell, as on the development machine.
 | `secret.example.yaml` | Blank credential template; never included in public rendering |
 | `postgres.yaml`, `rabbitmq.yaml` | Single-replica StatefulSets, retained PVCs, governing and application Services |
 | `backend.yaml`, `frontend.yaml` | Deployments, Services, probes, CPU/memory requests/limits |
-| `db-init.yaml`, `db/` | Database Job, ordered initialization and backend schema gate |
-| `prepare.py`, `validate.py`, `test_prepare.py` | Dependency-free offline rendering, contract checks and tests |
+| `db-init.yaml`, `db/`, `migrations.py` | Versioned database upgrades, checksum ledger, current catalog assertion and backend startup gate |
+| `frontend.Dockerfile` | Optional Google-enabled Vite build without changing the application Dockerfile |
+| `prepare.py`, `validate.py`, `test_*.py` | Dependency-free offline rendering, contract checks and tests |
 
 The `.yaml` files use **JSON syntax, a YAML 1.2 subset** accepted by Kubernetes.
 Python can therefore check their syntax without installing a YAML parser. Edit them
@@ -47,13 +48,13 @@ For a registry deployment, choose a lowercase registry owner and a fresh build t
 $registry = 'ghcr.io/your-lowercase-owner'
 $tag = "$(git rev-parse --short=12 HEAD)-demo1"
 docker build -t "${registry}/swiftdrop-backend:${tag}" backend
-docker build -t "${registry}/swiftdrop-frontend:${tag}" frontend
+docker build -f k8s/frontend.Dockerfile -t "${registry}/swiftdrop-frontend:${tag}" frontend
 docker login ghcr.io
 docker push "${registry}/swiftdrop-backend:${tag}"
 docker push "${registry}/swiftdrop-frontend:${tag}"
 python k8s/prepare.py --backend-image "${registry}/swiftdrop-backend:${tag}" --frontend-image "${registry}/swiftdrop-frontend:${tag}"
 python k8s/validate.py
-python -m unittest discover -s k8s -p test_prepare.py -v
+python -B -m unittest discover -s k8s -p "test_*.py" -v
 ```
 
 These build/push commands were **not run** during preparation. Do not reuse a tag
@@ -73,11 +74,31 @@ match Compose (`postgres:17-alpine`, `rabbitmq:4.4.0-management`). Pin all four 
 digests for byte-identical image content; upstream version tags can move. Do not
 change PostgreSQL major versions as an ordinary image update.
 
-The existing frontend Dockerfile builds with Vite defaults: API/WebSocket calls use
-the same origin, as required by Nginx. `VITE_*` values are build-time values, not
-Kubernetes runtime environment settings. The current Dockerfile exposes no Google
-OAuth build argument; coordinate a separate frontend build change to enable a
-Google client ID. No teammate Dockerfile or frontend source was changed here.
+The Kubernetes build recipe keeps the application Dockerfile untouched. It supports
+public `VITE_GOOGLE_CLIENT_ID` at build time and forces the API/WebSocket base to the
+same browser origin. Kubernetes runtime `VITE_*` environment variables cannot change
+a compiled React bundle. For Google login, use the **same public client ID** in both:
+
+```powershell
+$googleClientId = 'YOUR_PUBLIC_CLIENT_ID.apps.googleusercontent.com'
+docker build -f k8s/frontend.Dockerfile --build-arg "VITE_GOOGLE_CLIENT_ID=$googleClientId" -t "${registry}/swiftdrop-frontend:${tag}" frontend
+python k8s/prepare.py --backend-image "${registry}/swiftdrop-backend:${tag}" --frontend-image "${registry}/swiftdrop-frontend:${tag}" --google-client-id "$googleClientId"
+```
+
+Register the real browser origin in Google OAuth settings. Client IDs are public;
+never put JWT, merchant API keys, webhook secrets or AI credentials in a frontend build.
+The render records expected build arguments in its summary/annotations; it cannot
+inspect or prove that a supplied image was actually built with them. Original CI
+images use the original frontend Dockerfile and need a separate build for Google.
+Builds/pushes above are future operator instructions; none were executed here.
+The frontend context honors `frontend/.dockerignore` and excludes private `.env` files.
+Optional `NODE_IMAGE` / `NGINX_IMAGE` build arguments allow approved base-image digests.
+
+A rendered frontend ConfigMap derives Nginx configuration from the current application
+proxy, preserving `/api/` and `/ws` routes to `backend:8080`. It adds a 6 MiB request
+limit to accommodate the backend's 5 MiB proof uploads / 6 MiB multipart requests.
+A pod checksum rolls Nginx when that mounted file changes; no frontend application
+source or original Dockerfile/Nginx file is edited.
 
 ## Configure credentials and settings
 
@@ -93,7 +114,10 @@ Copy-Item k8s/secret.example.yaml k8s/.local/secrets.yaml
 Fill the private copy in an editor. Required: `POSTGRES_USER`, `POSTGRES_PASSWORD`,
 `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `JWT_SECRET`. Use a RabbitMQ user other than
 `guest`. Generate `JWT_SECRET` from at least 32 cryptographically random bytes,
-encoded as Base64. Optional SMTP username/password and MinIO access/secret keys
+encoded as Base64. `GOOGLE_CLIENT_ID` is public configuration, not a client secret.
+Optional `AI_API_KEY` stays in the Secret; use `AI_BASE_URL`, `AI_MODEL`,
+`AI_MAX_ITERATIONS` and `AI_TIMEOUT_SECONDS` in the ConfigMap for the matching provider.
+An empty AI key leaves the assistant unconfigured. SMTP username/password and MinIO access/secret keys
 must be provided in pairs. Never commit or paste populated Secrets into reports.
 
 After rendering, validate a populated private copy without printing its values:
@@ -105,15 +129,24 @@ python k8s/validate.py --secrets k8s/.local/secrets.yaml
 Set `CORS_ALLOWED_ORIGINS` to the actual browser origin(s), including the port;
 the default `http://localhost:5173` matches the port-forward below and WebSocket
 origin checks. SMTP defaults to Gmail; set credentials for real verification/reset
-email. MinIO photo proof needs an existing endpoint and bucket plus credentials;
+email. Current EmailService builds verification links with `http://localhost:5173`;
+that matches this port-forward demo, but public hosting needs an application change
+to make the link origin configurable (manual code entry remains available). No invented
+FRONTEND_URL environment variable is supplied. MinIO photo proof needs an existing endpoint and bucket plus credentials;
 without them, that feature remains unavailable. No `dev` profile is enabled.
 
 Database/RabbitMQ passwords initialize accounts **only on new storage**. Editing a
-Secret does not change passwords already stored by either service. Coordinate an
+Secret does not change passwords already stored by either service. Changing
+`POSTGRES_DB` on an initialized volume does not create or move a database either. Coordinate an
 in-place credential change and backend restart; never delete volumes to reset them.
 Backend uses the initialized database owner for this demo, rather than a separate
-least-privilege runtime role. Existing application auth-initializer behavior remains
-unchanged, including its startup schema checks and Google email-verification update.
+least-privilege runtime role. No normal-profile application schema initializer was found; the Job is responsible
+for the required catalog. The permissive dev profile, mock Google tokens and duplicate
+direct webhook delivery are explicitly disabled. Merchant API keys and webhook signing
+secrets are generated per merchant by the application and stored in PostgreSQL, not
+shared deployment environment secrets. Preserve/encrypt database backups accordingly.
+Fresh bootstrap creates no users; provision a trusted administrator separately before
+merchant approval. Do not use public staff signup or enable development seeding.
 
 ## Database order and preservation
 
@@ -121,23 +154,31 @@ unchanged, including its startup schema checks and Google email-verification upd
 editing or maintaining stale copies of teammate SQL. Its digest names a distinct
 `swiftdrop-db-init-<digest>` Job, recorded in `.generated/summary.json`.
 
-The Job waits for PostgreSQL and holds a database advisory lock, then:
+The Job waits for PostgreSQL and holds a database advisory lock. It bootstraps the
+current baseline only on an empty public schema. Existing databases never replay
+baseline seeds or user/merchant approval backfills. Three immutable, checksum-checked
+steps add the merged schema, handle reviewed legacy delivery-proof IDs, and enforce
+integrity. A read-only current catalog assertion checks **19 tables / 184 columns**
+plus declared keys/indexes before recording the matching bundle marker.
 
-1. On an **empty public schema only**, applies `schema.sql` in a transaction.
-2. On an existing schema, skips that baseline because its zone/pricing `DO UPDATE`
-   seeds would overwrite settings. Required baseline tables/known booking columns
-   must already exist, otherwise the Job stops for manual additive-upgrade review.
-3. Runs `courier_setup.sql`, then `merchant_webhook_setup.sql`, preserving their
-   transactions and failure behavior. Duplicate merchant ownership makes the unique
-   index fail; resolve it explicitly, without deleting or reassigning rows blindly.
-4. Records the completed bundle in `swiftdrop_deployment_schema`. This ledger is
-   append-only metadata; application rows/prices/secrets are not rewritten by it.
+See [db/README.md](db/README.md) for exact ordering, transaction boundaries, supported
+legacy contracts, review queries and recovery. Missing business identity/approval data,
+unknown courier namespaces, orphan links or incompatible types stop for human review.
+No values are invented, accounts auto-approved or secrets overwritten. Successful
+steps commit once; failures roll back the current step and never write its ledger entry.
+A final failure leaves earlier safe additions available for reviewed reconciliation.
 
-Backend has a PostgreSQL-client init container that waits for its exact completed
-bundle before starting Java. It requires no Kubernetes API token/RBAC. The Job
-fails on SQL errors; a failed migration never writes a success marker. Existing
-baseline data is never reseeded. A previously successful bundle stays recorded for
-compatible image rollback. Schema checks are guards, not a full migration framework.
+Legacy `delivery_proofs.courier_id -> couriers.id` conversion is **off by default**.
+After backups, identity review and stopping old writers, an operator may render with
+`--reviewed-proof-conversion`. It uses a frozen canonical repository migration body inside
+the versioned transaction. A changed applied checksum is an error: add a new numbered
+migration instead of modifying history. Merely changing `--revision` does not replay
+already applied steps or authorize identity conversion.
+
+Backend's PostgreSQL-client init container waits for its exact successful bundle,
+without a Kubernetes API token/RBAC. Fresh schema seeds are not replayed on retries.
+No Job/PVC deletion is used to update the deployment. An existing database with no
+zones/prices requires approved catalog setup before booking; it is not silently reseeded.
 
 New PVCs do not automatically import Supabase/Compose data. Back up and restore into
 the target database if migrating existing data. When adopting a volume, first check
@@ -149,7 +190,11 @@ an operator storage plan; this package never recreates volumes to apply them.
 ## Later deployment and rollout verification
 
 **Future operator steps only; none were executed for this task.** Review the context,
-namespace, backups, image references and private settings first. For the default
+namespace, backups, image references and private settings first.
+For **existing data upgrades**, schedule downtime and stop all old backend/worker/import
+writers before starting the Job. A `Recreate` strategy/init gate alone does not stop
+every old writer early enough. Keep writers stopped while a review/conversion is pending;
+follow the database guide and validate on a restored PostgreSQL copy first. For the default
 namespace:
 
 ```powershell
@@ -196,8 +241,9 @@ separate design. Backend updates use `Recreate`, with brief downtime.
 
 1. Inspect their final Docker/runtime and SQL changes. Back up existing data. New
    baseline-only changes on an existing database require reviewed **additive** upgrade
-   scripts; register those in `SQL_SOURCES` and `db/initialize.sql` before the marker.
-   Do not rerun baseline upsert seeds on existing installations.
+   scripts; append a new immutable entry in `migrations.MIGRATIONS`. Keep applied
+   snapshots unchanged. Rendering generates checksums/runner/current-catalog assertion.
+   Do not replay the whole baseline, even though its current price seeds use DO NOTHING.
 2. Build/publish fresh immutable app images, or select CI's matching full SHA tags.
 3. Rerun `prepare.py` with the new images and the same namespace/storage/credentials.
    It copies current SQL. App-only changes reuse the completed database Job; changed
@@ -225,18 +271,25 @@ and container logs in the chosen namespace. Typical causes:
   to depend on them. Frontend 502 can occur while backend is still starting.
 - WebSocket rejection: browser origin is missing from CORS settings. Google login or
   proof photos unavailable: configure their build-time/external prerequisites above.
+- Readiness does not prove end-to-end API correctness. Existing application issues such
+  as the email-verification token bypass and per-process idempotency remain outside this
+  package. Review those before exposing the application publicly. No TLS/Ingress/egress
+  policy is installed; public hosting and webhook DNS-rebinding defenses need a separate
+  network plan. One backend replica remains intentional for in-process STOMP/idempotency.
 
 During preparation, Python parsed all eight JSON-compatible YAML source files and
-the 14-resource render, and checked resource APIs/kinds, selectors, references,
+the 15-resource render, and checked resource APIs/kinds, selectors, references,
 ports, environment expansion order, probes, requests/limits, retained PVCs, current
-SQL copying and migration gating. Renderer tests exercise deterministic output and
-version changes; all nine tests passed. Git Bash `bash -n` also passed for the schema
-wait script without executing it. These are custom offline contract checks, **not Kubernetes OpenAPI
+SQL copying, current environment/build contracts and migration gating. Renderer and
+migration tests check deterministic output, ledger order, secret preservation, source
+JPA/SQL column consistency and reviewed conversion boundaries; all 25 tests passed. Git Bash `bash -n` also passed for the schema
+wait script without executing it. PostgreSQL was unavailable: no SQL grammar/server
+execution, fresh/legacy upgrade, live credential, rollout or probe behavior was verified. These are custom offline contract checks, **not Kubernetes OpenAPI
 or admission validation**. `kubectl`, Docker, kustomize and kubeconform were unavailable.
 No cluster was contacted; no images were built/pulled, SQL executed, PVCs provisioned,
 or application rollouts/probes tested. Complete those checks before a live deployment.
-The local validation render used `swiftdrop-backend:validation` and
-`swiftdrop-frontend:validation` solely as test references; replace them by rerendering
+The local validation render used `swiftdrop-backend:offline-5f222a2` and
+`swiftdrop-frontend:offline-5f222a2` solely as test references; replace them by rerendering
 with your built/published image tags before any deployment.
 
 References: [Kubernetes PVC retention](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention),

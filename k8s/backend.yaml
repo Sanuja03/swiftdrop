@@ -272,6 +272,16 @@
                         "optional": true
                       }
                     }
+                  },
+                  {
+                    "name": "AI_API_KEY",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "swiftdrop-secrets",
+                        "key": "AI_API_KEY",
+                        "optional": true
+                      }
+                    }
                   }
                 ],
                 "resources": {

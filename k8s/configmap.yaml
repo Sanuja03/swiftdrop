@@ -31,6 +31,15 @@
     "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE": "health,info",
     "SERVER_SHUTDOWN": "graceful",
     "SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE": "20s",
-    "JAVA_TOOL_OPTIONS": "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=20.0"
+    "JAVA_TOOL_OPTIONS": "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=20.0",
+    "SPRING_PROFILES_ACTIVE": "default",
+    "GOOGLE_CLIENT_ID": "",
+    "APP_AUTH_GOOGLE_MOCK_TOKENS_ENABLED": "false",
+    "SWIFTDROP_WEBHOOKS_DIRECT_DELIVERY_ENABLED": "false",
+    "AI_BASE_URL": "https://api.openai.com/v1",
+    "AI_MODEL": "gpt-4o-mini",
+    "AI_MAX_ITERATIONS": "5",
+    "AI_TIMEOUT_SECONDS": "30",
+    "DB_REVIEWED_PROOF_CONVERSION": "false"
   }
 }

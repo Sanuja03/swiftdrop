@@ -31,13 +31,13 @@ class PreparationTests(unittest.TestCase):
         _, before = prepare.render(self.args())
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'merchant.sql'
-            path.write_text(prepare.SQL_SOURCES['003-merchant-webhook.sql'].read_text() + '\n-- Reviewed additive migration revision\n')
-            with patch.dict(prepare.SQL_SOURCES, {'003-merchant-webhook.sql': path}):
+            path.write_text(prepare.SQL_SOURCES['001-additive-schema.sql'].read_text() + '\n-- Reviewed additive migration revision\n')
+            with patch.dict(prepare.SQL_SOURCES, {'001-additive-schema.sql': path}):
                 manifest, after = prepare.render(self.args())
         self.assertNotEqual(before['schemaBundleSha256'], after['schemaBundleSha256'])
         config = next(x for x in manifest['items'] if x['metadata']['name'] == after['databaseScriptsConfigMap'])
         self.assertTrue(config['immutable'])
-        self.assertIn('Reviewed additive migration revision', config['data']['003-merchant-webhook.sql'])
+        self.assertIn('Reviewed additive migration revision', config['data']['001-additive-schema.sql'])
 
     def test_revision_allows_reviewed_rerun_without_deletion(self):
         manifest, before = prepare.render(self.args())

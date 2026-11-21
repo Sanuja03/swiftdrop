@@ -107,7 +107,7 @@
             "command": [
               "sh",
               "-ec",
-              "test -n \"$PGPASSWORD\"; exec psql -X --set=ON_ERROR_STOP=1 --set=expected_bundle=\"$EXPECTED_SCHEMA_BUNDLE\" --file=/db/initialize.sql"
+              "test -n \"$PGPASSWORD\"; exec psql -X --set=ON_ERROR_STOP=1 --set=expected_bundle=\"$EXPECTED_SCHEMA_BUNDLE\" --set=reviewed_proof_conversion=\"$DB_REVIEWED_PROOF_CONVERSION\" --file=/db/initialize.sql"
             ],
             "env": [
               {
@@ -155,6 +155,15 @@
                   "configMapKeyRef": {
                     "name": "swiftdrop-db-scripts",
                     "key": "bundle-sha256"
+                  }
+                }
+              },
+              {
+                "name": "DB_REVIEWED_PROOF_CONVERSION",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "swiftdrop-config",
+                    "key": "DB_REVIEWED_PROOF_CONVERSION"
                   }
                 }
               }

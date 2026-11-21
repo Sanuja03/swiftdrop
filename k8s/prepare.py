@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+import migrations
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -15,10 +16,12 @@ SOURCES = ['namespace.yaml', 'configmap.yaml', 'postgres.yaml', 'rabbitmq.yaml',
            'db-init.yaml', 'backend.yaml', 'frontend.yaml']
 SQL_SOURCES = {
     '001-schema.sql': ROOT / 'backend/src/main/resources/schema.sql',
-    '002-courier.sql': ROOT / 'backend/src/main/resources/db/scripts/courier_setup.sql',
-    '003-merchant-webhook.sql': ROOT / 'backend/src/main/resources/db/scripts/merchant_webhook_setup.sql',
+    'legacy-proof-source.sql': ROOT / 'backend/src/main/resources/db/scripts/delivery_proofs_use_user_ids.sql',
+    'legacy-proof-body.sql': HERE / 'db/migrations/proof-user-ids-body.sql',
+    'preflight.sql': HERE / 'db/preflight.sql',
     'initialize.sql': HERE / 'db/initialize.sql',
     'wait-for-schema.sh': HERE / 'db/wait-for-schema.sh',
+    **{name: HERE / 'db/migrations' / name for name in migrations.MIGRATIONS},
 }
 
 
@@ -61,11 +64,17 @@ def validate_image(value):
 def render(args):
     resources = [obj for source in SOURCES for obj in objects(read_json(HERE / source))]
     config = next(obj for obj in resources if obj['kind'] == 'ConfigMap')
+    config['data']['DB_REVIEWED_PROOF_CONVERSION'] = str(args.reviewed_proof_conversion).lower()
+    if args.google_client_id is not None:
+        config['data']['GOOGLE_CLIENT_ID'] = args.google_client_id
     scripts = {key: path.read_text(encoding='utf-8').replace('\r\n', '\n') for key, path in SQL_SOURCES.items()}
+    scripts['assert-catalog.sql'] = migrations.contract_sql(migrations.catalog(scripts['001-schema.sql']))
+    scripts['migrate.sql'], migration_checksums = migrations.runner(scripts)
     job_template = read_json(HERE / 'db-init.yaml')
     # Salt a Job for intentional reruns without deleting completed Jobs or touching volumes.
     identity = {'scripts': scripts, 'job': job_template, 'postgresImage': args.postgres_image,
                 'imagePullSecret': args.image_pull_secret,
+                'reviewedProofConversion': args.reviewed_proof_conversion,
                 'database': config['data']['POSTGRES_DB'], 'revision': args.revision}
     bundle_hash = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     config_name = 'swiftdrop-db-' + bundle_hash[:12]
@@ -89,6 +98,15 @@ def render(args):
                 replace_script_ref(child)
 
     config_hash = hashlib.sha256(json.dumps(config['data'], sort_keys=True).encode()).hexdigest()
+    nginx_source = (ROOT / 'frontend/nginx.conf').read_text(encoding='utf-8').replace('\r\n', '\n')
+    if nginx_source.count('listen 80;') != 1:
+        raise ValueError('Frontend Nginx listen contract changed; review the Kubernetes override')
+    nginx = nginx_source.replace('listen 80;', 'listen 80;\n    client_max_body_size 6m;')
+    nginx_hash = hashlib.sha256(nginx.encode()).hexdigest()
+    frontend_config = {'apiVersion': 'v1', 'kind': 'ConfigMap',
+                       'metadata': {'name': 'swiftdrop-frontend-config', 'namespace': args.namespace,
+                                    'labels': {'app.kubernetes.io/part-of': 'swiftdrop'}},
+                       'data': {'default.conf': nginx}}
     for obj in resources:
         if obj['kind'] == 'Namespace':
             obj['metadata']['name'] = args.namespace
@@ -113,11 +131,17 @@ def render(args):
                     container['image'] = args.frontend_image
             if obj['kind'] == 'Deployment' and obj['metadata']['name'] == 'backend':
                 obj['spec']['template']['metadata']['annotations'] = {'swiftdrop/config-checksum': config_hash}
+            if obj['kind'] == 'Deployment' and obj['metadata']['name'] == 'frontend':
+                obj['spec']['template']['metadata']['annotations'] = {
+                    'swiftdrop/nginx-checksum': nginx_hash,
+                    'swiftdrop/google-client-id': config['data']['GOOGLE_CLIENT_ID'],
+                }
             if obj['kind'] == 'StatefulSet' and args.storage_class:
                 for claim in obj['spec']['volumeClaimTemplates']:
                     claim['spec']['storageClassName'] = args.storage_class
 
     resources.append(script_config)
+    resources.append(frontend_config)
     order = {'Namespace': 0, 'ConfigMap': 1, 'Service': 2, 'StatefulSet': 3, 'Job': 4, 'Deployment': 5}
     resources.sort(key=lambda obj: (order[obj['kind']], obj['metadata']['name']))
     return {'apiVersion': 'v1', 'kind': 'List', 'items': resources}, {
@@ -125,6 +149,11 @@ def render(args):
         'databaseJob': job_name, 'databaseScriptsConfigMap': config_name,
         'backendImage': args.backend_image, 'frontendImage': args.frontend_image,
         'postgresImage': args.postgres_image, 'rabbitmqImage': args.rabbitmq_image,
+        'migrationChecksums': migration_checksums,
+        'reviewedProofConversion': args.reviewed_proof_conversion,
+        'proofSourceMatchesFrozen': scripts['legacy-proof-body.sql'] == migrations.proof_body(scripts['legacy-proof-source.sql']),
+        'frontendBuild': {'dockerfile': 'k8s/frontend.Dockerfile', 'context': 'frontend',
+                          'args': {'VITE_GOOGLE_CLIENT_ID': config['data']['GOOGLE_CLIENT_ID']}},
     }
 
 
@@ -138,6 +167,9 @@ def parser():
     result.add_argument('--storage-class', help='Omit to use the cluster default StorageClass')
     result.add_argument('--image-pull-secret', help='Existing registry Secret name in the selected namespace')
     result.add_argument('--revision', default='', help='Explicit salt for a reviewed schema Job rerun')
+    result.add_argument('--google-client-id', help='Public Google client ID; frontend image must be built with this same value')
+    result.add_argument('--reviewed-proof-conversion', action='store_true',
+                        help='Operator attests legacy proof identities/backups/maintenance window were reviewed; never deletes rows')
     return result
 
 

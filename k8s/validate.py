@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from prepare import HERE, SOURCES, SQL_SOURCES, objects, pod_spec, read_json
+import migrations
 
 
 def require(condition, message):
@@ -29,6 +30,7 @@ def main():
         require(private.get('kind') == 'Secret' and private['metadata']['name'] == 'swiftdrop-secrets', 'Private Secret identity mismatch')
         require(private['metadata'].get('namespace') == summary['namespace'], 'Private Secret namespace mismatch')
         values = private.get('stringData', {})
+        require(all(isinstance(value, str) for value in values.values()), 'Private Secret stringData values must be strings')
         for key in ('POSTGRES_USER', 'POSTGRES_PASSWORD', 'RABBITMQ_USERNAME', 'RABBITMQ_PASSWORD', 'JWT_SECRET'):
             require(isinstance(values.get(key), str) and values[key].strip(), f'Fill private Secret field {key}')
         require(values['RABBITMQ_USERNAME'] != 'guest', 'Use a named RabbitMQ user, not guest')
@@ -44,6 +46,8 @@ def main():
     require(len(identities) == len(set(identities)), 'Duplicate resource identity')
     lookup = dict(zip(identities, resources))
     configs = {obj['metadata']['name']: obj['data'] for obj in resources if obj['kind'] == 'ConfigMap'}
+    require(all(isinstance(value, str) for data in configs.values() for value in data.values()), 'ConfigMap data values must be strings')
+    require(all(sum(len(key.encode()) + len(value.encode()) for key,value in data.items()) < 1024*1024 for data in configs.values()), 'ConfigMap exceeds the 1 MiB data limit')
     expected_api = {'Namespace': 'v1', 'ConfigMap': 'v1', 'Service': 'v1', 'StatefulSet': 'apps/v1', 'Deployment': 'apps/v1', 'Job': 'batch/v1'}
     require(not any(obj['kind'] == 'Secret' for obj in resources), 'Rendered public bundle must not contain Secrets')
     container_count = 0
@@ -124,15 +128,46 @@ def main():
     require(scripts['bundle-sha256'] == summary['schemaBundleSha256'], 'Bundle marker mismatch')
     driver = scripts['initialize.sql']
     require(driver.index('\\if :bootstrap_new_database') < driver.index('\\ir /db/001-schema.sql') < driver.index('\\else'), 'Baseline must be gated to a fresh schema')
-    require(driver.index('002-courier.sql') < driver.index('003-merchant-webhook.sql') < driver.index('INSERT INTO public.swiftdrop_deployment_schema'), 'Migration/marker order invalid')
+    require(driver.index('preflight.sql') < driver.index('migrate.sql') < driver.index('assert-catalog.sql') < driver.index('INSERT INTO public.swiftdrop_deployment_schema'), 'Migration/catalog/marker order invalid')
     require('pg_advisory_lock' in driver and '\\set ON_ERROR_STOP on' in driver, 'Migration lock/error handling missing')
+    expected_runner, checksums = migrations.runner(scripts)
+    require(scripts['migrate.sql'] == expected_runner and summary['migrationChecksums'] == checksums, 'Migration runner/checksums are stale')
+    contract = migrations.catalog(scripts['001-schema.sql'])
+    require(scripts['assert-catalog.sql'] == migrations.contract_sql(contract), 'Catalog gate is stale')
+    require(summary['proofSourceMatchesFrozen'] == (scripts['legacy-proof-body.sql'] == migrations.proof_body(scripts['legacy-proof-source.sql'])), 'Proof source comparison mismatch')
+    require('BEGIN;' not in scripts['legacy-proof-body.sql'].splitlines() and 'COMMIT;' not in scripts['legacy-proof-body.sql'].splitlines(), 'Nested migration transactions')
+    additive = migrations.without_comments(scripts['001-additive-schema.sql'])
+    require(not re.search(r'\b(?:INSERT\s+INTO|UPDATE\s+\w|DELETE\s+FROM|TRUNCATE|DROP\s+(?:TABLE|COLUMN|SCHEMA|DATABASE))\b', additive, re.I), 'Additive migration contains unsafe row/destructive operations')
+    require("IS DISTINCT FROM 'true'" in scripts['002-proof-user-ids.sql'], 'Legacy identity review gate missing')
+    require(config['DB_REVIEWED_PROOF_CONVERSION'] == str(summary['reviewedProofConversion']).lower(), 'Proof review flag mismatch')
+    require(config['SPRING_PROFILES_ACTIVE'] == 'default' and config['APP_AUTH_GOOGLE_MOCK_TOKENS_ENABLED'] == 'false', 'Permissive development authentication must stay disabled')
+    require(config['SWIFTDROP_WEBHOOKS_DIRECT_DELIVERY_ENABLED'] == 'false', 'Duplicate direct webhook delivery must remain disabled')
     job = lookup['Job', summary['databaseJob']]
     require(job['spec']['backoffLimit'] == 2 and pod_spec(job)['restartPolicy'] == 'Never', 'Job retry policy mismatch')
     backend = pod_spec(lookup['Deployment', 'backend'])
     require(backend['initContainers'][0]['command'] == ['sh', '/db/wait-for-schema.sh'], 'Backend schema startup gate missing')
+    application = backend['containers'][0]
+    supplied = set(config) | {entry['name'] for entry in application['env']}
+    properties = (HERE.parent / 'backend/src/main/resources/application.properties').read_text()
+    placeholders = set(re.findall(r'\$\{([A-Z][A-Z0-9_]*)', properties))
+    require(placeholders - supplied <= {'SUPABASE_DB_PASSWORD', 'OPENAI_API_KEY', 'GEMINI_API_KEY'}, 'Current application property has an undocumented/unwired environment variable')
+    for key in ('MINIO_ENDPOINT', 'MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY', 'MINIO_PROOF_BUCKET'):
+        require(key in supplied, f'Proof storage environment missing: {key}')
+    require(not any(re.search(r'(?:PASSWORD|SECRET|API_KEY)$', key) for key in config), 'Sensitive settings must be Secret references')
+    frontend = pod_spec(lookup['Deployment', 'frontend'])
+    require('VITE_GOOGLE_CLIENT_ID' not in {entry['name'] for entry in frontend['containers'][0].get('env', [])}, 'Vite client ID is build-time, not runtime')
+    require(summary['frontendBuild']['args']['VITE_GOOGLE_CLIENT_ID'] == config['GOOGLE_CLIENT_ID'], 'Frontend/backend Google client ID mismatch')
+    require(lookup['Deployment', 'frontend']['spec']['template']['metadata']['annotations']['swiftdrop/google-client-id'] == config['GOOGLE_CLIENT_ID'], 'Frontend build declaration mismatch')
+    nginx = configs['swiftdrop-frontend-config']['default.conf']
+    require('client_max_body_size 6m;' in nginx and 'proxy_pass http://backend:8080;' in nginx, 'Nginx upload/proxy configuration mismatch')
+    require(frontend['containers'][0]['volumeMounts'][0]['subPath'] == 'default.conf', 'Frontend proxy override must mount one file only')
+    require('ARG VITE_GOOGLE_CLIENT_ID' in (HERE / 'frontend.Dockerfile').read_text(), 'Kubernetes frontend build does not support Google client ID')
     require('proxy_pass http://backend:8080;' in (HERE.parent / 'frontend/nginx.conf').read_text(), 'Frontend proxy contract changed; review Services')
     print(json.dumps({'sourceFilesParsed': len(SOURCES) + 1, 'renderedResources': len(resources),
-                      'containersIncludingInit': container_count, 'checks': 'syntax, API kinds, references, selectors, ports, env order, probes, resources, retained PVCs, current SQL and migration gating: PASS',
+                      'containersIncludingInit': container_count, 'catalogTables': len({column['table_name'] for column in contract['columns']}),
+                      'catalogColumns': len(contract['columns']), 'versionedMigrations': len(migrations.MIGRATIONS),
+                      'proofSourceMatchesFrozen': summary['proofSourceMatchesFrozen'],
+                      'checks': 'syntax, APIs, references, selectors, ports, env order, probes, resources, retained PVCs, source environment, build configuration and migration safety/gating: PASS',
                       'credentials': 'blank template only; no Secret in rendered bundle',
                       'notValidated': 'Kubernetes OpenAPI/admission, image pulls, SQL execution, PVC provisioning, runtime probes and rollout; no live commands executed'}, indent=2))
 
