@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Existing Supabase users table predates this column
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE users SET email_verified = TRUE WHERE provider = 'GOOGLE' OR email_verified IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
