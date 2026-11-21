@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { CheckCircle2, Edit2, KeyRound, Lock, Mail, Phone, Save, ShieldCheck, User, X } from 'lucide-react'
+import { useState } from 'react'
+import { Edit2, KeyRound, Lock, Mail, Phone, Save, ShieldCheck, User, X } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import Alert from '@/shared/components/ui/Alert'
 import Button from '@/shared/components/ui/Button'
@@ -29,14 +29,6 @@ export default function SettingsPage() {
   const [passwordFeedback, setPasswordFeedback] = useState(null)
 
   const isLocalUser = !user?.provider || user.provider === 'LOCAL'
-
-  // Keep form fields synced if auth user state updates
-  useEffect(() => {
-    if (user) {
-      setFullName(user.fullName || '')
-      setPhone(user.phone || '')
-    }
-  }, [user])
 
   const handleStartEdit = () => {
     setFullName(user?.fullName || '')
