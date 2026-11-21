@@ -409,6 +409,41 @@ public class AuthService {
     }
 
     @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+        String cleanEmail = email.toLowerCase().trim();
+        User user = userRepository.findByEmail(cleanEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("No account found with email: " + cleanEmail));
+
+        // Block password changes for OAuth / Google accounts
+        if (user.getProvider() == AuthProvider.GOOGLE || user.getPasswordHash() == null) {
+            throw new IllegalArgumentException("Password change is only available for accounts registered with email and password.");
+        }
+
+        // Verify current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("The current password you entered is incorrect.");
+        }
+
+        // Verify new password and confirm password match
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("New password and confirmation password do not match.");
+        }
+
+        // Ensure new password is not identical to current password
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("New password cannot be the same as your current password.");
+        }
+
+        // Update password hash
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // Revoke active refresh tokens so existing sessions must refresh or re-authenticate
+        refreshTokenRepository.deleteByUser(user);
+        log.info("Password changed successfully for user [{}]", user.getEmail());
+    }
+
+    @Transactional
     public AuthResponse verifyEmail(VerifyEmailRequest request) {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
         String code = request.getCode().trim();
