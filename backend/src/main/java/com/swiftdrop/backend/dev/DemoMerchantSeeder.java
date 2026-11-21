@@ -56,16 +56,16 @@ public class DemoMerchantSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        seedAccount(EMAIL, BUSINESS_NAME, null);
-        seedAccount(SWIFTDROP_MERCHANT_EMAIL, SWIFTDROP_MERCHANT_NAME, "sdp_live_swiftdrop_merchant_test_key_8899");
+        seedAccount(EMAIL, BUSINESS_NAME);
+        seedAccount(SWIFTDROP_MERCHANT_EMAIL, SWIFTDROP_MERCHANT_NAME);
     }
 
-    private void seedAccount(String email, String businessName, String presetApiKey) {
+    private void seedAccount(String email, String businessName) {
         User user = userRepository.findByEmail(email).orElseGet(() -> createUser(email, businessName));
         if (merchantRepository.findByUserId(user.getId()).isPresent()) {
             return;
         }
-        String apiKey = presetApiKey != null ? presetApiKey : merchantService.newApiKey();
+        String apiKey = merchantService.newApiKey();
         merchantRepository.save(Merchant.builder()
                 .userId(user.getId())
                 .businessName(businessName)
@@ -80,7 +80,7 @@ public class DemoMerchantSeeder implements ApplicationRunner {
 
     private User createUser(String email, String businessName) {
         boolean generated = configuredPassword == null || configuredPassword.isBlank();
-        String password = generated ? "MerchantPass123!" : configuredPassword;
+        String password = generated ? randomPassword() : configuredPassword;
         User user = userRepository.save(User.builder()
                 .email(email)
                 .passwordHash(passwordEncoder.encode(password))
@@ -90,7 +90,18 @@ public class DemoMerchantSeeder implements ApplicationRunner {
                 .provider(AuthProvider.LOCAL)
                 .emailVerified(true)
                 .build());
-        log.info("Dev demo merchant user {} created with password: {}", email, password);
+        if (generated) {
+            log.info("Dev demo merchant user {} created. Password (shown once; set DEV_MERCHANT_PASSWORD in .env to choose one): {}",
+                    email, password);
+        } else {
+            log.info("Dev demo merchant user {} created with configured DEV_MERCHANT_PASSWORD", email);
+        }
         return user;
+    }
+
+    private static String randomPassword() {
+        byte[] bytes = new byte[12];
+        new SecureRandom().nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }
