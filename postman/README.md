@@ -1,109 +1,212 @@
-﻿# SwiftDrop API tests
+# SwiftDrop API tests
 
-Import the collection and environment JSON files here and select **SwiftDrop Local**.
-Use a current Postman Collection Runner or Postman CLI supporting
-[`pm.execution.skipRequest()`](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-execution).
-Older runtimes cannot reliably apply the prerequisite guards.
+Source baseline: `a9781d8`, branch `feature/janani-final-tasks`. Import
+`SwiftDrop_API_Tests.postman_collection.json` and `SwiftDrop_Local.postman_environment.json`.
+Use a current Postman Collection Runner or Postman CLI that supports
+`pm.execution.skipRequest()`. No CLI, packages, services or databases are installed or started by these assets.
 
-## Setup
+## Coverage and honest results
 
-Use a dedicated local test database. `baseUrl` defaults to `http://localhost:8080`;
-specify an origin without `/api`, another path, or a trailing slash. Apply
-`backend/src/main/resources/schema.sql` and the courier and merchant webhook setup
-scripts in `backend/src/main/resources/db/scripts/`. Seed active zones/pricing rules.
-The collection discovers their IDs and service types; no user IDs are hard-coded.
+The collection contains **289 requests**, **136 literal `pm.test` blocks** and
+**561 `pm.expect` check sites**, plus the shared HTTP-status assertion. Shared tests
+run for each applicable request; conditionals, loops, prerequisite skips and selected
+folders mean these static counts are not a claim about executed/passing assertions.
+The 97 original requests are retained, with safety, secret handling and execution-order updates.
 
-Set credentials locally; committed credential/token fields are blank:
+All **100 production REST method/path variants** extracted from current controllers
+have prepared requests. **21 variants have authentication-only coverage**; their
+business workflows are not claimed as tested. See [endpoint-coverage.md](endpoint-coverage.md)
+for every route and its controller. WebSockets, Actuator framework endpoints and the
+single development-only status controller are outside this REST inventory.
 
-| Variables | Test account/fixture |
+Core coverage includes auth/password changes, customer booking/pricing/tracking,
+merchant profiles and registration, approval/rejection, API-key authentication and
+rotation, both merchant order interfaces, sequential/scoped idempotency, cancellation,
+both webhook configuration aliases, one-time secrets, explicit secret rotation,
+validated test pings, real engine logs and ownership. Additional prepared reads cover
+shipments, PDF receipts, notifications, reports, admin catalogs, dispatch and courier lists.
+
+## Safe setup
+
+Use a **dedicated test database and disposable accounts**, never production/shared live data.
+Verify the backend datasource yourself before enabling writes: default backend properties
+can reference the shared Supabase database. Do not run with the permissive `dev` security
+profile; these assertions target the normal security chains. Apply the current merged
+schema and reviewed upgrades beforehand; Hibernate does not create the application tables.
+Do not reset volumes or replay database setup blindly on existing data.
+
+`baseUrl` is an origin such as `http://localhost:8080`, without `/api`, a path or a trailing
+slash. By default only `localhost`, `127.0.0.1` and `[::1]` are permitted. Remote test hosts
+require both `allowedTestHost` set to the exact hostname and `testEnvironmentConfirmed=true`.
+There is no wildcard/production-host bypass.
+
+All business writes, including negative write tests and the receipt GET that can issue a
+receipt row, require **both** `allowWrites=true` and `testEnvironmentConfirmed=true`.
+Login/refresh/logout still manage session records; pricing quotes are read-only POSTs.
+A skipped request runs no response assertions and **is not a pass**. Console skip messages
+contain prerequisite names, not secret values. Keep all opt-in flags false for a first read-only pass.
+
+### Accounts and fixtures
+
+| Inputs | Prerequisite |
 |---|---|
-| `customerEmail`, `customerPassword` | Verified, ACTIVE LOCAL `ROLE_CUSTOMER` |
-| `merchantEmail`, `merchantPassword` | Verified, approved ACTIVE LOCAL `ROLE_MERCHANT` |
-| `otherCustomerEmail`, `otherCustomerPassword` | Optional distinct customer for booking ownership |
-| `otherMerchantEmail`, `otherMerchantPassword` | Optional distinct, configured merchant for log isolation |
-| `operatorEmail`, `operatorPassword` | Optional verified, ACTIVE `ROLE_ADMIN` or `ROLE_DISPATCHER` |
-| `webhookUrl` | Optional public ASCII HTTP(S) receiver you control |
-| `seededTrackingNumber` | Optional parcel when creation is disabled; own-booking tests require ownership by the first customer |
+| `customerEmail`, `customerPassword` | Verified ACTIVE LOCAL customer; needed for customer/negative-role cases |
+| `merchantEmail`, `merchantPassword` | Verified ACTIVE APPROVED merchant profile; own profile supplies its API key dynamically |
+| `otherCustomerEmail`, `otherCustomerPassword` | Optional distinct customer for booking isolation |
+| `otherMerchantEmail`, `otherMerchantPassword` | Optional distinct approved merchant for real configuration/order/log isolation |
+| `operatorEmail`, `operatorPassword` | Optional ACTIVE verified ADMIN or DISPATCHER for engine log operations |
+| `adminEmail`, `adminPassword` | ADMIN specifically; a dispatcher cannot approve merchants or read other admin APIs |
+| `courierEmail`, `courierPassword` | Optional verified ACTIVE courier for own operational lists |
+| `onboardingEmail`, `onboardingPassword` | Fresh reachable test mailbox/password for the merchant lifecycle |
+| `onboardingVerificationCode` | Actual unused code from that mailbox; never obtain it through the verification bypass |
+| `legacyMerchantEmail`, `legacyMerchantPassword` | Optional seeded verified ACTIVE merchant user **without a profile**, only for legacy registration tests |
+| `webhookUrl` | Public ASCII HTTP(S) receiver you control, returning `webhookSuccessStatus` (default 200) |
+| `failingWebhookUrl` | Optional controlled public receiver returning `webhookFailureStatus` (default 503) |
+| `seededTrackingNumber` | Optional owned customer booking when creation is disabled |
+| `newPassword` | Different dedicated-customer password for opt-in change/reset workflows |
 
-Provision accounts through local seeds or normal signup, email verification and
-merchant approval. No provisioning endpoints or Google mock-token shortcut are
-invented. Runtime `accessToken`, refresh/role tokens, tracking numbers and delivery
-IDs are captured from responses. Passwords/tokens/codes are marked secret. Keep
-populated environments/history private; clear secrets before exporting or committing.
-Scripts never save/log webhook signing secrets.
+Registration passwords must have 8?16 characters, uppercase, lowercase, digit and special
+character, without whitespace. The change-password DTO currently accepts 6?100 characters;
+use the stronger registration policy anyway. Merchant signup also requires business name,
+registration number, phone and business address. Test contact/address values are synthetic.
 
-## Run in order
+Active zones/pricing are discovered; merchant tests use discovered city names and a same-zone
+1 kg quote to support whichever service type is available. Tokens, merchant IDs, API keys,
+tracking numbers, idempotency keys and log IDs come from actual responses; no real user IDs
+or existing production records are assumed. Missing zones/credentials/fixtures cause skips.
 
-Choose **Run collection**, select the environment, and use **one iteration**:
+## Execution order
 
-1. **00** resets derived values and discovers public zones/pricing.
-2. **01** tests auth validation, customer login, refresh and profile access.
-3. **02-03** create/read a booking when enabled, test ownership and public tracking privacy.
-4. **04** logs in the merchant and tests configuration, access restrictions and unsafe URLs.
-5. **05-06** test merchant/operator delivery lists, details, ownership, paging and optional retries.
-6. **07** logs out captured sessions and clears their local tokens.
-7. **08** holds opt-in interactive account/email/Google flows.
+Run one iteration in folder order. Do not enable destructive/state-changing flags casually.
 
-With Postman CLI already installed, from the repository root:
+| Folders | Purpose |
+|---|---|
+| 00?03 | Initialize/discover pricing, authenticate customer, bookings, public tracking |
+| 04 | Authenticate primary merchant; plural configuration validation and saves |
+| 05 | Profiles/API keys, portal and machine orders, pricing, replay, ownership, optional cancellations/key rotation |
+| 06?08 | Configuration aliases, optional secret rotation/pings, actual engine history and operator log access |
+| 09 | Optional staged merchant signup/verification/admin approval, eligibility changes and rejection |
+| 10 | Additional customer, admin, reporting, courier and assistant-session contracts |
+| 11 | Optional password change, revoked refresh token, new login and password restoration |
+| 12 | Disabled known-issue regressions; intentionally expected to fail until backend fixes |
+| 13 | Original optional customer registration/email/reset/real Google authentication |
+| 14 | Remaining controller routes: anonymous authentication smoke **only** |
+| 15?16 | Revoke captured sessions, clear runtime key/secret values, report missing core coverage |
+
+Runtime credentials are captured in `pm.variables` (run-local), not persisted into exported
+environments. Run dependent requests together in the Runner; separate manual Send operations
+may not retain run-local values. These scopes follow the [Postman variable reference](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-variables/); skipped requests follow the [execution reference](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-execution/). For manual testing, supply tokens in a private local
+workspace/environment yourself and clear them before exporting. Persisted non-secret onboarding
+IDs/phase markers and a suite-created marker allow the staged inbox flow to resume. Never edit those markers to target an
+existing account. Clear them and use a fresh mailbox to start a new lifecycle.
+
+Postman CLI, if already installed:
 
 ```text
 postman collection run postman/SwiftDrop_API_Tests.postman_collection.json -e postman/SwiftDrop_Local.postman_environment.json
 ```
 
-For unattended runs, use a protected local environment copy with test credentials;
-do not commit it or put passwords in shell commands. No CLI was installed here.
-Manual requests need their discovery/login prerequisites; folder 00 clears tokens.
-Missing prerequisites/disabled flags produce a console `SKIP:` reason.
-**Skipped requests run no assertions and are not passes.** Review skips with failures.
+Use a private environment copy with credentials. Do not place real passwords or tokens on
+command lines or commit populated environment files, response history, Runner reports or
+console exports. Committed credential/secret fields and all saved response examples are blank.
+Generated signing secrets exist only in the generating response and ephemeral run-local values;
+they are never read from GET/profile endpoints or deliberately printed.
 
-## Writes and infrastructure
+### Opt-in flags and side effects
 
-- `allowWrites=false` by default. Enable it for positive booking/configuration
-  requests. Login/refresh/logout still manage session records normally. Each enabled
-  booking run creates a parcel; no delete endpoint or cleanup SQL is invented.
-- Configuration PUT changes the test merchant's URL. A secret is generated only if
-  missing and returned once; save it privately from that response if needed.
-  Repeated PUT and GET must omit secrets. No rotation/recovery endpoint exists.
-- Configure or seed the merchant first. Signup creates no merchant row, so log
-  cases skip when configuration reports `configured=false`. The second merchant
-  also needs its own configuration for isolation checks.
-- Empty logs are valid. Detail/retry/isolation cases capture IDs from lists and skip
-  without fixtures. Generate logs using a trusted seeded merchant-linked parcel
-  and the existing status workflow. Customer bookings remain unlinked.
-- Delivery requires RabbitMQ, the outbox publisher/consumer and a public receiver;
-  positive configuration needs DNS. Read/validation requests need the database.
-- Actual retries additionally require `allowWebhookRetry=true` and can send real
-  signed webhooks. Seed DEAD and stable non-DEAD deliveries. Concurrent workers can
-  invalidate 409 fixtures. Manual retries accept DELIVERED or DEAD, as implemented.
-- Logout revokes refresh tokens, not issued JWTs; immediate JWT revocation is not asserted.
+- `allowOrderCancellation`: cancels only parcels captured from this collection's successful
+  creation requests. Created parcels remain if cancellation is disabled; there is no delete API.
+- `allowApiKeyRotation`: invalidates the primary test merchant's old API key. Its replacement
+  is returned/captured and tested; the old key is deliberately tested for 401. Original keys
+  cannot be restored, so use a disposable merchant and update its clients afterward.
+- `allowSecretRotation`: generates a new signing secret through each alias. Old secrets stop
+  working immediately. Run rotation separately if your receiver validates signatures, then
+  update that receiver before enabling `allowWebhookSend`.
+- `allowWebhookSend`: performs real outbound test pings to your public receivers, creating
+  engine log records. A successful HTTP ping alone does **not** prove receiver-side HMAC
+  verification; independently verify `t.<rawBody>` with the secret and timestamp tolerance.
+- `allowWebhookRetry`: existing DEAD-delivery retry cases can send actual requests. They require
+  stable DEAD/non-DEAD fixtures; concurrent workers can invalidate a 409 test fixture. The
+  response after a manual retry can be DELIVERED or DEAD. No automatic retry fixtures are fabricated.
+- `runMerchantLifecycle`: enables the staged disposable applicant flow below.
+- `allowLifecycleRejection`: additionally suspends/restores and then permanently rejects **only
+  the suite-created applicant**. It revokes that applicant's API key. If interrupted while
+  suspended, log in as admin and run the explicit Restore request before continuing. No rows are deleted.
+- `runLegacyRegistration`: requires the specific profile-less fixture; creates a PENDING profile
+  through `/merchant/register`. Normal `/auth/signup` already creates the merchant profile.
+- `runPasswordChange`: changes the dedicated customer's password, tests old credentials/refresh
+  rejection, then restores its original password. If interrupted, use `newPassword` to log in
+  and restore manually. Run this separately from `runPasswordReset`.
+- `runRegistration`, `runEmailFlows`, `runPasswordReset`, `runGoogleAuth`: original interactive
+  flows; reset changes the password without automatic restoration. SMTP/Google prerequisites apply.
+- `runKnownIssues`: enables three intentionally failing security/robustness regressions below.
+- `strictCoverage`: final summary fails if machine creation, sequential replay or a successful
+  primary-merchant ping did not execute. It is opt-in because those workflows require writes,
+  infrastructure and fixture credentials. Individual response assertion failures still fail normally.
 
-## Optional interactive flows
+### Staged merchant lifecycle (folder 09)
 
-Folder 08 flags default to false. With `allowWrites=true`, `runRegistration=true`
-uses fresh `registrationEmail`/`registrationPassword`, then tests duplicate signup.
-Use a reachable mailbox. Signup returns null tokens pending verification.
+1. Provide administrator credentials and a fresh `onboardingEmail`/`onboardingPassword`.
+   Enable test confirmation, writes and `runMerchantLifecycle`. Run 00 and 09 with
+   `runEmailFlows=false`. Signup returns PENDING_APPROVAL/no tokens; the admin queue identifies
+   the PENDING merchant using the captured signup user ID.
+2. Read the mailbox. Set `onboardingVerificationCode` and `runEmailFlows=true`. Run 00 and 09
+   again against the **same** private environment. Registration is skipped using persisted
+   markers; verification produces no active tokens while pending. Admin approval then activates
+   the account; login/profile capture the newly issued API key. No account IDs are entered manually.
+3. Supply `webhookUrl` for first configuration. The fresh-profile case requires a newly generated
+   secret, while subsequent saves/GET/profile responses must omit it. Optional pings use that
+   merchant's actual configuration. Normal saves preserve even legacy inaccessible secrets;
+   recovery requires explicit rotation, never silent replacement.
+4. Enable `allowLifecycleRejection` only when ready to exercise suspension and final rejection.
+   Suspended JWT/key requests must be 403; after rejection, the old JWT is 403 and the revoked
+   key is 401. Completed rejected applicants cannot be approved again. Keep their rows for review.
 
-Enable `runEmailFlows=true` for manual inbox steps: resend while unverified, supply
-`verificationCode`, then verify. Forgot-password emails the LOCAL customer; its
-response exposes no code. Supply `resetCode`/`newPassword` and separately enable
-`runPasswordReset=true` to change its password; update local credentials afterwards.
-SMTP is required; this is not a single unattended email workflow.
+On later resumes, phase guards skip completed signup/verification/first-configuration operations.
+Do not rerun verification with an already used code. For clean results select the documented
+folders; enabling `runEmailFlows` for the whole collection can also send original customer-flow emails.
 
-Google authentication needs a real test `googleIdToken`, `runGoogleAuth=true`,
-`allowWrites=true` and access to Google. It may create a user. Default execution
-covers required-field validation for every auth endpoint without identity/email calls.
+## Infrastructure and API limitations
 
-## Validation and limitations
+- Database and normal JWT configuration are required. Customer bookings do not automatically
+  become merchant-owned parcels; the new merchant machine/portal creation cases establish ownership.
+- RabbitMQ/outbox workers are required for **event-driven** delivery and retries. One-shot test
+  pings use the shared signer/HTTP client and record synchronously in `webhook_deliveries`.
+  Both history route families read those engine records. Existing legacy log rows are not deleted.
+- Private/internal/localhost callback destinations are rejected; there is no development bypass.
+  DNS and a controlled public receiver are needed. DNS-rebinding risk remains between validation
+  and connection; production needs outbound network enforcement.
+- SMTP is needed for verification/reset emails. Real Google ID tokens and matching configured
+  client IDs are needed for Google authentication; no mock token shortcut is invented.
+- Full positive dispatch, courier proof/photo, catalog editing and report snapshot creation are
+  not claimed. Their missing scenarios are identified as authentication-only in the coverage map;
+  positive execution needs coordinated parcel/assignment states and, for photos, MinIO/bucket/file fixtures.
+- Idempotency currently works through an in-memory per-process cache. It ignores changed bodies,
+  is not atomic for concurrent creates and does not survive restarts or coordinate replicas.
+  The normal suite verifies sequential replay and merchant scoping, not durable idempotency.
+- Known regression probes expect safer behavior: already-verified email must reject arbitrary
+  codes (current source issues tokens), changed-body idempotency must conflict (current source
+  replays 200), and malformed merchant JSON should be 400 (generic exception handling suggests 500).
+  These are source findings, not live observations from this task. Do not normalize them as passes.
+- Logout/password changes revoke refresh tokens; immediate revocation of issued JWTs is not asserted.
 
-Contracts were checked against controllers, DTOs, security and tests in the auth,
-booking, pricing, tracking and webhook modules. Auth uses `error`/`validationErrors`;
-unknown refresh tokens return **401**. Other covered errors use problem details.
-Anonymous `/auth/me` returns an empty 401. Log pages use
-`content/page/size/totalElements/totalPages`, with clamped pagination.
+## Offline validation versus live HTTP
 
-Both JSON files passed parsing/structural checks; 141 embedded scripts passed syntax
-checks, and pre-request guards/body substitution were exercised with mocked inputs.
-This is not full Postman-runtime or official JSON Schema validation. No suitable
-local listener was found on port 8080, so **no live API requests/Postman assertions
-were executed against SwiftDrop**. Email, Google, real webhook delivery/retries and
-receiver signature verification remain unexecuted.
+Run from the repository root with Node already installed:
+
+```text
+node postman/validate.mjs
+node postman/validate.mjs --write-coverage
+```
+
+The validator uses only Node built-ins. It parses both JSON files, compiles 422 scripts,
+checks every request method/path against actual Java controller annotations/constants,
+checks variable references/secret defaults/core DTO property names, simulates default and
+opted-in pre-request branches, checks write/host guards and exercises quoted/backslashed
+password serialization. `--write-coverage` regenerates only the Markdown coverage map.
+This is not official Postman JSON Schema validation, the full Postman runtime, response-assertion
+execution, receiver signature verification, Kubernetes validation or a live API test run.
+
+At preparation time no listener was found on local port 8080 and no Postman/Newman CLI was
+available. **Zero live HTTP requests were sent to SwiftDrop.** No services were started, dependencies
+installed, databases modified, accounts created or keys/secrets rotated by this task.
