@@ -55,6 +55,7 @@ public class MerchantAdminService {
     @Transactional
     public MerchantProfileResponse approveMerchant(UUID merchantId, String notes, UUID adminUserId) {
         Merchant merchant = find(merchantId);
+        boolean reapproval = merchant.getRegistrationStatus() == MerchantRegistrationStatus.REJECTED;
         User user = applicant(merchant, false);
         if (user.getStatus() == AccountStatus.SUSPENDED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Suspended merchant accounts cannot be activated by approval");
@@ -64,7 +65,7 @@ public class MerchantAdminService {
         merchant.setRegistrationStatus(MerchantRegistrationStatus.APPROVED);
         merchant.setApprovedBy(adminUserId);
         merchant.setApprovalNotes(notes != null ? notes : "Approved by administrator");
-        if (merchant.getApiKey() == null || merchant.getApiKey().isBlank()) {
+        if (reapproval || merchant.getApiKey() == null || merchant.getApiKey().isBlank()) {
             merchant.setApiKey(merchantService.newApiKey());
         }
         Merchant saved = merchantRepository.save(merchant);
@@ -85,7 +86,7 @@ public class MerchantAdminService {
         Merchant merchant = find(merchantId);
         User user = applicant(merchant, true);
         if (user.getStatus() != AccountStatus.SUSPENDED) {
-            user.setStatus(AccountStatus.PENDING_APPROVAL);
+            user.setStatus(AccountStatus.REJECTED);
             userRepository.save(user);
         }
         merchant.setRegistrationStatus(MerchantRegistrationStatus.REJECTED);
@@ -108,10 +109,11 @@ public class MerchantAdminService {
 
     private User applicant(Merchant merchant, boolean rejection) {
         if (merchant.getRegistrationStatus() != MerchantRegistrationStatus.PENDING
-                && !(rejection && merchant.getRegistrationStatus() == MerchantRegistrationStatus.APPROVED)) {
+                && !(rejection && merchant.getRegistrationStatus() == MerchantRegistrationStatus.APPROVED)
+                && !(!rejection && merchant.getRegistrationStatus() == MerchantRegistrationStatus.REJECTED)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, rejection
                     ? "Only pending or approved merchant applications can be rejected"
-                    : "Only pending merchant applications can be approved");
+                    : "Only pending or rejected merchant applications can be approved");
         }
         return userRepository.findById(merchant.getUserId())
                 .filter(user -> user.getRole() == Role.ROLE_MERCHANT)

@@ -36,6 +36,9 @@ import static org.mockito.Mockito.*;
 class AuthServiceTest {
 
     @Mock
+    private com.swiftdrop.backend.modules.messaging.service.OutboxService notificationOutbox;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -68,6 +71,20 @@ class AuthServiceTest {
     }
 
     @Test
+    void accessChangesPublishOneEventAndUnchangedStatusPublishesNothing() {
+        UUID id = UUID.randomUUID();
+        User user = User.builder().id(id).role(Role.ROLE_CUSTOMER).status(AccountStatus.ACTIVE).build();
+        when(userRepository.findById(id)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+        authService.updateUserStatus(id, AccountStatus.SUSPENDED);
+        authService.updateUserStatus(id, AccountStatus.SUSPENDED);
+        authService.updateUserStatus(id, AccountStatus.ACTIVE);
+        verify(notificationOutbox).publishEvent(eq("USER"), eq(id), eq("ACCOUNT_SUSPENDED"), eq("account.suspended"), any());
+        verify(notificationOutbox).publishEvent(eq("USER"), eq(id), eq("ACCOUNT_RESTORED"), eq("account.restored"), any());
+        verifyNoMoreInteractions(notificationOutbox);
+    }
+
+    @Test
     void rejectedMerchantGetsARejectionMessageRatherThanVerificationOrPendingText() {
         var user = User.builder().id(UUID.randomUUID()).email("rejected@example.test")
                 .passwordHash("hashed").role(Role.ROLE_MERCHANT).status(AccountStatus.PENDING_APPROVAL)
@@ -80,6 +97,10 @@ class AuthServiceTest {
         var request = LoginRequest.builder().email(user.getEmail()).password("test-password").build();
         assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
         user.setEmailVerified(false);
+        assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
+        user.setStatus(AccountStatus.REJECTED);
+        assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
+        user.setEmailVerified(true);
         assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
         verify(jwtTokenProvider, never()).generateAccessToken(any());
     }
@@ -104,6 +125,9 @@ class AuthServiceTest {
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         assertThrows(AccountNotActiveException.class, () -> authService.loginWithGoogle(
                 GoogleAuthRequest.builder().idToken("mock-google-token-pending-merchant").build()));
+        user.setStatus(AccountStatus.REJECTED);
+        assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.loginWithGoogle(
+                GoogleAuthRequest.builder().idToken("mock-google-token-pending-merchant").build())).getMessage().contains("has been rejected"));
         verify(jwtTokenProvider, never()).generateAccessToken(any());
     }
 

@@ -17,6 +17,11 @@ import java.util.UUID;
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class UserController {
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public org.springframework.http.ProblemDetail handleAccountStatusConflict(
+            org.springframework.web.server.ResponseStatusException exception) {
+        return org.springframework.http.ProblemDetail.forStatusAndDetail(exception.getStatusCode(), exception.getReason());
+    }
 
     private final AuthService authService;
 

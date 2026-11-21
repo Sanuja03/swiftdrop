@@ -38,3 +38,5 @@
   .chevron { display: block; color: var(--color-muted); }
   .card { padding: 22px; }
 }
+
+.headerActions { display: flex; align-items: center; gap: 16px; }

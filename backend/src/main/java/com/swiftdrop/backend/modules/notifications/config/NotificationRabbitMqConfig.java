@@ -18,6 +18,24 @@ public class NotificationRabbitMqConfig {
     public static final String REJECTION_EMAIL_DLQ = REJECTION_EMAIL_QUEUE + ".dlq";
     public static final String APPROVAL_EMAIL_QUEUE = "swiftdrop.notifications.merchant-approvals";
     public static final String DECISION_NOTIFICATION_QUEUE = "swiftdrop.notifications.merchant-decisions";
+    public static final String OPERATIONS_QUEUE = "swiftdrop.notifications.operations";
+    public static final String IMPORTANT_EMAIL_QUEUE = "swiftdrop.notifications.important-email";
+
+    @Bean
+    public org.springframework.amqp.core.Declarables operationalNotificationChannels() {
+        String exchange = com.swiftdrop.backend.modules.messaging.config.MessagingTopology.EVENTS_EXCHANGE;
+        String dlx = com.swiftdrop.backend.modules.messaging.config.MessagingTopology.DEAD_LETTER_EXCHANGE;
+        var items = new java.util.ArrayList<org.springframework.amqp.core.Declarable>();
+        for (String queue : new String[]{OPERATIONS_QUEUE, IMPORTANT_EMAIL_QUEUE}) {
+            items.add(QueueBuilder.durable(queue).deadLetterExchange(dlx).deadLetterRoutingKey(queue).build());
+            items.add(QueueBuilder.durable(queue + ".dlq").build());
+            items.add(new Binding(queue + ".dlq", Binding.DestinationType.QUEUE, dlx, queue, null));
+            items.add(new Binding(queue, Binding.DestinationType.QUEUE, exchange, "parcel.#", null));
+        }
+        items.add(new Binding(OPERATIONS_QUEUE, Binding.DestinationType.QUEUE, exchange, "assignment.*", null));
+        items.add(new Binding(IMPORTANT_EMAIL_QUEUE, Binding.DestinationType.QUEUE, exchange, "account.*", null));
+        return new org.springframework.amqp.core.Declarables(items);
+    }
 
     @Bean
     public org.springframework.amqp.core.Declarables merchantDecisionChannels() {

@@ -19,7 +19,7 @@ import { BookingConfirmationPage, CreateDeliveryPage } from '@/features/booking'
 import { DeliveryHistoryPage, LiveTrackingPage, MyShipmentsPage, TrackParcelPage } from '@/features/tracking'
 import { OverviewPage } from '@/features/dashboard'
 import { SettingsPage } from '@/features/account'
-import CourierPage from '@/features/courier/pages/CourierPage'
+import CourierPage, { CourierLayout } from '@/features/courier/pages/CourierPage'
 
 // Dispatcher operations (queue management & courier workloads)
 import {
@@ -46,6 +46,7 @@ function OperationsLayout() {
 function NotificationsLayout() {
   const { user } = useAuth()
   const role = user?.role?.replace(/^ROLE_/, '')
+  if (role === 'COURIER') return <CourierLayout />
   return ['ADMIN', 'DISPATCHER'].includes(role) ? <OperationsLayout /> : <CustomerLayout />
 }
 
@@ -112,8 +113,10 @@ export function AppRoutes() {
       </Route>
 
       {/* Logged-in couriers only */}
-      <Route path={ROUTES.courier} element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>} />
-      <Route path={`${ROUTES.courier}/:parcelId`} element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierPage /></ProtectedRoute>} />
+      <Route path={ROUTES.courier} element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierLayout /></ProtectedRoute>}>
+        <Route index element={<CourierPage />} />
+        <Route path=":parcelId" element={<CourierPage />} />
+      </Route>
 
       {/* Logged-in: dispatcher operations */}
       <Route
