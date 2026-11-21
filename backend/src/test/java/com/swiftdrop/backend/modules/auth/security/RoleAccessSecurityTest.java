@@ -4,6 +4,8 @@ import com.swiftdrop.backend.modules.auth.controller.UserController;
 import com.swiftdrop.backend.modules.auth.service.AuthService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -12,9 +14,17 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
+import java.util.UUID;
+import com.swiftdrop.backend.modules.auth.entity.AccountStatus;
+import com.swiftdrop.backend.modules.auth.dto.UserProfileDto;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,6 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class RoleAccessSecurityTest {
 
+    private static final UUID TEST_USER_ID = UUID.fromString("30000000-0000-4000-8000-000000000001");
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -35,6 +47,42 @@ class RoleAccessSecurityTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @Test
+    @WithMockUser(roles = "DISPATCHER")
+    void dispatcherCannotListUsers() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users")).andExpect(status().isForbidden());
+        verify(authService, never()).getAllUsers();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN"})
+    void administratorsCanManageUserStatus(String role) throws Exception {
+        when(authService.updateUserStatus(TEST_USER_ID, AccountStatus.SUSPENDED))
+                .thenReturn(UserProfileDto.builder().id(TEST_USER_ID).status(AccountStatus.SUSPENDED).build());
+        mockMvc.perform(patch("/api/v1/admin/users/{id}/status", TEST_USER_ID)
+                .param("status", "SUSPENDED").with(user("test").roles(role)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUSPENDED"));
+        verify(authService).updateUserStatus(TEST_USER_ID, AccountStatus.SUSPENDED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CUSTOMER", "COURIER", "MERCHANT", "DISPATCHER"})
+    void otherRolesCannotManageUserStatus(String role) throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/{id}/status", TEST_USER_ID)
+                .param("status", "SUSPENDED").with(user("test").roles(role)))
+                .andExpect(status().isForbidden());
+        verify(authService, never()).updateUserStatus(any(), any());
+    }
+
+    @Test
+    void changingUserStatusRequiresSignIn() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/{id}/status", TEST_USER_ID)
+                .param("status", "SUSPENDED"))
+                .andExpect(status().isUnauthorized());
+        verify(authService, never()).updateUserStatus(any(), any());
+    }
 
     @Test
     @DisplayName("Unauthenticated request to admin endpoint should return 401 Unauthorized")

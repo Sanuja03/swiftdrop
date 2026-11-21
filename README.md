@@ -74,8 +74,15 @@ cd swiftdrop
 Create a `.env` file in the project root using `.env.example` as a template.
 
 ```env
+POSTGRES_DB=swiftdrop
+POSTGRES_USER=swiftdrop
 POSTGRES_PASSWORD=your_local_password
+RABBITMQ_USERNAME=swiftdrop
+RABBITMQ_PASSWORD=your_local_password
+JWT_SECRET=a_base64_key_of_at_least_256_bits
 ```
+
+These are required by `docker compose`; `.env.example` lists every optional variable.
 
 Use a suitable local development password. Do not commit the `.env` file or share production credentials.
 
@@ -87,7 +94,7 @@ Run the following command from the project root:
 docker compose up --build -d
 ```
 
-Docker Compose builds the application images and starts the frontend, backend, and PostgreSQL database containers.
+Docker Compose builds the application images and starts the frontend, backend, PostgreSQL and RabbitMQ containers. On the first start (a new database volume) PostgreSQL runs `backend/src/main/resources/schema.sql`, which creates every table and the starter zones and prices.
 
 ### 4. Access the Application
 
@@ -98,7 +105,8 @@ Once the containers have started, the services are available at:
 | Frontend | http://localhost:5173 |
 | Backend | http://localhost:8080 |
 | Backend Health | http://localhost:8080/actuator/health |
-| PostgreSQL | localhost:5432 |
+| PostgreSQL | localhost:5433 |
+| RabbitMQ management | http://localhost:15672 |
 
 ### 5. Check Container Status
 
@@ -150,11 +158,26 @@ The current Docker Compose configuration includes:
 |---|---|---:|---:|
 | Frontend | React + Nginx | 80 | 5173 |
 | Backend | Spring Boot | 8080 | 8080 |
-| Database | PostgreSQL 17 | 5432 | 5432 |
+| Database | PostgreSQL 17 | 5432 | 5433 |
+| Message broker | RabbitMQ 4 | 5672, 15672 | 5672, 15672 |
 
 The backend connects to PostgreSQL through Docker's internal service network using the hostname `postgres`.
 
-RabbitMQ and other infrastructure integrations will be incorporated.
+Not in Compose yet: Mailpit (email) and MinIO (courier proof photos). Without SMTP settings, emails are skipped; without the MINIO_* settings, photo proof is unavailable and recipient-name proof still works.
+
+## Running the backend locally (dev profile)
+
+`SPRING_PROFILES_ACTIVE=dev` uses a local H2 file database (`backend/data/`) instead of Supabase and creates test data on first start: zones, prices, three demo parcels and these accounts (all `@example.com`):
+
+| Account | Role |
+|---|---|
+| test.customer@example.com | Customer (owns the demo parcels) |
+| test.courier@example.com | Courier |
+| test.dispatcher@example.com | Dispatcher |
+| test.admin@example.com | Admin |
+| test.merchant@example.com | Approved merchant with an API key |
+
+Set `DEV_USER_PASSWORD` to choose the password of the first four; otherwise each gets a generated password, logged once. The merchant uses `DEV_MERCHANT_PASSWORD` (set in `application-dev.properties`). To send status events through RabbitMQ (merchant webhooks, notifications), run `docker compose up -d rabbitmq` and start the backend with `DEV_MESSAGING_ENABLED=true` and the same `RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD`.
 
 ## Development Notes
 

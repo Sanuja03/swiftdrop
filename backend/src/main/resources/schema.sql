@@ -350,3 +350,114 @@ CREATE INDEX IF NOT EXISTS idx_merchant_webhook_logs_merchant ON merchant_webhoo
 CREATE INDEX IF NOT EXISTS idx_merchant_webhook_logs_tracking ON merchant_webhook_logs(tracking_number);
 -- Demo merchant data lives in the dev-profile seeder, not here (no committed API keys or secrets).
 -- ================= end Merchant Platform section =====================
+
+-- =====================================================================
+-- Courier App, Notifications & Saved Reports                (added 2026-11-21)
+-- Consolidated from db/scripts/courier_setup.sql, db/scripts/delivery_proofs_use_user_ids.sql,
+-- database/notifications.sql and database/report_snapshots.sql, so schema.sql alone
+-- creates every table the backend uses. Additive and idempotent.
+-- =====================================================================
+
+-- Courier App: courier profiles and delivery proof (recipient name and/or photo)
+CREATE TABLE IF NOT EXISTS couriers (
+    id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL UNIQUE REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS delivery_proofs (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parcel_id         UUID NOT NULL REFERENCES parcels(id),
+    courier_id        UUID NOT NULL REFERENCES users(id),
+    recipient_name    VARCHAR(150),
+    photo_object_key  VARCHAR(500),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    previous_proof_id UUID REFERENCES delivery_proofs(id),
+    change_reason     VARCHAR(500),
+    CONSTRAINT chk_proof_content CHECK (
+        NULLIF(BTRIM(recipient_name), '') IS NOT NULL
+        OR NULLIF(BTRIM(photo_object_key), '') IS NOT NULL
+    ),
+    CONSTRAINT chk_proof_change_reason CHECK (
+        previous_proof_id IS NULL OR NULLIF(BTRIM(change_reason), '') IS NOT NULL
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_proofs_parcel_created
+    ON delivery_proofs (parcel_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_proofs_initial
+    ON delivery_proofs (parcel_id) WHERE previous_proof_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_proofs_successor
+    ON delivery_proofs (previous_proof_id) WHERE previous_proof_id IS NOT NULL;
+
+-- Older delivery_proofs tables pointed courier_id at couriers.id; it now holds the courier's users.id.
+-- Does nothing once the foreign key already points at users.
+DO $$
+DECLARE
+    old_constraint name;
+BEGIN
+    SELECT c.conname INTO old_constraint
+    FROM pg_constraint c
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attname = 'courier_id'
+    WHERE c.conrelid = 'delivery_proofs'::regclass
+      AND c.confrelid = 'couriers'::regclass
+      AND c.contype = 'f'
+      AND c.conkey = ARRAY[a.attnum];
+
+    IF old_constraint IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE delivery_proofs DROP CONSTRAINT %I', old_constraint);
+
+        UPDATE delivery_proofs AS proof
+        SET courier_id = courier.user_id
+        FROM couriers AS courier
+        WHERE proof.courier_id = courier.id;
+
+        ALTER TABLE delivery_proofs
+            ADD CONSTRAINT delivery_proofs_courier_id_fkey
+            FOREIGN KEY (courier_id) REFERENCES users(id);
+    END IF;
+END;
+$$;
+
+ALTER TABLE couriers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE delivery_proofs ENABLE ROW LEVEL SECURITY;
+
+-- Notifications: in-app notifications created from parcel status events
+CREATE TABLE IF NOT EXISTS notifications (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    event_id          UUID UNIQUE,
+    parcel_id         UUID REFERENCES parcels(id) ON DELETE SET NULL,
+    title             VARCHAR(150) NOT NULL,
+    message           TEXT NOT NULL,
+    notification_type VARCHAR(50) NOT NULL DEFAULT 'PARCEL_STATUS',
+    is_read           BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    read_at           TIMESTAMPTZ
+);
+
+-- Notifications tables created before event_id existed
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS event_id UUID;
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created
+    ON notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+    ON notifications (user_id, is_read);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_event_id
+    ON notifications (event_id) WHERE event_id IS NOT NULL;
+
+-- Saved delivery reports (admin reports page)
+CREATE TABLE IF NOT EXISTS report_snapshots (
+    id         UUID PRIMARY KEY,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    start_date DATE NOT NULL,
+    end_date   DATE NOT NULL,
+    data_json  TEXT NOT NULL,
+    CONSTRAINT report_snapshots_date_order CHECK (start_date <= end_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_snapshots_created
+    ON report_snapshots (created_at DESC, id DESC);
+
+ALTER TABLE report_snapshots ENABLE ROW LEVEL SECURITY;
+-- ============ end Courier App, Notifications & Saved Reports section ============

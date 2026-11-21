@@ -8,6 +8,8 @@ public class MerchantRegisterRequest {
     @NotBlank(message = "Business name is required")
     private String businessName;
 
+    @NotBlank(message = "Business registration number is required")
+    @jakarta.validation.constraints.Size(max = 100)
     private String registrationNumber;
 
     @NotBlank(message = "Contact phone is required")

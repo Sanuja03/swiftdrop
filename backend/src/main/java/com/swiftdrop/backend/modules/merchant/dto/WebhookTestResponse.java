@@ -7,6 +7,7 @@ public class WebhookTestResponse {
     private long latencyMs;
     private String endpointUrl;
     private String simulatedPayload;
+    private String responseBody;
 
     public WebhookTestResponse() {
     }
@@ -22,6 +23,7 @@ public class WebhookTestResponse {
         private long latencyMs;
         private String endpointUrl;
         private String simulatedPayload;
+        private String responseBody;
 
         public Builder success(boolean success) { this.success = success; return this; }
         public Builder statusCode(int statusCode) { this.statusCode = statusCode; return this; }
@@ -29,6 +31,7 @@ public class WebhookTestResponse {
         public Builder latencyMs(long latencyMs) { this.latencyMs = latencyMs; return this; }
         public Builder endpointUrl(String endpointUrl) { this.endpointUrl = endpointUrl; return this; }
         public Builder simulatedPayload(String simulatedPayload) { this.simulatedPayload = simulatedPayload; return this; }
+        public Builder responseBody(String responseBody) { this.responseBody = responseBody; return this; }
 
         public WebhookTestResponse build() {
             WebhookTestResponse r = new WebhookTestResponse();
@@ -38,6 +41,7 @@ public class WebhookTestResponse {
             r.latencyMs = this.latencyMs;
             r.endpointUrl = this.endpointUrl;
             r.simulatedPayload = this.simulatedPayload;
+            r.responseBody = this.responseBody;
             return r;
         }
     }
@@ -59,4 +63,7 @@ public class WebhookTestResponse {
 
     public String getSimulatedPayload() { return simulatedPayload; }
     public void setSimulatedPayload(String simulatedPayload) { this.simulatedPayload = simulatedPayload; }
+
+    public String getResponseBody() { return responseBody; }
+    public void setResponseBody(String responseBody) { this.responseBody = responseBody; }
 }

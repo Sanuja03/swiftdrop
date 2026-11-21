@@ -87,7 +87,7 @@ class MerchantControllerTest {
                 .registrationStatus(MerchantRegistrationStatus.PENDING).build());
 
         mockMvc.perform(post("/api/v1/merchant/register").contentType("application/json").content("""
-                        {"userId":"%s","businessName":"Test Shop","contactPhone":"0000000000","businessAddress":"1 Sample Street"}
+                        {"userId":"%s","businessName":"Test Shop","registrationNumber":"TEST-REG","contactPhone":"0000000000","businessAddress":"1 Sample Street"}
                         """.formatted(OTHER_MERCHANT_ID)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").value(OWN_USER_ID.toString()));

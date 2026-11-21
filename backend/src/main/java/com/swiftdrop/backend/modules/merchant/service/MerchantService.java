@@ -8,6 +8,8 @@ import com.swiftdrop.backend.modules.merchant.entity.Merchant;
 import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
 import com.swiftdrop.backend.modules.merchant.exception.MerchantNotFoundException;
 import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
+import com.swiftdrop.backend.modules.merchant.event.MerchantRegisteredPayload;
+import com.swiftdrop.backend.modules.messaging.service.OutboxService;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
 import org.slf4j.Logger;
@@ -26,11 +28,14 @@ public class MerchantService {
 
     private final MerchantRepository merchantRepository;
     private final ParcelRepository parcelRepository;
+    private final OutboxService outboxService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public MerchantService(MerchantRepository merchantRepository, ParcelRepository parcelRepository) {
+    public MerchantService(MerchantRepository merchantRepository, ParcelRepository parcelRepository,
+                           OutboxService outboxService) {
         this.merchantRepository = merchantRepository;
         this.parcelRepository = parcelRepository;
+        this.outboxService = outboxService;
     }
 
     /**
@@ -39,6 +44,10 @@ public class MerchantService {
      */
     @Transactional
     public MerchantProfileResponse registerMerchant(UUID userId, MerchantRegisterRequest request) {
+        if (request.getRegistrationNumber() == null || request.getRegistrationNumber().isBlank()
+                || request.getRegistrationNumber().trim().length() > 100) {
+            throw new IllegalArgumentException("A business registration number of 1 to 100 characters is required");
+        }
         if (merchantRepository.findByUserId(userId).isPresent()) {
             throw new IllegalArgumentException("A merchant profile already exists for this user account.");
         }
@@ -46,7 +55,7 @@ public class MerchantService {
         Merchant merchant = Merchant.builder()
                 .userId(userId)
                 .businessName(request.getBusinessName())
-                .registrationNumber(request.getRegistrationNumber())
+                .registrationNumber(request.getRegistrationNumber().trim())
                 .contactPhone(request.getContactPhone())
                 .businessAddress(request.getBusinessAddress())
                 .registrationStatus(MerchantRegistrationStatus.PENDING)
@@ -54,6 +63,8 @@ public class MerchantService {
                 .build();
 
         Merchant saved = merchantRepository.save(merchant);
+        outboxService.publishEvent("MERCHANT", saved.getId(), MerchantRegisteredPayload.EVENT_TYPE,
+                MerchantRegisteredPayload.ROUTING_KEY, new MerchantRegisteredPayload(saved.getId()));
         log.info("New merchant registered (id={}, status={})", saved.getId(), saved.getRegistrationStatus());
         return mapToProfile(saved);
     }
@@ -160,6 +171,7 @@ public class MerchantService {
                 .registrationNumber(m.getRegistrationNumber())
                 .contactPhone(m.getContactPhone())
                 .businessAddress(m.getBusinessAddress())
+                .approvalNotes(m.getApprovalNotes())
                 .registrationStatus(m.getRegistrationStatus())
                 .apiKey(includeApiKey ? m.getApiKey() : null)
                 .webhookUrl(m.getWebhookUrl())

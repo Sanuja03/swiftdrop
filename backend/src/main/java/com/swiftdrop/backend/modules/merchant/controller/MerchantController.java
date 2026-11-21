@@ -69,7 +69,7 @@ public class MerchantController {
         return ResponseEntity.status(HttpStatus.CREATED).body(merchantService.registerMerchant(user.getId(), request));
     }
 
-    @GetMapping("/profile")
+    @GetMapping({"/profile", "/me"})
     public ResponseEntity<MerchantProfileResponse> getProfile() {
         return ResponseEntity.ok(merchantService.mapToProfile(currentMerchant()));
     }
@@ -84,6 +84,11 @@ public class MerchantController {
             @RequestParam(required = false) ParcelStatus status,
             @RequestParam(required = false) String search) {
         return ResponseEntity.ok(orderService.getOrders(currentMerchant().getId(), status, search));
+    }
+
+    @GetMapping("/orders/{trackingNumber}")
+    public ResponseEntity<MerchantOrderResponse> getOrder(@PathVariable String trackingNumber) {
+        return ResponseEntity.ok(orderService.getOrder(currentMerchant().getId(), trackingNumber));
     }
 
     @PostMapping("/orders")
@@ -118,7 +123,7 @@ public class MerchantController {
     }
 
     /** Returns the new key once; it is shown to the merchant and never logged. */
-    @PostMapping("/api-key/regenerate")
+    @PostMapping({"/api-key/regenerate", "/api-key/rotate"})
     public ResponseEntity<Map<String, String>> regenerateApiKey() {
         return ResponseEntity.ok(Map.of("apiKey", merchantService.regenerateApiKey(currentMerchant().getId())));
     }

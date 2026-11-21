@@ -23,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,6 +54,8 @@ class AuthServiceTest {
 
     @Mock
     private EmailService emailService;
+    @Mock
+    private com.swiftdrop.backend.modules.merchant.service.MerchantService merchantService;
 
     @InjectMocks
     private AuthService authService;
@@ -60,6 +63,62 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "refreshTokenDurationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "mockGoogleTokensEnabled", true);
+    }
+
+    @Test
+    void rejectedMerchantGetsARejectionMessageRatherThanVerificationOrPendingText() {
+        var user = User.builder().id(UUID.randomUUID()).email("rejected@example.test")
+                .passwordHash("hashed").role(Role.ROLE_MERCHANT).status(AccountStatus.PENDING_APPROVAL)
+                .emailVerified(true).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("test-password", "hashed")).thenReturn(true);
+        when(merchantService.getProfileByUserId(user.getId())).thenReturn(
+                com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse.builder()
+                        .registrationStatus(com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus.REJECTED).build());
+        var request = LoginRequest.builder().email(user.getEmail()).password("test-password").build();
+        assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
+        user.setEmailVerified(false);
+        assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
+        verify(jwtTokenProvider, never()).generateAccessToken(any());
+    }
+
+    @Test
+    void verifiedPendingMerchantGetsThePendingMessageWithoutAnActivationPromise() {
+        var user = User.builder().id(UUID.randomUUID()).email("pending@example.test").passwordHash("hashed")
+                .role(Role.ROLE_MERCHANT).status(AccountStatus.PENDING_APPROVAL).emailVerified(true).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("test-password", "hashed")).thenReturn(true);
+        var request = LoginRequest.builder().email(user.getEmail()).password("test-password").build();
+        String message = assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage();
+        assertTrue(message.contains("pending admin approval"));
+        assertFalse(message.contains("24 hours"));
+    }
+
+    @Test
+    void pendingMerchantCannotUseGoogleToBypassApproval() {
+        User user = User.builder().id(UUID.randomUUID()).email("pending-merchant@gmail.com")
+                .fullName("Pending Merchant").role(Role.ROLE_MERCHANT)
+                .status(AccountStatus.PENDING_APPROVAL).emailVerified(true).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        assertThrows(AccountNotActiveException.class, () -> authService.loginWithGoogle(
+                GoogleAuthRequest.builder().idToken("mock-google-token-pending-merchant").build()));
+        verify(jwtTokenProvider, never()).generateAccessToken(any());
+    }
+
+    @Test
+    void inactiveOrUnverifiedAccountsCannotRefreshTheirTokens() {
+        User user = User.builder().id(UUID.randomUUID()).role(Role.ROLE_MERCHANT)
+                .status(AccountStatus.PENDING_APPROVAL).emailVerified(true).build();
+        RefreshToken token = RefreshToken.builder().user(user).token("isolated-test-refresh")
+                .expiryDate(java.time.Instant.now().plusSeconds(3600)).build();
+        when(refreshTokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
+        var request = TokenRefreshRequest.builder().refreshToken(token.getToken()).build();
+        assertThrows(AccountNotActiveException.class, () -> authService.refreshToken(request));
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setEmailVerified(false);
+        assertThrows(AccountNotActiveException.class, () -> authService.refreshToken(request));
+        verify(jwtTokenProvider, never()).generateAccessToken(any());
     }
 
     @Test
@@ -104,6 +163,7 @@ class AuthServiceTest {
     void registerMerchantPendingApproval() {
         SignUpRequest request = SignUpRequest.builder()
                 .email("merchant@store.com")
+                .businessName("Partner Store").registrationNumber("TEST-REG").businessAddress("Test business address").phone("0000000000")
                 .password("password123")
                 .fullName("Partner Store")
                 .role(Role.ROLE_MERCHANT)
@@ -129,6 +189,7 @@ class AuthServiceTest {
         assertNotNull(response);
         assertNull(response.getAccessToken());
         assertEquals(AccountStatus.PENDING_APPROVAL, response.getUser().getStatus());
+        verify(merchantService).registerMerchant(eq(savedUser.getId()), any());
         verify(jwtTokenProvider, never()).generateAccessToken(any());
     }
 
@@ -144,6 +205,18 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("existing@swiftdrop.com")).thenReturn(true);
 
         assertThrows(UserAlreadyExistsException.class, () -> authService.register(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Public signup refuses staff roles")
+    void registerRefusesStaffRoles() {
+        for (Role staff : List.of(Role.ROLE_ADMIN, Role.ROLE_DISPATCHER, Role.ROLE_COURIER)) {
+            SignUpRequest request = SignUpRequest.builder()
+                    .email("staff@example.test").password("password123").fullName("Test Staff").role(staff).build();
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> authService.register(request));
+        }
         verify(userRepository, never()).save(any());
     }
 

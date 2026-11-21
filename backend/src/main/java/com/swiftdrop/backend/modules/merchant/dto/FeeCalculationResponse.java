@@ -7,6 +7,8 @@ import java.math.BigDecimal;
 public class FeeCalculationResponse {
     private ServiceType serviceType;
     private BigDecimal weightKg;
+    private String pickupCity;
+    private String dropoffCity;
     private BigDecimal baseFee;
     private BigDecimal weightCharge;
     private BigDecimal zoneSurcharge;
@@ -24,6 +26,8 @@ public class FeeCalculationResponse {
     public static class Builder {
         private ServiceType serviceType;
         private BigDecimal weightKg;
+        private String pickupCity;
+        private String dropoffCity;
         private BigDecimal baseFee;
         private BigDecimal weightCharge;
         private BigDecimal zoneSurcharge;
@@ -33,6 +37,8 @@ public class FeeCalculationResponse {
 
         public Builder serviceType(ServiceType serviceType) { this.serviceType = serviceType; return this; }
         public Builder weightKg(BigDecimal weightKg) { this.weightKg = weightKg; return this; }
+        public Builder pickupCity(String pickupCity) { this.pickupCity = pickupCity; return this; }
+        public Builder dropoffCity(String dropoffCity) { this.dropoffCity = dropoffCity; return this; }
         public Builder baseFee(BigDecimal baseFee) { this.baseFee = baseFee; return this; }
         public Builder weightCharge(BigDecimal weightCharge) { this.weightCharge = weightCharge; return this; }
         public Builder zoneSurcharge(BigDecimal zoneSurcharge) { this.zoneSurcharge = zoneSurcharge; return this; }
@@ -44,6 +50,8 @@ public class FeeCalculationResponse {
             FeeCalculationResponse r = new FeeCalculationResponse();
             r.serviceType = this.serviceType;
             r.weightKg = this.weightKg;
+            r.pickupCity = this.pickupCity;
+            r.dropoffCity = this.dropoffCity;
             r.baseFee = this.baseFee;
             r.weightCharge = this.weightCharge;
             r.zoneSurcharge = this.zoneSurcharge;
@@ -59,6 +67,12 @@ public class FeeCalculationResponse {
 
     public BigDecimal getWeightKg() { return weightKg; }
     public void setWeightKg(BigDecimal weightKg) { this.weightKg = weightKg; }
+
+    public String getPickupCity() { return pickupCity; }
+    public void setPickupCity(String pickupCity) { this.pickupCity = pickupCity; }
+
+    public String getDropoffCity() { return dropoffCity; }
+    public void setDropoffCity(String dropoffCity) { this.dropoffCity = dropoffCity; }
 
     public BigDecimal getBaseFee() { return baseFee; }
     public void setBaseFee(BigDecimal baseFee) { this.baseFee = baseFee; }

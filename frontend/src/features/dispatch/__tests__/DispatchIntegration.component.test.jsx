@@ -32,6 +32,10 @@ vi.mock('@/context/AuthContext', () => ({
   useAuth: () => mockAuthState,
 }))
 
+vi.mock('@/features/notifications/services/notificationApi', () => ({
+  getUnreadCount: vi.fn(async () => 0),
+}))
+
 const mockParcels = [
   {
     id: 'p-1',
@@ -80,7 +84,7 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
     dispatchApi.getCourierWorkloads.mockResolvedValue(mockWorkloads)
   })
 
-  it('1. /dispatch route renders DispatchManagementPage inside DispatcherLayout for ROLE_DISPATCHER', async () => {
+  it('1. /dispatch route renders DispatchManagementPage inside the shared operations layout for ROLE_DISPATCHER', async () => {
     mockAuthState = {
       isAuthenticated: true,
       user: { fullName: 'Saman Silva', role: 'ROLE_DISPATCHER', email: 'saman@swiftdrop.lk' },
@@ -94,11 +98,11 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
       </MemoryRouter>
     )
 
-    // Verify DispatcherLayout shell elements are rendered
+    // Verify the integrated shared shell without changing dispatch behaviour.
     expect(screen.getByRole('navigation', { name: 'Dispatch Operations' })).toBeInTheDocument()
-    expect(screen.getByText('Dispatch Operations')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Reports', exact: true })).not.toBeInTheDocument()
     expect(screen.getByText('Saman Silva')).toBeInTheDocument()
-    expect(screen.getByText('DISPATCHER')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Zones', exact: true })).not.toBeInTheDocument()
 
     // Verify DispatchManagementPage content
     expect(screen.getByRole('heading', { name: 'Dispatch Queue' })).toBeInTheDocument()
@@ -107,7 +111,7 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
     })
   })
 
-  it('2. /dispatch/workload route renders CourierWorkloadPage inside DispatcherLayout for ROLE_DISPATCHER', async () => {
+  it('2. /dispatch/workload route renders CourierWorkloadPage inside the shared operations layout for ROLE_DISPATCHER', async () => {
     mockAuthState = {
       isAuthenticated: true,
       user: { fullName: 'Saman Silva', role: 'ROLE_DISPATCHER', email: 'saman@swiftdrop.lk' },
@@ -121,7 +125,7 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
       </MemoryRouter>
     )
 
-    // Verify DispatcherLayout shell elements
+    // Verify shared operations navigation.
     expect(screen.getByRole('navigation', { name: 'Dispatch Operations' })).toBeInTheDocument()
 
     // Verify CourierWorkloadPage content
@@ -132,7 +136,7 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
     expect(screen.getByText('MODERATE')).toBeInTheDocument()
   })
 
-  it('3. Allows ROLE_ADMIN to access /dispatch and displays ADMIN badge', async () => {
+  it('3. Allows ROLE_ADMIN to access /dispatch with admin navigation', async () => {
     mockAuthState = {
       isAuthenticated: true,
       user: { fullName: 'Thenuri Admin', role: 'ROLE_ADMIN', email: 'thenuri@swiftdrop.lk' },
@@ -146,8 +150,8 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
       </MemoryRouter>
     )
 
-    // Topbar displays ADMIN badge
-    expect(screen.getByText('ADMIN')).toBeInTheDocument()
+    // Shared navigation exposes the admin-only destination.
+    expect(screen.getByRole('link', { name: 'Zones', exact: true })).toBeInTheDocument()
     expect(screen.getByText('Thenuri Admin')).toBeInTheDocument()
 
     // Page content rendered
@@ -289,7 +293,7 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
     })
   })
 
-  it('10. Customer View link points correctly to /app and does not render fake admin link', () => {
+  it('10. Dispatcher navigation hides administrator actions', () => {
     mockAuthState = {
       isAuthenticated: true,
       user: { fullName: 'Saman Silva', role: 'ROLE_DISPATCHER', email: 'saman@swiftdrop.lk' },
@@ -303,8 +307,9 @@ describe('Dispatch & Workload Routes - End-to-End Route Integration Tests', () =
       </MemoryRouter>
     )
 
-    const customerLink = screen.getByRole('link', { name: /Customer View/i })
-    expect(customerLink).toHaveAttribute('href', '/app')
+    expect(screen.queryByRole('link', { name: 'User Management', exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Reports', exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Pricing', exact: true })).not.toBeInTheDocument()
 
     // Confirm no fake admin console route is present
     expect(screen.queryByRole('link', { name: /Admin Console/i })).not.toBeInTheDocument()

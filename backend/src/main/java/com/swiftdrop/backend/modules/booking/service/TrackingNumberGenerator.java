@@ -47,4 +47,27 @@ public class TrackingNumberGenerator {
         }
         throw BookingException.trackingNumberUnavailable();
     }
+
+    /**
+     * Creates merchant tracking numbers formatted as {@code SDP-YYYYMMDD-XXXXXX},
+     * where YYYYMMDD is the current UTC date and XXXXXX is 6 uppercase alphanumeric characters.
+     *
+     * @throws BookingException if no free number was found after {@link #MAX_ATTEMPTS} tries
+     */
+    public String nextMerchantTrackingNumber() {
+        String datePart = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            StringBuilder sb = new StringBuilder(6);
+            for (int i = 0; i < 6; i++) {
+                sb.append(chars.charAt(random.nextInt(chars.length())));
+            }
+            String candidate = String.format("%s-%s-%s", PREFIX, datePart, sb.toString());
+            if (parcelRepository.findByTrackingNumber(candidate).isEmpty()) {
+                return candidate;
+            }
+        }
+        throw BookingException.trackingNumberUnavailable();
+    }
 }

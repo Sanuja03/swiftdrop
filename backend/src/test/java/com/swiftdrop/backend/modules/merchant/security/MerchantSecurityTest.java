@@ -47,7 +47,7 @@ import com.swiftdrop.backend.modules.tracking.service.CustomerShipmentQueryServi
 /**
  * Real security chains (main JWT SecurityConfig + MerchantSecurityConfig):
  * the API key works only on /api/v1/merchant/api/v1/**, the portal needs a merchant JWT,
- * merchant approval is admin-only, and a merchant only ever sees its own parcels.
+ * merchant approval requires ADMIN/DISPATCHER, and merchants only see their own parcels.
  */
 @WebMvcTest(controllers = {MerchantApiController.class, MerchantController.class, MerchantAdminController.class,
         CustomerShipmentController.class})
@@ -76,6 +76,14 @@ class MerchantSecurityTest {
     private final Merchant ownMerchant = merchant(OWN_MERCHANT_ID, MerchantRegistrationStatus.APPROVED);
 
     private void keys() {
+        when(userRepository.findByEmail("user")).thenReturn(Optional.of(
+                com.swiftdrop.backend.modules.auth.entity.User.builder().id(MERCHANT_USER_ID).email("user")
+                        .role(com.swiftdrop.backend.modules.auth.entity.Role.ROLE_MERCHANT)
+                        .status(com.swiftdrop.backend.modules.auth.entity.AccountStatus.ACTIVE).emailVerified(true).build()));
+        when(userRepository.findById(MERCHANT_USER_ID)).thenReturn(Optional.of(
+                com.swiftdrop.backend.modules.auth.entity.User.builder().id(MERCHANT_USER_ID)
+                        .role(com.swiftdrop.backend.modules.auth.entity.Role.ROLE_MERCHANT)
+                        .status(com.swiftdrop.backend.modules.auth.entity.AccountStatus.ACTIVE).emailVerified(true).build()));
         when(merchantRepository.findByApiKey(VALID_KEY)).thenReturn(Optional.of(ownMerchant));
         when(merchantRepository.findByApiKey(PENDING_KEY))
                 .thenReturn(Optional.of(merchant(OTHER_MERCHANT_ID, MerchantRegistrationStatus.PENDING)));
@@ -92,6 +100,22 @@ class MerchantSecurityTest {
         mockMvc.perform(get("/api/v1/merchant/api/v1/orders").header("X-API-KEY", VALID_KEY))
                 .andExpect(status().isOk());
         verify(orderService).getOrders(OWN_MERCHANT_ID, null, null);
+    }
+
+    @Test
+    void approvedApplicationKeyStillRequiresAnActiveEmailVerifiedAccount() throws Exception {
+        keys();
+        var user = com.swiftdrop.backend.modules.auth.entity.User.builder().id(MERCHANT_USER_ID)
+                .role(com.swiftdrop.backend.modules.auth.entity.Role.ROLE_MERCHANT)
+                .status(com.swiftdrop.backend.modules.auth.entity.AccountStatus.ACTIVE).emailVerified(false).build();
+        when(userRepository.findById(MERCHANT_USER_ID)).thenReturn(Optional.of(user));
+        mockMvc.perform(get("/api/v1/merchant/api/v1/orders").header("X-API-KEY", VALID_KEY))
+                .andExpect(status().isForbidden());
+        user.setEmailVerified(true);
+        user.setStatus(com.swiftdrop.backend.modules.auth.entity.AccountStatus.SUSPENDED);
+        mockMvc.perform(get("/api/v1/merchant/api/v1/orders").header("X-API-KEY", VALID_KEY))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(orderService);
     }
 
     @Test
@@ -174,7 +198,29 @@ class MerchantSecurityTest {
         verify(orderService, never()).getOrders(eq(OTHER_MERCHANT_ID), any(), any());
     }
 
-    // ---- Merchant approval (ADMIN only) -----------------------------------------------------
+    @Test
+    @WithMockUser(roles = "MERCHANT")
+    void anExistingMerchantSessionCannotUseThePortalAfterRejection() throws Exception {
+        keys();
+        var account = userRepository.findByEmail("user").orElseThrow();
+        account.setStatus(com.swiftdrop.backend.modules.auth.entity.AccountStatus.PENDING_APPROVAL);
+        mockMvc.perform(get("/api/v1/merchant/orders")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/merchant/webhook/test").contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(orderService, webhookService);
+    }
+
+    @Test
+    @WithMockUser(roles = "MERCHANT")
+    void rejectedProfileCannotUsePortalEvenIfItsUserIsManuallyRestored() throws Exception {
+        keys();
+        ownMerchant.setRegistrationStatus(MerchantRegistrationStatus.REJECTED);
+        when(merchantRepository.findByUserId(MERCHANT_USER_ID)).thenReturn(Optional.of(ownMerchant));
+        mockMvc.perform(get("/api/v1/merchant/orders")).andExpect(status().isForbidden());
+        verifyNoInteractions(orderService);
+    }
+
+    // ---- Merchant approval (ADMIN/DISPATCHER) -----------------------------------------------
 
     @Test
     void approvalNeedsSignIn() throws Exception {
@@ -201,8 +247,11 @@ class MerchantSecurityTest {
 
     @Test
     @WithMockUser(roles = "DISPATCHER")
-    void dispatcherCannotApproveMerchants() throws Exception {
+    void dispatcherCannotReviewApproveOrRejectMerchants() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/merchants")).andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/admin/merchants/" + OTHER_MERCHANT_ID + "/approve"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/merchants/" + OTHER_MERCHANT_ID + "/reject"))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(adminService);
     }
@@ -216,6 +265,16 @@ class MerchantSecurityTest {
 
         mockMvc.perform(post("/api/v1/admin/merchants/" + OTHER_MERCHANT_ID + "/approve"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void reviewedApplicationConflictReturns409RatherThanGeneric500() throws Exception {
+        when(adminService.approveMerchant(eq(OTHER_MERCHANT_ID), any(), any())).thenThrow(
+                new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                        "Only pending merchant applications can be reviewed"));
+        mockMvc.perform(post("/api/v1/admin/merchants/" + OTHER_MERCHANT_ID + "/approve"))
+                .andExpect(status().isConflict());
     }
 
     private static Merchant merchant(UUID id, MerchantRegistrationStatus status) {

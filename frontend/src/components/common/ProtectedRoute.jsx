@@ -1,12 +1,7 @@
+import Spinner from '@/shared/components/ui/Spinner';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { homePathFor } from '@/shared/auth/session';
 
-/**
- * Renders its children only for a signed-in user. With `roles` (e.g. ['ROLE_ADMIN']) the user
- * must also have one of those roles; anyone else is sent to their own home page.
- * This only shapes the UI: the backend enforces the same roles on every API call.
- */
 export default function ProtectedRoute({ children, roles }) {
   const { isAuthenticated, loading, user } = useAuth();
   const location = useLocation();
@@ -14,7 +9,7 @@ export default function ProtectedRoute({ children, roles }) {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <p>Checking authentication...</p>
+        <Spinner label="Checking authentication..." />
       </div>
     );
   }
@@ -23,8 +18,9 @@ export default function ProtectedRoute({ children, roles }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (roles && !roles.includes(user?.role)) {
-    return <Navigate to={homePathFor(user)} replace />;
+  const currentRole = user?.role?.replace(/^ROLE_/, '');
+  if (roles && !roles.some((role) => role.replace(/^ROLE_/, '') === currentRole)) {
+    return <p role="alert" style={{ padding: "var(--space-8)" }}>You do not have permission to view this page.</p>;
   }
 
   return children;
