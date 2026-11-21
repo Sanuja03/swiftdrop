@@ -103,8 +103,8 @@ public class CourierAssignment {
     }
 
     public void complete() {
-        if (status != AssignmentStatus.ACCEPTED) {
-            throw new IllegalStateException("Cannot complete assignment in status: " + status);
+        if (!status.isActive()) {
+            throw new IllegalStateException("Cannot complete non-active assignment in status: " + status);
         }
         this.status = AssignmentStatus.COMPLETED;
     }
