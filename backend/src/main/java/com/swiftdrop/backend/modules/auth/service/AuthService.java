@@ -15,6 +15,7 @@ import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -49,8 +50,18 @@ public class AuthService {
     @Value("${app.jwt.refresh-token-expiration-ms:604800000}")
     private long refreshTokenDurationMs;
 
+    /**
+     * Accepts "mock-google-token-&lt;name&gt;" as a Google sign-in for name@gmail.com. Off unless a test
+     * turns it on: anyone could otherwise sign in as any Gmail address.
+     */
+    @Value("${app.auth.google.mock-tokens-enabled:false}")
+    private boolean mockGoogleTokensEnabled;
+
     @Transactional
     public AuthResponse register(SignUpRequest request) {
+        if (!request.isSelfServiceRole()) {
+            throw new AccessDeniedException("Staff accounts cannot be created through public signup");
+        }
         if (!request.isMerchantDetailsComplete()) {
             throw new IllegalArgumentException("Merchant signup requires business name, business registration number, contact phone and business address");
         }
@@ -172,7 +183,7 @@ public class AuthService {
         String sub;
 
         // Support test/mock tokens for hermetic offline testing
-        if (token.startsWith("mock-google-token-")) {
+        if (mockGoogleTokensEnabled && token.startsWith("mock-google-token-")) {
             String suffix = token.replace("mock-google-token-", "");
             email = suffix + "@gmail.com";
             name = "Google User (" + suffix + ")";
@@ -291,8 +302,7 @@ public class AuthService {
         }
 
         User updated = userRepository.save(user);
-        log.info("Updated profile for user [{}]: name=[{}], phone=[{}]", 
-                updated.getEmail(), updated.getFullName(), updated.getPhone());
+        log.info("Updated profile for user [{}]", updated.getEmail());
         return UserProfileDto.fromEntity(updated);
     }
 
@@ -341,7 +351,7 @@ public class AuthService {
                 .build();
 
         passwordResetTokenRepository.save(resetToken);
-        log.info("Password reset code generated for user [{}]: [{}]", normalizedEmail, resetTokenStr);
+        log.info("Password reset code generated for user [{}]", normalizedEmail);
 
         // Dispatch real email to user inbox
         emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), resetTokenStr);
@@ -464,7 +474,7 @@ public class AuthService {
 
         emailVerificationTokenRepository.save(verificationToken);
         emailService.sendEmailVerification(user.getEmail(), user.getFullName(), tokenStr);
-        log.info("Resent email verification code to [{}]: [{}]", user.getEmail(), tokenStr);
+        log.info("Resent email verification code to [{}]", user.getEmail());
     }
 
     @Transactional

@@ -16,6 +16,9 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Creates every table (and the starter zones and prices) the first time the volume is created.
+      # After changing schema.sql: `docker compose down -v` to start again from an empty database.
+      - ./backend/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       # $$ = read the variable inside the container, not when compose parses this file
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
@@ -67,6 +70,14 @@ services:
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
       RABBITMQ_VHOST: /
+      # Optional: AI delivery assistant and courier photo proof (unavailable when empty)
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-}
+      MINIO_PROOF_BUCKET: ${MINIO_PROOF_BUCKET:-delivery-proofs}
     depends_on:
       postgres:
         condition: service_healthy
