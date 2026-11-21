@@ -126,8 +126,13 @@ export default function MerchantPortal() {
           return;
         }
         setProfile(prof);
-        setWebhookUrl(prof.webhookUrl || '');
-        setWebhookSecret(prof.webhookSecret || '');
+        setWebhookSecret('');
+        if (prof.registrationStatus === 'APPROVED') {
+          const configuration = await merchantApi.getWebhookConfig();
+          if (ignore) return;
+          setWebhookUrl(configuration.url || '');
+          setProfile((previous) => ({ ...previous, webhookUrl: configuration.url, webhookConfigured: configuration.configured }));
+        }
 
         const s = await merchantApi.getStats(prof.id);
         if (ignore) return;
@@ -304,11 +309,26 @@ export default function MerchantPortal() {
     try {
       setLoading(true);
       const updated = await merchantApi.updateWebhook(profile?.id, {
-        webhookUrl,
-        webhookSecret,
+        url: webhookUrl,
       });
-      setProfile(updated);
+      setProfile((previous) => ({ ...previous, webhookUrl: updated.url, webhookConfigured: updated.configured }));
+      setWebhookUrl(updated.url || '');
+      setWebhookSecret(updated.secret || '');
       setMessage({ type: 'success', text: 'Store sync settings saved successfully!' });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRotateWebhookSecret = async () => {
+    if (!window.confirm('Rotate the webhook signing secret? The current secret will stop working immediately. Update your receiver with the new secret.')) return;
+    try {
+      setLoading(true);
+      const updated = await merchantApi.rotateWebhookSecret();
+      setWebhookSecret(updated.secret || '');
+      setMessage({ type: 'success', text: 'New signing secret generated. Copy it now and update your receiver.' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -1296,16 +1316,16 @@ export default function MerchantPortal() {
                         borderRadius: '20px',
                         fontSize: '0.85rem',
                         fontWeight: 700,
-                        backgroundColor: webhookUrl ? '#DCFCE7' : '#F1F5F9',
-                        color: webhookUrl ? '#166534' : '#475569',
-                        border: `1px solid ${webhookUrl ? '#86EFAC' : '#CBD5E1'}`,
+                        backgroundColor: profile?.webhookConfigured ? '#DCFCE7' : '#F1F5F9',
+                        color: profile?.webhookConfigured ? '#166534' : '#475569',
+                        border: `1px solid ${profile?.webhookConfigured ? '#86EFAC' : '#CBD5E1'}`,
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.4rem',
                       }}
                     >
                       <span style={{ fontSize: '0.75rem' }}>{webhookUrl ? '🟢' : '⚪'}</span>
-                      {webhookUrl ? 'Live Auto-Sync: CONNECTED' : 'Manual Portal Mode (Not Connected)'}
+                      {profile?.webhookConfigured ? 'Webhook configured' : 'Webhook not configured'}
                     </span>
                   </div>
                 </div>
@@ -1542,21 +1562,26 @@ export default function MerchantPortal() {
                         <input
                           type="text"
                           className="form-input"
-                          placeholder="whsec_..."
+                          aria-label="New webhook signing secret"
+                          placeholder="Existing secrets are hidden"
                           value={webhookSecret}
-                          onChange={(e) => setWebhookSecret(e.target.value)}
+                          readOnly
                         />
                         <button
                           type="button"
                           className="btn btn-outline"
+                          disabled={!webhookSecret}
                           onClick={() => copyToClipboard(webhookSecret, 'Security Key')}
                         >
                           📋 Copy
                         </button>
                       </div>
                       <small style={{ color: 'var(--sd-muted)', marginTop: '0.35rem', display: 'block' }}>
-                        Acts as a digital seal. Used by your store plugin to verify that notifications are genuinely from SwiftDrop.
+                        A secret is generated on first configuration and shown only in that response. Copy it now; it is not saved in your browser. Use explicit rotation if you lose it.
                       </small>
+                      <button type="button" className="btn btn-outline" disabled={!profile?.webhookConfigured || loading} onClick={handleRotateWebhookSecret}>
+                        Rotate signing secret
+                      </button>
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1567,7 +1592,7 @@ export default function MerchantPortal() {
                         type="button"
                         className="btn btn-secondary"
                         onClick={handleTestWebhook}
-                        disabled={!webhookUrl || testLoading}
+                        disabled={!profile?.webhookConfigured || !webhookUrl || testLoading}
                       >
                         {testLoading ? 'Testing...' : '🚀 Test Connection'}
                       </button>
@@ -1682,13 +1707,13 @@ export default function MerchantPortal() {
                                 {log.endpointUrl}
                               </td>
                               <td>
-                                <strong style={{ color: log.responseCode >= 200 && log.responseCode < 300 ? 'var(--sd-success)' : 'var(--sd-error)' }}>
-                                  {log.responseCode || 'ERR'}
+                                <strong style={{ color: log.lastResponseCode >= 200 && log.lastResponseCode < 300 ? 'var(--sd-success)' : 'var(--sd-error)' }}>
+                                  {log.lastResponseCode || 'ERR'}
                                 </strong>
                               </td>
                               <td>
-                                <span className={`badge badge-${log.deliveryStatus.toLowerCase()}`}>
-                                  {log.deliveryStatus}
+                                <span className={`badge badge-${log.status.toLowerCase()}`}>
+                                  {log.status}
                                 </span>
                               </td>
                               <td>#{log.attemptCount}</td>
@@ -2093,14 +2118,14 @@ export default function MerchantPortal() {
                       <div><strong>Tracking #:</strong> {selectedLogDetails.trackingNumber}</div>
                       <div>
                         <strong>Status:</strong>{' '}
-                        <span className={`badge badge-${selectedLogDetails.deliveryStatus.toLowerCase()}`}>
-                          {selectedLogDetails.deliveryStatus}
+                        <span className={`badge badge-${selectedLogDetails.status.toLowerCase()}`}>
+                          {selectedLogDetails.status}
                         </span>
                       </div>
                       <div>
                         <strong>HTTP Response:</strong>{' '}
-                        <span style={{ fontWeight: 700, color: selectedLogDetails.responseCode >= 200 && selectedLogDetails.responseCode < 300 ? 'var(--sd-success)' : 'var(--sd-error)' }}>
-                          {selectedLogDetails.responseCode || 'ERR'}
+                        <span style={{ fontWeight: 700, color: selectedLogDetails.lastResponseCode >= 200 && selectedLogDetails.lastResponseCode < 300 ? 'var(--sd-success)' : 'var(--sd-error)' }}>
+                          {selectedLogDetails.lastResponseCode || 'ERR'}
                         </span>
                       </div>
                       <div style={{ gridColumn: 'span 2' }}>
@@ -2121,11 +2146,11 @@ export default function MerchantPortal() {
                       </pre>
                     </div>
 
-                    {selectedLogDetails.errorMessage && (
+                    {selectedLogDetails.lastError && (
                       <div>
                         <label className="form-label">Server Response / Error Details:</label>
                         <div style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '4px', fontSize: '0.8rem', border: '1px solid var(--sd-border)' }}>
-                          {selectedLogDetails.errorMessage}
+                          {selectedLogDetails.lastError}
                         </div>
                       </div>
                     )}

@@ -32,9 +32,11 @@ public class JdbcMerchantWebhookDirectory implements MerchantWebhookDirectory {
     static final String MERCHANT_FOR_PARCEL_SQL = "SELECT merchant_id FROM parcels WHERE id = ?";
 
     static final String ENDPOINT_SQL = """
-            SELECT webhook_url, webhook_secret FROM merchants
-            WHERE id = ? AND webhook_url IS NOT NULL AND webhook_url <> ''
-              AND webhook_secret IS NOT NULL AND webhook_secret <> ''
+            SELECT m.webhook_url, m.webhook_secret FROM merchants m JOIN users u ON u.id = m.user_id
+            WHERE m.id = ? AND m.webhook_url IS NOT NULL AND m.webhook_url <> ''
+              AND m.webhook_secret IS NOT NULL AND m.webhook_secret <> ''
+              AND m.registration_status = 'APPROVED' AND u.role = 'ROLE_MERCHANT'
+              AND u.status = 'ACTIVE' AND u.email_verified = TRUE
             """;
 
     static final String MERCHANT_FOR_USER_SQL = """

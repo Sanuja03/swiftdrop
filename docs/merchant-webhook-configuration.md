@@ -18,7 +18,9 @@ The script is repeatable and transactional. If an existing merchant table has
 duplicate `user_id` values, the unique index fails and rolls back: review the
 ownership conflict rather than deleting or reassigning records. Existing tables
 must follow the UUID `merchants.id` / `merchants.user_id` contract. Coordinate any
-future merchant module's additional required columns before merging its model.
+merchant module's full profile columns when upgrading an older database. The current
+configuration service uses the canonical Merchant entity; this integration adds no
+new schema columns and does not clear or backfill any existing secrets.
 
 Deploying the new parcel model before this migration will make parcel queries fail
 because `merchant_id` is missing. Apply the migration first; it remains compatible
@@ -27,15 +29,25 @@ and does not retrofit/validate a foreign key on that existing column.
 
 ## API
 
-Both endpoints require `Authorization: Bearer <access token>` for an ACTIVE merchant
-user. Ownership comes from the authenticated email resolved to `users.id`, never
-from request/query IDs. No changes to auth registration or customer booking APIs
-are required. A merchant row is created lazily on the first successful PUT.
+Configuration and test endpoints require `Authorization: Bearer <access token>`
+for a verified ACTIVE merchant user with an existing APPROVED merchant profile. Ownership comes from the authenticated email resolved to `users.id`, never
+from request/query IDs. Signup creates a PENDING merchant profile without a webhook secret. Email
+verification and normal administrator approval must complete before configuration.
+Webhook configuration never creates or approves a merchant profile.
 
 | Method | Path | Behavior |
 |---|---|---|
 | GET | `/api/v1/merchant/webhooks/config` | Returns configuration without a secret; does not create rows |
-| PUT | `/api/v1/merchant/webhooks/config` | Creates or updates the caller's URL; generates a secret only if none exists |
+| PUT | `/api/v1/merchant/webhooks/config` | Updates the caller's URL; generates a secret only if none exists |
+| POST | `/api/v1/merchant/webhooks/config/rotate-secret` | Explicitly replaces a configured secret and returns the new value once |
+| POST | `/api/v1/merchant/webhook/test` | One-shot signed ping to a validated destination; records an engine delivery |
+
+GET/PUT `/api/v1/merchant/webhook` are compatibility aliases for configuration.
+The singular PUT accepts its old `webhookUrl` property as an alias for `url`. Both
+route families now return the same configuration DTO rather than a merchant profile;
+clients needing business details must continue using `/api/v1/merchant/profile`.
+Caller-supplied merchant IDs and secret fields are ignored and cannot change ownership
+or replace the stored secret. The singular `/webhook/rotate-secret` is also an alias.
 
 PUT request:
 
@@ -43,7 +55,7 @@ PUT request:
 {"url":"https://your-public-domain.com/swiftdrop/events"}
 ```
 
-First successful PUT response (save the secret securely when received):
+First successful PUT response when the profile has no secret (save it securely):
 
 ```json
 {"url":"https://your-public-domain.com/swiftdrop/events","configured":true,"secret":"whsec_<random-value>"}
@@ -53,10 +65,21 @@ The secret contains 32 cryptographically random bytes encoded as URL-safe Base64
 GET and subsequent PUT responses omit `secret` entirely. GET before configuration
 returns `{"configured":false}`. Responses use `Cache-Control: no-store`.
 URL updates preserve the secret; existing secrets are not recoverable through this
-API. Secret rotation, disabling, and UI controls are outside this change.
+API. A legacy pre-generated secret is preserved, even if its URL was never set.
+After saving a public URL, explicitly rotate to recover from a lost legacy secret.
+Rotation immediately invalidates the old secret, including for future retry attempts;
+update the receiver promptly. Rotation before a destination is configured returns 409.
+No disabling endpoint is introduced.
+
+The portal reads configuration separately from the business profile. It displays a
+new secret only from the generating response, in a read-only field held in component
+memory, and requires confirmation before rotation. It never persists secrets in
+browser storage. Reloading or a later save clears the displayed value.
 
 Invalid destinations/body fields return 400, missing/invalid authentication returns
-401, and other roles, deleted users or inactive merchants return 403.
+401, and other roles, deleted users, unverified/inactive users or unapproved/missing
+merchant profiles return 403. The service repeats eligibility checks under locks,
+independently of the HTTP security chain.
 
 ## Destinations and local testing
 
@@ -89,8 +112,19 @@ Existing parcels are never automatically converted from customer to merchant
 ownership. For an integration demo, seed a parcel linked to the configured merchant
 through trusted test/setup code, then change its status through the normal service.
 
-The unchanged engine resolves the endpoint, signs with its stored secret, sends the
-event, and records its result. Existing merchant/admin delivery-log and retry APIs
+The existing engine resolves the endpoint, signs with its stored secret, sends the
+event, and records its result. Endpoint resolution requires an APPROVED profile and
+a verified ACTIVE merchant user, including on retries; suspension/rejection blocks
+subsequent attempts. Requests already in flight cannot be recalled.
+
+The test sender uses the shared WebhookHttpClient and WebhookSigner: the header is
+`t=<unix seconds>,v1=<HMAC-SHA256(timestamp + "." + rawBody)>`. It discards receiver
+response bodies and records one attempt in `webhook_deliveries`, without automatic
+retries. Normal RabbitMQ delivery/retries are unchanged; keep
+`swiftdrop.webhooks.direct-delivery.enabled=false` to avoid the legacy direct sender.
+The portal reads `/api/v1/merchant/webhooks/deliveries` (latest 50). The legacy
+`/api/v1/merchant/webhook/logs` remains an owner-scoped list adapter over those same
+engine records. Existing `merchant_webhook_logs` rows are retained without alteration. Existing merchant/admin delivery-log and retry APIs
 remain available. See `messaging-and-webhooks.md` for headers and signature verification.
 
 ## Verification
@@ -100,6 +134,11 @@ From `backend`, using Java 21 and Maven:
 ```text
 mvn -B "-Dtest=WebhookConfigurationIntegrationTest,MerchantWebhookMigrationTest,WebhookUrlValidatorTest,JdbcMerchantWebhookDirectoryTest,WebhookHttpClientTest,WebhookSignerTest,WebhookDispatchServiceTest,WebhookDeliveryServiceTest,WebhookDeliveryControllerTest,RetryPolicyTest" test
 ```
+
+Run the dependency-free frontend service contract tests with
+`node --test src/features/merchant/services/merchantApi.test.mjs` from `frontend`.
+Portal component regressions require the existing Vitest/testing-library dependencies;
+no installation is performed by this task.
 
 The configuration integration test uses real JWTs, security, HTTP controllers,
 H2 persistence and SQL directory resolution. DNS answers and the outbound HTTP

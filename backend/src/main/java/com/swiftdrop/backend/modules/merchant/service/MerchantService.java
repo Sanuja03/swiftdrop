@@ -3,7 +3,6 @@ package com.swiftdrop.backend.modules.merchant.service;
 import com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse;
 import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
 import com.swiftdrop.backend.modules.merchant.dto.MerchantStatsResponse;
-import com.swiftdrop.backend.modules.merchant.dto.WebhookConfigRequest;
 import com.swiftdrop.backend.modules.merchant.entity.Merchant;
 import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
 import com.swiftdrop.backend.modules.merchant.exception.MerchantNotFoundException;
@@ -59,7 +58,6 @@ public class MerchantService {
                 .contactPhone(request.getContactPhone())
                 .businessAddress(request.getBusinessAddress())
                 .registrationStatus(MerchantRegistrationStatus.PENDING)
-                .webhookSecret(newWebhookSecret())
                 .build();
 
         Merchant saved = merchantRepository.save(merchant);
@@ -103,21 +101,6 @@ public class MerchantService {
     public Merchant getMerchantByApiKey(String apiKey) {
         return merchantRepository.findByApiKey(apiKey)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid API Key"));
-    }
-
-    @Transactional
-    public MerchantProfileResponse updateWebhookConfig(UUID merchantId, WebhookConfigRequest request) {
-        Merchant merchant = merchantRepository.findById(merchantId)
-                .orElseThrow(() -> new MerchantNotFoundException(merchantId));
-
-        merchant.setWebhookUrl(request.getWebhookUrl().trim());
-        if (request.getWebhookSecret() != null && !request.getWebhookSecret().isBlank()) {
-            merchant.setWebhookSecret(request.getWebhookSecret().trim());
-        }
-
-        Merchant updated = merchantRepository.save(merchant);
-        log.info("Updated webhook configuration for merchant: {}", updated.getBusinessName());
-        return mapToProfile(updated);
     }
 
     @Transactional

@@ -14,6 +14,11 @@ public interface MerchantRepository extends JpaRepository<Merchant, UUID> {
 
     Optional<Merchant> findByUserId(UUID userId);
 
+    /** Serialize configuration/rotation without a second entity mapping or schema change. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select m from Merchant m where m.userId = :userId")
+    Optional<Merchant> findForWebhookUpdate(@org.springframework.data.repository.query.Param("userId") UUID userId);
+
     Optional<Merchant> findByApiKey(String apiKey);
 
     boolean existsByApiKey(String apiKey);

@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
-import com.swiftdrop.backend.modules.merchant.dto.WebhookConfigRequest;
 import com.swiftdrop.backend.modules.merchant.entity.Merchant;
 import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
 import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
@@ -46,7 +45,7 @@ class MerchantServiceTest {
         var saved = ArgumentCaptor.forClass(Merchant.class);
         verify(merchantRepository).save(saved.capture());
         assertThat(saved.getValue().getUserId()).isEqualTo(USER_ID);
-        assertThat(saved.getValue().getWebhookSecret()).startsWith("whsec_");
+        assertThat(saved.getValue().getWebhookSecret()).isNull();
         assertThat(response.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.PENDING);
         assertThat(response.getApiKey()).isNull();
         verify(outboxService).publishEvent("MERCHANT", MERCHANT_ID, "MERCHANT_REGISTERED",
@@ -81,20 +80,6 @@ class MerchantServiceTest {
 
         assertThat(service.mapToProfile(merchant).getApiKey()).isEqualTo("sdp_live_test_key");
         assertThat(service.mapToAdminProfile(merchant).getApiKey()).isNull();
-    }
-
-    @Test
-    void updatesWebhookSettings() {
-        var merchant = merchant(null);
-        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(merchant));
-        when(merchantRepository.save(any(Merchant.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        var response = service.updateWebhookConfig(MERCHANT_ID, WebhookConfigRequest.builder()
-                .webhookUrl(" https://example.com/webhook ").webhookSecret("whsec_test_secret").build());
-
-        assertThat(response.getWebhookUrl()).isEqualTo("https://example.com/webhook");
-        assertThat(response.isWebhookConfigured()).isTrue();
-        assertThat(merchant.getWebhookSecret()).isEqualTo("whsec_test_secret");
     }
 
     @Test

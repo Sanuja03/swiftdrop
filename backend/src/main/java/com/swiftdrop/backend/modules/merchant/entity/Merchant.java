@@ -16,6 +16,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "merchants")
+@org.hibernate.annotations.DynamicUpdate
 public class Merchant {
 
     @Id
