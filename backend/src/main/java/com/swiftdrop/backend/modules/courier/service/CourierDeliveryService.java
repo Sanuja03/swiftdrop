@@ -45,7 +45,9 @@ public class CourierDeliveryService {
     @Transactional(readOnly = true)
     public CourierDeliveryResponse details(UUID parcelId, Principal principal) {
         UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
-        var assignment = requireAssignment(assignments.findActiveByParcelId(parcelId), courierUserId);
+        var assignment = assignments.findFirstByParcelIdAndCourierIdAndStatusInOrderByScheduledDateDescIdDesc(
+                        parcelId, courierUserId, List.of("ASSIGNED", "ACCEPTED", "COMPLETED"))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned parcel not found"));
         return CourierDeliveryResponse.from(assignment, DELIVERY_ZONE, hasSavedProof(parcelId, courierUserId));
     }
 

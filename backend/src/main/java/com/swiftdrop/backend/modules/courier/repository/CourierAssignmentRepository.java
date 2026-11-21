@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,8 +25,9 @@ public interface CourierAssignmentRepository extends JpaRepository<CourierAssign
             + " and a.status = 'ASSIGNED' order by a.parcelId")
     List<CourierAssignment> findToday(UUID courierId, LocalDate today);
 
-    @Query("select a from CourierAssignmentView a where a.parcelId = :parcelId" + ACTIVE)
-    Optional<CourierAssignment> findActiveByParcelId(UUID parcelId);
+    @EntityGraph(attributePaths = "parcel")
+    Optional<CourierAssignment> findFirstByParcelIdAndCourierIdAndStatusInOrderByScheduledDateDescIdDesc(
+            UUID parcelId, UUID courierId, Collection<String> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from CourierAssignmentView a where a.parcelId = :parcelId" + ACTIVE)

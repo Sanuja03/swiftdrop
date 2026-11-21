@@ -163,12 +163,60 @@ class CourierFlowTest {
         assertThat(deliveries.details(parcelId, courier).hasSavedProof()).isTrue();
         assertThat(initial.courierId()).isEqualTo(courierUserId);
         deliveries.updateStatus(parcelId, ParcelStatus.DELIVERED, null, courier);
+        // Dispatch completes the assignment after a terminal parcel status.
+        jdbc.update("update courier_assignments set status = 'COMPLETED' where parcel_id = ? and courier_id = ?",
+                parcelId, courierUserId);
         var correction = proofs.save(parcelId, courier, "Corrected name", null, "Spelling");
 
         assertThat(deliveries.details(parcelId, courier).status()).isEqualTo(ParcelStatus.DELIVERED);
         assertThat(correction.previousProofId()).isEqualTo(initial.id());
         assertThat(proofs.history(parcelId)).extracting(proof -> proof.recipientName())
                 .containsExactlyInAnyOrder("Original name", "Corrected name");
+    }
+
+    @Test
+    void completedFailedDeliveryIsVisibleOnlyToItsCourierAndCannotBeChanged() {
+        goOutForDelivery();
+        deliveries.updateStatus(parcelId, ParcelStatus.FAILED, "Recipient unavailable", courier);
+        jdbc.update("update courier_assignments set status = 'COMPLETED' where parcel_id = ? and courier_id = ?",
+                parcelId, courierUserId);
+
+        assertThat(deliveries.details(parcelId, courier).status()).isEqualTo(ParcelStatus.FAILED);
+        assertThat(deliveries.today(courier)).isEmpty();
+        assertThat(assertThrows(ResponseStatusException.class, () -> deliveries.details(parcelId, other))
+                .getStatusCode().value()).isEqualTo(404);
+        assertThat(assertThrows(ResponseStatusException.class,
+                () -> deliveries.updateStatus(parcelId, ParcelStatus.OUT_FOR_DELIVERY, null, courier))
+                .getStatusCode().value()).isEqualTo(404);
+        assertThat(assertThrows(ResponseStatusException.class,
+                () -> proofs.save(parcelId, courier, "Recipient", null, null))
+                .getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void completedDeliveryKeepsProofCorrectionOwnershipAndBlocksStatusUpdates() {
+        goOutForDelivery();
+        proofs.save(parcelId, courier, "Original name", null, null);
+        deliveries.updateStatus(parcelId, ParcelStatus.DELIVERED, null, courier);
+        jdbc.update("update courier_assignments set status = 'COMPLETED' where parcel_id = ? and courier_id = ?",
+                parcelId, courierUserId);
+
+        assertThat(deliveries.details(parcelId, courier).hasSavedProof()).isTrue();
+        assertThat(assertThrows(ResponseStatusException.class, () -> deliveries.details(parcelId, other))
+                .getStatusCode().value()).isEqualTo(404);
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> proofs.save(parcelId, other, "Another name", null, "Correction"));
+        assertThat(assertThrows(ResponseStatusException.class,
+                () -> deliveries.updateStatus(parcelId, ParcelStatus.DELIVERED, null, courier))
+                .getStatusCode().value()).isEqualTo(404);
+        assertThat(proofs.history(parcelId)).hasSize(1);
+    }
+
+    @Test
+    void rejectedAssignmentsCannotBeViewed() {
+        jdbc.update("update courier_assignments set status = 'REJECTED' where parcel_id = ?", parcelId);
+        assertThat(assertThrows(ResponseStatusException.class, () -> deliveries.details(parcelId, courier))
+                .getStatusCode().value()).isEqualTo(404);
     }
 
     private void goOutForDelivery() {
