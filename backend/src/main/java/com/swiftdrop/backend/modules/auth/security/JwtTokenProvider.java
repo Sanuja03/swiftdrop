@@ -20,8 +20,11 @@ public class JwtTokenProvider {
     private final long accessTokenExpirationMs;
 
     public JwtTokenProvider(
-            @Value("${app.jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}") String secret,
+            @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.access-token-expiration-ms:3600000}") long accessTokenExpirationMs) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET (app.jwt.secret) must be configured and non-empty.");
+        }
         this.accessTokenExpirationMs = accessTokenExpirationMs;
         
         SecretKey secretKey;
