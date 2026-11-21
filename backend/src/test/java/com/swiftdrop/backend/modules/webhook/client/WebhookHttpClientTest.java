@@ -44,10 +44,14 @@ class WebhookHttpClientTest {
         });
         server.start();
 
-        client = new WebhookHttpClient(new MessagingProperties(
+        client = clientWithTimeout(Duration.ofSeconds(10));
+    }
+
+    private WebhookHttpClient clientWithTimeout(Duration timeout) {
+        return new WebhookHttpClient(new MessagingProperties(
                 new MessagingProperties.Outbox(true, 50, Duration.ofSeconds(5), Duration.ofMinutes(5)),
                 new MessagingProperties.Webhook(List.of(Duration.ofSeconds(10)), Duration.ofSeconds(1),
-                        Duration.ofMillis(500))));
+                        timeout)));
     }
 
     @AfterEach
@@ -59,7 +63,7 @@ class WebhookHttpClientTest {
     void postsBodyAndHeadersAndReportsSuccess() {
         WebhookHttpResult result = client.post(url(), "{\"a\":1}", Map.of("X-SwiftDrop-Signature", "t=1,v1=ab"));
 
-        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.isSuccess()).as("Webhook response: %s", result).isTrue();
         assertThat(result.statusCode()).isEqualTo(200);
         assertThat(result.error()).isNull();
         assertThat(receivedBody.get()).isEqualTo("{\"a\":1}");
@@ -86,6 +90,7 @@ class WebhookHttpClientTest {
 
     @Test
     void slowEndpointTimesOut() {
+        client = clientWithTimeout(Duration.ofMillis(500));
         responseDelayMs.set(1500);
 
         WebhookHttpResult result = client.post(url(), "{}", Map.of());

@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -25,7 +24,7 @@ public class EmailService {
      */
     public boolean sendEmailVerification(String toEmail, String recipientName, String verificationCode) {
         if (senderEmail == null || senderEmail.isBlank()) {
-            log.warn("EmailService: SPRING_MAIL_USERNAME not set. Email verification to [{}] skipped. Code: [{}]", toEmail, verificationCode);
+            log.warn("EmailService: SPRING_MAIL_USERNAME not set. Email verification to [{}] skipped.", toEmail);
             return false;
         }
 
@@ -140,7 +139,7 @@ public class EmailService {
      */
     public boolean sendPasswordResetEmail(String toEmail, String recipientName, String resetCode) {
         if (senderEmail == null || senderEmail.isBlank()) {
-            log.warn("EmailService: SPRING_MAIL_USERNAME not set. Email to [{}] skipped. Code: [{}]", toEmail, resetCode);
+            log.warn("EmailService: SPRING_MAIL_USERNAME not set. Password reset email to [{}] skipped.", toEmail);
             return false;
         }
 

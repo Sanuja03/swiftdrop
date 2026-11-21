@@ -34,7 +34,7 @@ public class DeliveryProofService {
     @Transactional
     public DeliveryProofResponse save(UUID parcelId, Principal principal, String recipientName,
                                       MultipartFile photo, String changeReason) {
-        var courier = couriers.requireCurrentCourier(principal);
+        UUID courierUserId = couriers.requireCurrentCourierUserId(principal);
         boolean correction = changeReason != null;
         String reason = correction ? validator.validateChangeReason(changeReason) : null;
         String name = photo == null || recipientName != null ? validator.validateRecipientName(recipientName) : null;
@@ -42,7 +42,7 @@ public class DeliveryProofService {
         var parcel = parcels.lockById(parcelId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcel not found"));
         if (!correction || parcel.getStatus() != ParcelStatus.DELIVERED) {
-            deliveries.lockAssignment(parcelId, courier);
+            deliveries.lockAssignment(parcelId, courierUserId);
         }
         var previous = proofs.findCurrentByParcelId(parcelId).orElse(null);
 
@@ -50,7 +50,7 @@ public class DeliveryProofService {
             if (previous == null) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Proof not found");
             }
-            if (parcel.getStatus() == ParcelStatus.DELIVERED && !courier.getId().equals(previous.getCourierId())) {
+            if (parcel.getStatus() == ParcelStatus.DELIVERED && !courierUserId.equals(previous.getCourierId())) {
                 throw new AccessDeniedException("Only the courier who provided the proof can correct it");
             }
             if (parcel.getStatus() != ParcelStatus.DELIVERED && parcel.getStatus() != ParcelStatus.OUT_FOR_DELIVERY) {
@@ -66,7 +66,7 @@ public class DeliveryProofService {
         }
 
         String photoKey = photo == null ? null : photos.upload(parcelId, photo);
-        boolean sameCourier = previous != null && courier.getId().equals(previous.getCourierId());
+        boolean sameCourier = previous != null && courierUserId.equals(previous.getCourierId());
         if (sameCourier && photo == null) {
             photoKey = previous.getPhotoObjectKey();
         }
@@ -74,7 +74,7 @@ public class DeliveryProofService {
             name = previous.getRecipientName();
         }
         UUID previousId = previous == null ? null : previous.getId();
-        var saved = proofs.save(new DeliveryProof(parcelId, courier.getId(), name, photoKey,
+        var saved = proofs.save(new DeliveryProof(parcelId, courierUserId, name, photoKey,
                 clock.instant(), previousId, reason));
         return DeliveryProofResponse.from(saved);
     }

@@ -23,6 +23,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,6 +55,8 @@ class AuthServiceTest {
 
     @Mock
     private EmailService emailService;
+    @Mock
+    private com.swiftdrop.backend.modules.merchant.service.MerchantService merchantService;
 
     @InjectMocks
     private AuthService authService;
@@ -60,6 +64,62 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "refreshTokenDurationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "mockGoogleTokensEnabled", true);
+    }
+
+    @Test
+    void rejectedMerchantGetsARejectionMessageRatherThanVerificationOrPendingText() {
+        var user = User.builder().id(UUID.randomUUID()).email("rejected@example.test")
+                .passwordHash("hashed").role(Role.ROLE_MERCHANT).status(AccountStatus.PENDING_APPROVAL)
+                .emailVerified(true).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("test-password", "hashed")).thenReturn(true);
+        when(merchantService.getProfileByUserId(user.getId())).thenReturn(
+                com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse.builder()
+                        .registrationStatus(com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus.REJECTED).build());
+        var request = LoginRequest.builder().email(user.getEmail()).password("test-password").build();
+        assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
+        user.setEmailVerified(false);
+        assertTrue(assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage().contains("has been rejected"));
+        verify(jwtTokenProvider, never()).generateAccessToken(any());
+    }
+
+    @Test
+    void verifiedPendingMerchantGetsThePendingMessageWithoutAnActivationPromise() {
+        var user = User.builder().id(UUID.randomUUID()).email("pending@example.test").passwordHash("hashed")
+                .role(Role.ROLE_MERCHANT).status(AccountStatus.PENDING_APPROVAL).emailVerified(true).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("test-password", "hashed")).thenReturn(true);
+        var request = LoginRequest.builder().email(user.getEmail()).password("test-password").build();
+        String message = assertThrows(AccountNotActiveException.class, () -> authService.login(request)).getMessage();
+        assertTrue(message.contains("pending admin approval"));
+        assertFalse(message.contains("24 hours"));
+    }
+
+    @Test
+    void pendingMerchantCannotUseGoogleToBypassApproval() {
+        User user = User.builder().id(UUID.randomUUID()).email("pending-merchant@gmail.com")
+                .fullName("Pending Merchant").role(Role.ROLE_MERCHANT)
+                .status(AccountStatus.PENDING_APPROVAL).emailVerified(true).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        assertThrows(AccountNotActiveException.class, () -> authService.loginWithGoogle(
+                GoogleAuthRequest.builder().idToken("mock-google-token-pending-merchant").build()));
+        verify(jwtTokenProvider, never()).generateAccessToken(any());
+    }
+
+    @Test
+    void inactiveOrUnverifiedAccountsCannotRefreshTheirTokens() {
+        User user = User.builder().id(UUID.randomUUID()).role(Role.ROLE_MERCHANT)
+                .status(AccountStatus.PENDING_APPROVAL).emailVerified(true).build();
+        RefreshToken token = RefreshToken.builder().user(user).token("isolated-test-refresh")
+                .expiryDate(java.time.Instant.now().plusSeconds(3600)).build();
+        when(refreshTokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
+        var request = TokenRefreshRequest.builder().refreshToken(token.getToken()).build();
+        assertThrows(AccountNotActiveException.class, () -> authService.refreshToken(request));
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setEmailVerified(false);
+        assertThrows(AccountNotActiveException.class, () -> authService.refreshToken(request));
+        verify(jwtTokenProvider, never()).generateAccessToken(any());
     }
 
     @Test
@@ -104,6 +164,7 @@ class AuthServiceTest {
     void registerMerchantPendingApproval() {
         SignUpRequest request = SignUpRequest.builder()
                 .email("merchant@store.com")
+                .businessName("Partner Store").registrationNumber("TEST-REG").businessAddress("Test business address").phone("0000000000")
                 .password("password123")
                 .fullName("Partner Store")
                 .role(Role.ROLE_MERCHANT)
@@ -129,6 +190,7 @@ class AuthServiceTest {
         assertNotNull(response);
         assertNull(response.getAccessToken());
         assertEquals(AccountStatus.PENDING_APPROVAL, response.getUser().getStatus());
+        verify(merchantService).registerMerchant(eq(savedUser.getId()), any());
         verify(jwtTokenProvider, never()).generateAccessToken(any());
     }
 
@@ -144,6 +206,18 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("existing@swiftdrop.com")).thenReturn(true);
 
         assertThrows(UserAlreadyExistsException.class, () -> authService.register(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Public signup refuses staff roles")
+    void registerRefusesStaffRoles() {
+        for (Role staff : List.of(Role.ROLE_ADMIN, Role.ROLE_DISPATCHER, Role.ROLE_COURIER)) {
+            SignUpRequest request = SignUpRequest.builder()
+                    .email("staff@example.test").password("password123").fullName("Test Staff").role(staff).build();
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> authService.register(request));
+        }
         verify(userRepository, never()).save(any());
     }
 
@@ -297,6 +371,90 @@ class AuthServiceTest {
         assertEquals("bob-jwt-token", response.getAccessToken());
         assertEquals("bob-refresh-token", response.getRefreshToken());
         assertEquals(AuthProvider.GOOGLE, existingUser.getProvider());
+    }
+
+    @Test
+    @DisplayName("Should reject real Google token when GOOGLE_CLIENT_ID is not configured")
+    void loginWithGoogleRejectsWhenClientIdNotConfigured() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "");
+        GoogleAuthRequest request = GoogleAuthRequest.builder().idToken("real-google-id-token").build();
+
+        assertThrows(BadCredentialsException.class, () -> authService.loginWithGoogle(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject Google token when aud does not match configured client ID")
+    void loginWithGoogleRejectsMismatchedAudience() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "swiftdrop-client-id.apps.googleusercontent.com");
+        AuthService spiedAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "attacker@gmail.com",
+                "name", "Other App User",
+                "sub", "sub-999",
+                "aud", "some-other-app.apps.googleusercontent.com",
+                "email_verified", "true"
+        )).when(spiedAuthService).fetchGoogleTokenInfo("foreign-app-token");
+
+        GoogleAuthRequest request = GoogleAuthRequest.builder().idToken("foreign-app-token").build();
+
+        assertThrows(BadCredentialsException.class, () -> spiedAuthService.loginWithGoogle(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject Google token when aud claim is missing")
+    void loginWithGoogleRejectsMissingAudience() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "swiftdrop-client-id.apps.googleusercontent.com");
+        AuthService spiedAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "user@gmail.com",
+                "name", "No Aud User",
+                "sub", "sub-123"
+        )).when(spiedAuthService).fetchGoogleTokenInfo("no-aud-token");
+
+        GoogleAuthRequest request = GoogleAuthRequest.builder().idToken("no-aud-token").build();
+
+        assertThrows(BadCredentialsException.class, () -> spiedAuthService.loginWithGoogle(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should accept Google token when aud matches configured client ID")
+    void loginWithGoogleAcceptsMatchingAudience() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "swiftdrop-client-id.apps.googleusercontent.com");
+        AuthService spiedAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "verified@gmail.com",
+                "name", "Verified Google User",
+                "sub", "sub-verified",
+                "aud", "swiftdrop-client-id.apps.googleusercontent.com",
+                "email_verified", "true"
+        )).when(spiedAuthService).fetchGoogleTokenInfo("valid-google-token");
+
+        User existingUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("verified@gmail.com")
+                .fullName("Verified Google User")
+                .role(Role.ROLE_CUSTOMER)
+                .status(AccountStatus.ACTIVE)
+                .provider(AuthProvider.GOOGLE)
+                .emailVerified(true)
+                .build();
+
+        when(userRepository.findByEmail("verified@gmail.com")).thenReturn(Optional.of(existingUser));
+        when(jwtTokenProvider.generateAccessToken(existingUser)).thenReturn("verified-jwt");
+        when(jwtTokenProvider.getAccessTokenExpirationMs()).thenReturn(3600000L);
+        when(refreshTokenRepository.save(any(RefreshToken.class)))
+                .thenReturn(RefreshToken.builder().token("verified-refresh").user(existingUser).build());
+
+        AuthResponse response = spiedAuthService.loginWithGoogle(
+                GoogleAuthRequest.builder().idToken("valid-google-token").build()
+        );
+
+        assertNotNull(response);
+        assertEquals("verified-jwt", response.getAccessToken());
+        assertEquals("verified@gmail.com", response.getUser().getEmail());
     }
 
     @Test
@@ -530,6 +688,133 @@ class AuthServiceTest {
         verify(emailVerificationTokenRepository).deleteByUser(user);
         verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
         verify(emailService).sendEmailVerification(eq("user@swiftdrop.com"), eq("User Test"), any());
+    }
+
+    @Test
+    @DisplayName("Should change password successfully for local user")
+    void changePasswordSuccess() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("OldPass123!")
+                .newPassword("NewPass123!")
+                .confirmPassword("NewPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("OldPass123!", "hashedOldPass")).thenReturn(true);
+        when(passwordEncoder.matches("NewPass123!", "hashedOldPass")).thenReturn(false);
+        when(passwordEncoder.encode("NewPass123!")).thenReturn("hashedNewPass");
+
+        authService.changePassword("user@swiftdrop.com", request);
+
+        assertEquals("hashedNewPass", user.getPasswordHash());
+        verify(userRepository).save(user);
+        verify(refreshTokenRepository).deleteByUser(user);
+    }
+
+    @Test
+    @DisplayName("Should reject password change if current password is wrong")
+    void changePasswordWrongCurrent() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("WrongPass!")
+                .newPassword("NewPass123!")
+                .confirmPassword("NewPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("WrongPass!", "hashedOldPass")).thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("user@swiftdrop.com", request));
+        assertEquals("The current password you entered is incorrect.", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject password change if new and confirm passwords do not match")
+    void changePasswordMismatch() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("OldPass123!")
+                .newPassword("NewPass123!")
+                .confirmPassword("DifferentPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("OldPass123!", "hashedOldPass")).thenReturn(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("user@swiftdrop.com", request));
+        assertEquals("New password and confirmation password do not match.", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject password change if new password is same as old password")
+    void changePasswordSameAsOld() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("OldPass123!")
+                .newPassword("OldPass123!")
+                .confirmPassword("OldPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("user@swiftdrop.com")
+                .provider(AuthProvider.LOCAL)
+                .passwordHash("hashedOldPass")
+                .build();
+
+        when(userRepository.findByEmail("user@swiftdrop.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("OldPass123!", "hashedOldPass")).thenReturn(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("user@swiftdrop.com", request));
+        assertEquals("New password cannot be the same as your current password.", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should block password change for Google OAuth users")
+    void changePasswordGoogleUserBlocked() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("any")
+                .newPassword("NewPass123!")
+                .confirmPassword("NewPass123!")
+                .build();
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email("googleuser@gmail.com")
+                .provider(AuthProvider.GOOGLE)
+                .passwordHash(null)
+                .build();
+
+        when(userRepository.findByEmail("googleuser@gmail.com")).thenReturn(Optional.of(user));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> authService.changePassword("googleuser@gmail.com", request));
+        assertEquals("Password change is only available for accounts registered with email and password.", ex.getMessage());
+        verify(userRepository, never()).save(any());
     }
 }
 

@@ -31,8 +31,8 @@ public class CourierController {
 
     @GetMapping("/me")
     public CourierProfileResponse getCurrentCourier(Principal principal) {
-        var courier = courierService.requireCurrentCourier(principal);
-        return new CourierProfileResponse(courier.getId());
+        UUID courierUserId = courierService.requireCurrentCourierUserId(principal);
+        return new CourierProfileResponse(courierUserId);
     }
 
     public record CourierProfileResponse(UUID courierId) {

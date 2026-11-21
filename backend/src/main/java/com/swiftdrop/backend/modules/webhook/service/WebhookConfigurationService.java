@@ -46,7 +46,7 @@ public class WebhookConfigurationService {
         entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
         requireActiveMerchant(user);
         MerchantWebhookConfiguration configuration = configurations.findByUserId(user.getId())
-                .orElseGet(() -> MerchantWebhookConfiguration.forUser(user.getId()));
+                .orElseGet(() -> MerchantWebhookConfiguration.forUser(user.getId(), user.getFullName()));
         String secret = configuration.getWebhookSecret();
         String generatedSecret = null;
         if (secret == null || secret.isBlank()) {

@@ -24,11 +24,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * A parcel booked for delivery.
+ * A parcel booked for delivery, either by a customer or through the merchant API.
  *
- * <p>Minimal version holding only what tracking and receipts need. The status can
- * only change through {@link #changeStatus(ParcelStatus)}, which enforces the
- * lifecycle rules in {@link ParcelStatus}.
+ * <p>The status can only change through {@link #changeStatus(ParcelStatus)}, which
+ * enforces the lifecycle rules in {@link ParcelStatus}.
  */
 @Entity
 @Table(name = "parcels")
@@ -45,11 +44,11 @@ public class Parcel {
     @Column(name = "tracking_number", nullable = false, unique = true, length = 32)
     private String trackingNumber;
 
-    /** Owner of the parcel; links to the users table once authentication is in place. */
+    /** Customer who booked the parcel (null for merchant API orders). */
     @Column(name = "customer_id")
     private UUID customerId;
 
-    /** Optional merchant owner. Existing customer bookings remain unlinked (NULL). */
+    /** Merchant owner for merchant API orders and webhooks; null for customer bookings. */
     @Column(name = "merchant_id")
     private UUID merchantId;
 

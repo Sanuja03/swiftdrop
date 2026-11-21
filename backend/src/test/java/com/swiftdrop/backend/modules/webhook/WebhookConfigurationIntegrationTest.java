@@ -39,6 +39,9 @@ import com.swiftdrop.backend.modules.auth.security.JwtTokenProvider;
 import com.swiftdrop.backend.modules.messaging.event.DomainEventMessage;
 import com.swiftdrop.backend.modules.messaging.event.ParcelEvents;
 import com.swiftdrop.backend.modules.messaging.event.ParcelStatusChangedPayload;
+import com.swiftdrop.backend.modules.merchant.entity.Merchant;
+import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
+import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
 import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
 import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
 import com.swiftdrop.backend.modules.webhook.client.WebhookHttpClient;
@@ -70,6 +73,7 @@ class WebhookConfigurationIntegrationTest {
     @Autowired UserRepository users;
     @Autowired JwtTokenProvider tokens;
     @Autowired MerchantWebhookConfigurationRepository configurations;
+    @Autowired MerchantRepository merchantProfiles;
     @Autowired WebhookConfigurationService service;
     @Autowired JdbcMerchantWebhookDirectory directory;
     @Autowired ParcelRepository parcels;
@@ -120,6 +124,54 @@ class WebhookConfigurationIntegrationTest {
         assertThat(stored.getWebhookSecret()).isEqualTo(secret);
         assertThat(directory.findEndpoint(stored.getId()).orElseThrow().url()).isEqualTo("https://new.shop.com/events");
         assertThat(new WebhookConfigurationResponse(URL, true, secret).toString()).doesNotContain(secret);
+        entityManager.flush();
+        entityManager.clear();
+        var profile = merchantProfiles.findByUserId(merchant.getId()).orElseThrow();
+        assertThat(profile.getId()).isEqualTo(stored.getId());
+        assertThat(profile.getBusinessName()).isEqualTo(merchant.getFullName());
+        assertThat(profile.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.APPROVED);
+        assertThat(profile.getCreatedAt()).isNotNull();
+        assertThat(profile.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
+    void webhookUpdatePreservesExistingMerchantProfileAndLongSecret() {
+        String existingSecret = "whsec_" + "x".repeat(180);
+        Instant created = Instant.parse("2026-01-01T00:00:00Z");
+        var profile = merchantProfiles.saveAndFlush(Merchant.builder()
+                .userId(merchant.getId()).businessName("Existing Business")
+                .registrationNumber("REG-TEST").registrationStatus(MerchantRegistrationStatus.APPROVED)
+                .webhookUrl(URL).webhookSecret(existingSecret).createdAt(created).build());
+
+        var result = service.put(merchant.getEmail(), "https://new.shop.com/events");
+        entityManager.flush();
+        entityManager.clear();
+
+        var unchanged = merchantProfiles.findById(profile.getId()).orElseThrow();
+        assertThat(result.secret()).isNull();
+        assertThat(unchanged.getBusinessName()).isEqualTo("Existing Business");
+        assertThat(unchanged.getRegistrationNumber()).isEqualTo("REG-TEST");
+        assertThat(unchanged.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.APPROVED);
+        assertThat(unchanged.getCreatedAt()).isEqualTo(created);
+        assertThat(unchanged.getWebhookSecret()).isEqualTo(existingSecret);
+        assertThat(unchanged.getWebhookUrl()).isEqualTo("https://new.shop.com/events");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MerchantRegistrationStatus.class, names = "APPROVED", mode = EnumSource.Mode.EXCLUDE)
+    void existingUnapprovedProfilesRemainBlocked(MerchantRegistrationStatus registrationStatus) throws Exception {
+        var profile = merchantProfiles.saveAndFlush(Merchant.builder().userId(merchant.getId())
+                .businessName("Existing Business").registrationStatus(registrationStatus).build());
+
+        mvc.perform(get(PATH).header("Authorization", bearer(merchant))).andExpect(status().isForbidden());
+        mvc.perform(put(PATH).header("Authorization", bearer(merchant)).contentType("application/json")
+                .content("{\"url\":\"" + URL + "\"}")).andExpect(status().isForbidden());
+
+        entityManager.clear();
+        var unchanged = merchantProfiles.findById(profile.getId()).orElseThrow();
+        assertThat(unchanged.getRegistrationStatus()).isEqualTo(registrationStatus);
+        assertThat(unchanged.getWebhookUrl()).isNull();
+        assertThat(unchanged.getWebhookSecret()).isNull();
     }
 
     @Test

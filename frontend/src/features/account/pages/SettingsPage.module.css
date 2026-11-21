@@ -1,9 +1,145 @@
 .card {
-  max-width: 640px;
+  max-width: 680px;
+}
+
+.passwordCard {
+  max-width: 680px;
+  margin-top: var(--space-5);
+}
+
+.passwordSummaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-1) 0;
+}
+
+.passwordNoticeText {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-foreground, #0f172a);
+  margin: 0 0 4px 0;
+}
+
+.passwordNoticeSubtext {
+  font-size: 13px;
+  color: var(--color-muted, #64748b);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
 }
 
 .fields {
   display: grid;
   gap: var(--space-4);
   margin-bottom: var(--space-5);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.alertWrapper {
+  max-width: 680px;
+  margin-bottom: var(--space-4);
+}
+
+.accountMetaCard {
+  max-width: 680px;
+  margin-top: var(--space-5);
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metaLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metaValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-foreground, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+  width: fit-content;
+}
+
+.statusPillPending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.googleNotice {
+  margin-top: var(--space-4);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--color-foreground, #0f172a);
+}
+
+.googleNoticeIcon {
+  color: #2563eb;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.googleNoticeTitle {
+  display: block;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 2px;
+}
+
+.googleNoticeText {
+  color: var(--color-muted, #64748b);
+  margin: 0;
+  line-height: 1.45;
 }

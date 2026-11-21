@@ -1,6 +1,7 @@
 /**
  * Parcel lifecycle as shown to customers. Mirrors ParcelStatus in the backend:
  * CREATED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY -> DELIVERED | FAILED
+ * CREATED -> CANCELLED (the merchant cancels before pickup)
  */
 export const PARCEL_STATUS = Object.freeze({
   CREATED: 'CREATED',
@@ -9,6 +10,7 @@ export const PARCEL_STATUS = Object.freeze({
   OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
   DELIVERED: 'DELIVERED',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
 })
 
 const STATUS_DETAILS = {
@@ -18,6 +20,7 @@ const STATUS_DETAILS = {
   OUT_FOR_DELIVERY: { label: 'Out for Delivery', tone: 'warning' },
   DELIVERED: { label: 'Delivered', tone: 'success' },
   FAILED: { label: 'Delivery Failed', tone: 'error' },
+  CANCELLED: { label: 'Cancelled', tone: 'neutral' },
 }
 
 /** The steps every successful delivery passes through, in order. */
@@ -38,7 +41,7 @@ export function statusTone(status) {
 }
 
 export function isFinished(status) {
-  return status === PARCEL_STATUS.DELIVERED || status === PARCEL_STATUS.FAILED
+  return status === PARCEL_STATUS.DELIVERED || status === PARCEL_STATUS.FAILED || status === PARCEL_STATUS.CANCELLED
 }
 
 export function isActive(status) {

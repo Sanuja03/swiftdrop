@@ -30,3 +30,9 @@ Thumbs.db
 # Local Batch / Shell Runner scripts
 *.bat
 *.cmd
+
+# Local Database / H2 runtime storage
+**/data/
+*.mv.db
+*.trace.db
+

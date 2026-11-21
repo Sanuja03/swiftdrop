@@ -10,9 +10,12 @@ import com.swiftdrop.backend.modules.auth.repository.PasswordResetTokenRepositor
 import com.swiftdrop.backend.modules.auth.repository.RefreshTokenRepository;
 import com.swiftdrop.backend.modules.auth.repository.UserRepository;
 import com.swiftdrop.backend.modules.auth.security.JwtTokenProvider;
+import com.swiftdrop.backend.modules.merchant.service.MerchantService;
+import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +35,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final String MERCHANT_REJECTED_MESSAGE = "Your merchant application has been rejected. Please check your email for the rejection reason or contact SwiftDrop support.";
+    private static final String MERCHANT_PENDING_MESSAGE = "Your merchant application is pending admin approval. You can sign in after it is approved.";
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -40,12 +45,29 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
+    private final MerchantService merchantService;
 
     @Value("${app.jwt.refresh-token-expiration-ms:604800000}")
     private long refreshTokenDurationMs;
 
+    /**
+     * Accepts "mock-google-token-&lt;name&gt;" as a Google sign-in for name@gmail.com. Off unless a test
+     * turns it on: anyone could otherwise sign in as any Gmail address.
+     */
+    @Value("${app.auth.google.mock-tokens-enabled:false}")
+    private boolean mockGoogleTokensEnabled;
+
+    @Value("${app.auth.google.client-id:}")
+    private String googleClientId;
+
     @Transactional
     public AuthResponse register(SignUpRequest request) {
+        if (!request.isSelfServiceRole()) {
+            throw new AccessDeniedException("Staff accounts cannot be created through public signup");
+        }
+        if (!request.isMerchantDetailsComplete()) {
+            throw new IllegalArgumentException("Merchant signup requires business name, business registration number, contact phone and business address");
+        }
         String normalizedEmail = request.getEmail().trim().toLowerCase();
 
         if (userRepository.existsByEmail(normalizedEmail)) {
@@ -63,7 +85,7 @@ public class AuthService {
                 .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName().trim())
-                .phone(request.getPhone())
+                .phone(request.getPhone() != null ? request.getPhone().trim() : null)
                 .role(assignedRole)
                 .status(initialStatus)
                 .provider(AuthProvider.LOCAL)
@@ -71,6 +93,14 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+        if (assignedRole == Role.ROLE_MERCHANT) {
+            merchantService.registerMerchant(savedUser.getId(), MerchantRegisterRequest.builder()
+                    .businessName(request.getBusinessName().trim())
+                    .registrationNumber(request.getRegistrationNumber())
+                    .contactPhone(request.getPhone().trim())
+                    .businessAddress(request.getBusinessAddress().trim())
+                    .build());
+        }
         log.info("Registered new user [{}] with role [{}] and status [{}], emailVerified=[false]", 
                 savedUser.getEmail(), savedUser.getRole(), savedUser.getStatus());
 
@@ -108,12 +138,16 @@ public class AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
 
+        if (user.getStatus() == AccountStatus.PENDING_APPROVAL && isRejectedMerchant(user)) {
+            throw new AccountNotActiveException(MERCHANT_REJECTED_MESSAGE);
+        }
+
         if (!user.isEmailVerified()) {
             throw new AccountNotActiveException("Your email address is not verified yet. Please check your inbox or click 'Verify Email' to activate your account.");
         }
 
         if (user.getStatus() == AccountStatus.PENDING_APPROVAL) {
-            throw new AccountNotActiveException("Your merchant account is currently under verification. We will activate your account within 24 hours.");
+            throw new AccountNotActiveException(MERCHANT_PENDING_MESSAGE);
         }
 
         if (user.getStatus() == AccountStatus.SUSPENDED) {
@@ -133,6 +167,17 @@ public class AuthService {
                 .build();
     }
 
+    private boolean isRejectedMerchant(User user) {
+        if (user.getRole() != Role.ROLE_MERCHANT) return false;
+        try {
+            var profile = merchantService.getProfileByUserId(user.getId());
+            return profile != null && profile.getRegistrationStatus()
+                    == com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus.REJECTED;
+        } catch (com.swiftdrop.backend.modules.merchant.exception.MerchantNotFoundException missingProfile) {
+            return false;
+        }
+    }
+
     @Transactional
     public AuthResponse loginWithGoogle(GoogleAuthRequest request) {
         String token = request.getIdToken().trim();
@@ -141,22 +186,33 @@ public class AuthService {
         String sub;
 
         // Support test/mock tokens for hermetic offline testing
-        if (token.startsWith("mock-google-token-")) {
+        if (mockGoogleTokensEnabled && token.startsWith("mock-google-token-")) {
             String suffix = token.replace("mock-google-token-", "");
             email = suffix + "@gmail.com";
             name = "Google User (" + suffix + ")";
             sub = "mock-google-sub-" + suffix;
         } else {
+            if (googleClientId == null || googleClientId.isBlank()) {
+                log.error("Google Sign-In attempted while app.auth.google.client-id (GOOGLE_CLIENT_ID) is not configured");
+                throw new BadCredentialsException("Google Sign-In is not configured on the server");
+            }
             try {
-                RestClient restClient = RestClient.create();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> tokenInfo = restClient.get()
-                        .uri("https://oauth2.googleapis.com/tokeninfo?id_token={token}", token)
-                        .retrieve()
-                        .body(Map.class);
+                Map<String, Object> tokenInfo = fetchGoogleTokenInfo(token);
 
                 if (tokenInfo == null || !tokenInfo.containsKey("email")) {
                     throw new BadCredentialsException("Invalid Google token or email not found in token");
+                }
+
+                Object audClaim = tokenInfo.get("aud");
+                String tokenAudience = audClaim != null ? audClaim.toString().trim() : "";
+                if (!googleClientId.trim().equals(tokenAudience)) {
+                    log.warn("Rejected Google token with unexpected audience");
+                    throw new BadCredentialsException("Google token was not issued for this application");
+                }
+
+                Object emailVerifiedClaim = tokenInfo.get("email_verified");
+                if (emailVerifiedClaim != null && !"true".equalsIgnoreCase(emailVerifiedClaim.toString())) {
+                    throw new BadCredentialsException("Google account email is not verified");
                 }
 
                 email = (String) tokenInfo.get("email");
@@ -189,6 +245,10 @@ public class AuthService {
             throw new AccountNotActiveException("Your account has been suspended. Please contact customer support.");
         }
 
+        if (user.getStatus() != AccountStatus.ACTIVE) {
+            throw new AccountNotActiveException(isRejectedMerchant(user) ? MERCHANT_REJECTED_MESSAGE : MERCHANT_PENDING_MESSAGE);
+        }
+
         if (user.getProvider() == null || user.getProvider() == AuthProvider.LOCAL) {
             user.setProvider(AuthProvider.GOOGLE);
             user.setProviderId(sub);
@@ -212,6 +272,14 @@ public class AuthService {
                 .build();
     }
 
+    @SuppressWarnings("unchecked")
+    Map<String, Object> fetchGoogleTokenInfo(String idToken) {
+        return RestClient.create().get()
+                .uri("https://oauth2.googleapis.com/tokeninfo?id_token={token}", idToken)
+                .retrieve()
+                .body(Map.class);
+    }
+
     @Transactional
     public AuthResponse refreshToken(TokenRefreshRequest request) {
         RefreshToken token = refreshTokenRepository.findByToken(request.getRefreshToken())
@@ -223,6 +291,9 @@ public class AuthService {
         }
 
         User user = token.getUser();
+        if (user.getStatus() != AccountStatus.ACTIVE || !user.isEmailVerified()) {
+            throw new AccountNotActiveException("Email verification and an active account are required");
+        }
         String newAccessToken = jwtTokenProvider.generateAccessToken(user);
 
         return AuthResponse.builder()
@@ -253,8 +324,7 @@ public class AuthService {
         }
 
         User updated = userRepository.save(user);
-        log.info("Updated profile for user [{}]: name=[{}], phone=[{}]", 
-                updated.getEmail(), updated.getFullName(), updated.getPhone());
+        log.info("Updated profile for user [{}]", updated.getEmail());
         return UserProfileDto.fromEntity(updated);
     }
 
@@ -303,7 +373,7 @@ public class AuthService {
                 .build();
 
         passwordResetTokenRepository.save(resetToken);
-        log.info("Password reset code generated for user [{}]: [{}]", normalizedEmail, resetTokenStr);
+        log.info("Password reset code generated for user [{}]", normalizedEmail);
 
         // Dispatch real email to user inbox
         emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), resetTokenStr);
@@ -339,6 +409,41 @@ public class AuthService {
     }
 
     @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+        String cleanEmail = email.toLowerCase().trim();
+        User user = userRepository.findByEmail(cleanEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("No account found with email: " + cleanEmail));
+
+        // Block password changes for OAuth / Google accounts
+        if (user.getProvider() == AuthProvider.GOOGLE || user.getPasswordHash() == null) {
+            throw new IllegalArgumentException("Password change is only available for accounts registered with email and password.");
+        }
+
+        // Verify current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("The current password you entered is incorrect.");
+        }
+
+        // Verify new password and confirm password match
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("New password and confirmation password do not match.");
+        }
+
+        // Ensure new password is not identical to current password
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("New password cannot be the same as your current password.");
+        }
+
+        // Update password hash
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // Revoke active refresh tokens so existing sessions must refresh or re-authenticate
+        refreshTokenRepository.deleteByUser(user);
+        log.info("Password changed successfully for user [{}]", user.getEmail());
+    }
+
+    @Transactional
     public AuthResponse verifyEmail(VerifyEmailRequest request) {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
         String code = request.getCode().trim();
@@ -348,6 +453,10 @@ public class AuthService {
 
         if (user.isEmailVerified()) {
             log.info("Email [{}] is already verified", normalizedEmail);
+            if (user.getStatus() != AccountStatus.ACTIVE) {
+                return AuthResponse.builder().user(UserProfileDto.fromEntity(user))
+                        .accessToken(null).refreshToken(null).expiresIn(0).build();
+            }
             String accessToken = jwtTokenProvider.generateAccessToken(user);
             RefreshToken refreshToken = createRefreshToken(user);
             return AuthResponse.builder()
@@ -374,7 +483,7 @@ public class AuthService {
         log.info("Email successfully verified for user [{}]", normalizedEmail);
 
         // If merchant is pending admin approval, do not issue active JWT
-        if (savedUser.getStatus() == AccountStatus.PENDING_APPROVAL) {
+        if (savedUser.getStatus() != AccountStatus.ACTIVE) {
             return AuthResponse.builder()
                     .user(UserProfileDto.fromEntity(savedUser))
                     .accessToken(null)
@@ -422,7 +531,7 @@ public class AuthService {
 
         emailVerificationTokenRepository.save(verificationToken);
         emailService.sendEmailVerification(user.getEmail(), user.getFullName(), tokenStr);
-        log.info("Resent email verification code to [{}]: [{}]", user.getEmail(), tokenStr);
+        log.info("Resent email verification code to [{}]", user.getEmail());
     }
 
     @Transactional
