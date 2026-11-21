@@ -24,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -370,6 +371,90 @@ class AuthServiceTest {
         assertEquals("bob-jwt-token", response.getAccessToken());
         assertEquals("bob-refresh-token", response.getRefreshToken());
         assertEquals(AuthProvider.GOOGLE, existingUser.getProvider());
+    }
+
+    @Test
+    @DisplayName("Should reject real Google token when GOOGLE_CLIENT_ID is not configured")
+    void loginWithGoogleRejectsWhenClientIdNotConfigured() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "");
+        GoogleAuthRequest request = GoogleAuthRequest.builder().idToken("real-google-id-token").build();
+
+        assertThrows(BadCredentialsException.class, () -> authService.loginWithGoogle(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject Google token when aud does not match configured client ID")
+    void loginWithGoogleRejectsMismatchedAudience() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "swiftdrop-client-id.apps.googleusercontent.com");
+        AuthService spiedAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "attacker@gmail.com",
+                "name", "Other App User",
+                "sub", "sub-999",
+                "aud", "some-other-app.apps.googleusercontent.com",
+                "email_verified", "true"
+        )).when(spiedAuthService).fetchGoogleTokenInfo("foreign-app-token");
+
+        GoogleAuthRequest request = GoogleAuthRequest.builder().idToken("foreign-app-token").build();
+
+        assertThrows(BadCredentialsException.class, () -> spiedAuthService.loginWithGoogle(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject Google token when aud claim is missing")
+    void loginWithGoogleRejectsMissingAudience() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "swiftdrop-client-id.apps.googleusercontent.com");
+        AuthService spiedAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "user@gmail.com",
+                "name", "No Aud User",
+                "sub", "sub-123"
+        )).when(spiedAuthService).fetchGoogleTokenInfo("no-aud-token");
+
+        GoogleAuthRequest request = GoogleAuthRequest.builder().idToken("no-aud-token").build();
+
+        assertThrows(BadCredentialsException.class, () -> spiedAuthService.loginWithGoogle(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should accept Google token when aud matches configured client ID")
+    void loginWithGoogleAcceptsMatchingAudience() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "swiftdrop-client-id.apps.googleusercontent.com");
+        AuthService spiedAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "verified@gmail.com",
+                "name", "Verified Google User",
+                "sub", "sub-verified",
+                "aud", "swiftdrop-client-id.apps.googleusercontent.com",
+                "email_verified", "true"
+        )).when(spiedAuthService).fetchGoogleTokenInfo("valid-google-token");
+
+        User existingUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("verified@gmail.com")
+                .fullName("Verified Google User")
+                .role(Role.ROLE_CUSTOMER)
+                .status(AccountStatus.ACTIVE)
+                .provider(AuthProvider.GOOGLE)
+                .emailVerified(true)
+                .build();
+
+        when(userRepository.findByEmail("verified@gmail.com")).thenReturn(Optional.of(existingUser));
+        when(jwtTokenProvider.generateAccessToken(existingUser)).thenReturn("verified-jwt");
+        when(jwtTokenProvider.getAccessTokenExpirationMs()).thenReturn(3600000L);
+        when(refreshTokenRepository.save(any(RefreshToken.class)))
+                .thenReturn(RefreshToken.builder().token("verified-refresh").user(existingUser).build());
+
+        AuthResponse response = spiedAuthService.loginWithGoogle(
+                GoogleAuthRequest.builder().idToken("valid-google-token").build()
+        );
+
+        assertNotNull(response);
+        assertEquals("verified-jwt", response.getAccessToken());
+        assertEquals("verified@gmail.com", response.getUser().getEmail());
     }
 
     @Test

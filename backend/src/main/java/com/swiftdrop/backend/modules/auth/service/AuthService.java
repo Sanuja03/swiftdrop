@@ -57,6 +57,9 @@ public class AuthService {
     @Value("${app.auth.google.mock-tokens-enabled:false}")
     private boolean mockGoogleTokensEnabled;
 
+    @Value("${app.auth.google.client-id:}")
+    private String googleClientId;
+
     @Transactional
     public AuthResponse register(SignUpRequest request) {
         if (!request.isSelfServiceRole()) {
@@ -189,16 +192,27 @@ public class AuthService {
             name = "Google User (" + suffix + ")";
             sub = "mock-google-sub-" + suffix;
         } else {
+            if (googleClientId == null || googleClientId.isBlank()) {
+                log.error("Google Sign-In attempted while app.auth.google.client-id (GOOGLE_CLIENT_ID) is not configured");
+                throw new BadCredentialsException("Google Sign-In is not configured on the server");
+            }
             try {
-                RestClient restClient = RestClient.create();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> tokenInfo = restClient.get()
-                        .uri("https://oauth2.googleapis.com/tokeninfo?id_token={token}", token)
-                        .retrieve()
-                        .body(Map.class);
+                Map<String, Object> tokenInfo = fetchGoogleTokenInfo(token);
 
                 if (tokenInfo == null || !tokenInfo.containsKey("email")) {
                     throw new BadCredentialsException("Invalid Google token or email not found in token");
+                }
+
+                Object audClaim = tokenInfo.get("aud");
+                String tokenAudience = audClaim != null ? audClaim.toString().trim() : "";
+                if (!googleClientId.trim().equals(tokenAudience)) {
+                    log.warn("Rejected Google token with unexpected audience");
+                    throw new BadCredentialsException("Google token was not issued for this application");
+                }
+
+                Object emailVerifiedClaim = tokenInfo.get("email_verified");
+                if (emailVerifiedClaim != null && !"true".equalsIgnoreCase(emailVerifiedClaim.toString())) {
+                    throw new BadCredentialsException("Google account email is not verified");
                 }
 
                 email = (String) tokenInfo.get("email");
@@ -256,6 +270,14 @@ public class AuthService {
                 .expiresIn(jwtTokenProvider.getAccessTokenExpirationMs())
                 .user(UserProfileDto.fromEntity(user))
                 .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> fetchGoogleTokenInfo(String idToken) {
+        return RestClient.create().get()
+                .uri("https://oauth2.googleapis.com/tokeninfo?id_token={token}", idToken)
+                .retrieve()
+                .body(Map.class);
     }
 
     @Transactional
