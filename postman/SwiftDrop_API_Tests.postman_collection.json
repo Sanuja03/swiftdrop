@@ -121,7 +121,8 @@
                   "pm.variables.set(\"negativeConfirmPassword\",\"Alt!9a\"+pm.variables.replaceIn(\"{{$guid}}\").slice(0,8));",
                   "pm.variables.set(\"ignoredCallerSecret\",\"ignored-\"+pm.variables.replaceIn(\"{{$guid}}\"));",
                   "for(const key of [\"accessToken\",\"refreshToken\",\"merchantAccessToken\",\"merchantRefreshToken\",\"operatorAccessToken\",\"otherCustomerAccessToken\",\"otherMerchantAccessToken\",\"adminAccessToken\",\"adminRefreshToken\",\"courierAccessToken\",\"courierRefreshToken\",\"onboardingAccessToken\",\"onboardingRefreshToken\",\"legacyMerchantAccessToken\",\"legacyMerchantRefreshToken\",\"merchantApiKey\",\"otherMerchantApiKey\",\"previousMerchantApiKey\",\"onboardingApiKey\",\"onboardingSigningSecret\",\"newSigningSecret\",\"legacyMerchantUserId\",\"otherMachineTrackingNumber\"]) {pm.variables.unset(key);pm.environment.unset(key);}",
-                  "for(const key of [\"machineTrackingNumber\",\"portalTrackingNumber\",\"machineOrderId\",\"machineOriginalOrder\",\"idempotencyKey\",\"testPingEventId\",\"pingDeliveryId\",\"notificationId\",\"snapshotId\",\"assistantSessionId\",\"otherConfigSnapshot\",\"otherMerchantId\"]) {pm.variables.unset(key);pm.environment.unset(key);}"
+                  "for(const key of [\"machineTrackingNumber\",\"portalTrackingNumber\",\"machineOrderId\",\"machineOriginalOrder\",\"idempotencyKey\",\"testPingEventId\",\"pingDeliveryId\",\"notificationId\",\"snapshotId\",\"assistantSessionId\",\"otherConfigSnapshot\",\"otherMerchantId\"]) {pm.variables.unset(key);pm.environment.unset(key);}",
+                  "for(const key of [\"onboardingRevokedApiKey\",\"onboardingStatusChangeRejectedThisRun\",\"onboardingWebhookBeforeRejection\",\"onboardingReapprovedThisRun\",\"onboardingReauthenticatedThisRun\",\"onboardingReplacementKeyCapturedThisRun\"]) {pm.variables.unset(key);pm.environment.unset(key);}"
                 ]
               }
             },
@@ -11188,7 +11189,7 @@
           "response": []
         },
         {
-          "name": "[STATE CHANGE] Suspend only suite-created merchant account",
+          "name": "[STATE CHANGE] Merchant suspension through user management is rejected",
           "request": {
             "method": "PATCH",
             "url": "{{baseUrl}}/api/v1/admin/users/{{onboardingUserId}}/status?status=SUSPENDED",
@@ -11208,7 +11209,7 @@
                 }
               ]
             },
-            "description": "Source-derived contract. Execute only against dedicated test data; missing prerequisites are skipped."
+            "description": "Negative contract: an approved merchant cannot be suspended through generic user management. Expects 409 without changing its approval or account state."
           },
           "event": [
             {
@@ -11217,9 +11218,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if(pm.variables.get(\"onboardingPhase\")!==\"approved\"){console.warn(\"SKIP: requires this suite approved account\");pm.execution.skipRequest();}",
-                  "pm.variables.set(\"__expectedStatus\", 200);",
-                  "pm.variables.set(\"__errorShape\", \"\");",
-                  "pm.variables.set(\"__errorTitle\", \"\");",
+                  "pm.variables.set(\"__expectedStatus\", 409);",
+                  "pm.variables.set(\"__errorShape\", \"problem\");",
+                  "pm.variables.set(\"__errorTitle\", \"Conflict\");",
                   "pm.variables.set(\"__validationFields\", \"[]\");",
                   "pm.variables.set(\"__responseKind\", \"json\");",
                   "if (!pm.variables.get(\"onboardingApprovedThisRun\")) { console.warn(\"SKIP: missing onboardingApprovedThisRun\"); pm.execution.skipRequest(); }",
@@ -11239,8 +11240,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "pm.test(\"Only the suite account status changes\", () => { const d=pm.response.json(); pm.expect(d.id).to.equal(pm.variables.get(\"onboardingUserId\"));pm.expect(d.status).to.equal(\"SUSPENDED\"); });",
+                  "if (pm.response.code === 409) {",
+                  "pm.test(\"Merchant status changes require merchant review\", () => { const d=pm.response.json(); pm.expect(d.detail).to.equal(\"Use Merchant Approvals to approve or reject merchant accounts\"); pm.variables.set(\"onboardingStatusChangeRejectedThisRun\",\"true\"); });",
                   "}"
                 ]
               }
@@ -11249,7 +11250,7 @@
           "response": []
         },
         {
-          "name": "Suspended merchant JWT cannot configure a webhook",
+          "name": "Rejected suspension leaves merchant JWT webhook access unchanged",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/v1/merchant/webhooks/config",
@@ -11277,13 +11278,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.variables.set(\"__expectedStatus\", 403);",
-                  "pm.variables.set(\"__errorShape\", \"auth\");",
-                  "pm.variables.set(\"__errorTitle\", \"Forbidden\");",
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"approved\"){console.warn(\"SKIP: requires approved phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 200);",
+                  "pm.variables.set(\"__errorShape\", \"\");",
+                  "pm.variables.set(\"__errorTitle\", \"\");",
                   "pm.variables.set(\"__validationFields\", \"[]\");",
                   "pm.variables.set(\"__responseKind\", \"json\");",
                   "if (!pm.variables.get(\"onboardingAccessToken\")) { console.warn(\"SKIP: missing onboardingAccessToken\"); pm.execution.skipRequest(); }",
-                  "if (String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowLifecycleRejection explicitly\"); pm.execution.skipRequest(); }"
+                  "if (String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowLifecycleRejection explicitly\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingStatusChangeRejectedThisRun\")) { console.warn(\"SKIP: missing onboardingStatusChangeRejectedThisRun\"); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "pm.test(\"Denied suspension preserves private webhook configuration\", () => { const d=pm.response.json(); pm.expect(d.configured).to.be.a(\"boolean\"); pm.expect(d).not.to.have.property(\"secret\"); pm.expect(d).not.to.have.property(\"webhookSecret\"); pm.variables.set(\"onboardingWebhookBeforeRejection\",JSON.stringify(d)); });",
+                  "}"
                 ]
               }
             }
@@ -11291,7 +11305,7 @@
           "response": []
         },
         {
-          "name": "Suspended merchant API key cannot make machine calls",
+          "name": "Rejected suspension leaves merchant API key usable",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/v1/merchant/api/v1/orders",
@@ -11316,13 +11330,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.variables.set(\"__expectedStatus\", 403);",
-                  "pm.variables.set(\"__errorShape\", \"auth\");",
-                  "pm.variables.set(\"__errorTitle\", \"Forbidden\");",
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"approved\"){console.warn(\"SKIP: requires approved phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 200);",
+                  "pm.variables.set(\"__errorShape\", \"\");",
+                  "pm.variables.set(\"__errorTitle\", \"\");",
                   "pm.variables.set(\"__validationFields\", \"[]\");",
                   "pm.variables.set(\"__responseKind\", \"json\");",
                   "if (!pm.variables.get(\"onboardingApiKey\")) { console.warn(\"SKIP: missing onboardingApiKey\"); pm.execution.skipRequest(); }",
-                  "if (String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowLifecycleRejection explicitly\"); pm.execution.skipRequest(); }"
+                  "if (String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowLifecycleRejection explicitly\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingStatusChangeRejectedThisRun\")) { console.warn(\"SKIP: missing onboardingStatusChangeRejectedThisRun\"); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "pm.test(\"Denied suspension preserves API-key access\", () => { pm.expect(pm.response.json()).to.be.an(\"array\"); });",
+                  "}"
                 ]
               }
             }
@@ -11330,7 +11357,7 @@
           "response": []
         },
         {
-          "name": "[STATE CHANGE] Restore only suite-created merchant account",
+          "name": "[STATE CHANGE] Merchant activation through user management is rejected",
           "request": {
             "method": "PATCH",
             "url": "{{baseUrl}}/api/v1/admin/users/{{onboardingUserId}}/status?status=ACTIVE",
@@ -11350,7 +11377,7 @@
                 }
               ]
             },
-            "description": "Source-derived contract. Execute only against dedicated test data; missing prerequisites are skipped."
+            "description": "Negative contract for an already ACTIVE approved applicant. This does not exercise the separate compatibility path for removing a pre-existing legacy suspension."
           },
           "event": [
             {
@@ -11359,9 +11386,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if(pm.variables.get(\"onboardingPhase\")!==\"approved\"){console.warn(\"SKIP: requires this suite approved account\");pm.execution.skipRequest();}",
-                  "pm.variables.set(\"__expectedStatus\", 200);",
-                  "pm.variables.set(\"__errorShape\", \"\");",
-                  "pm.variables.set(\"__errorTitle\", \"\");",
+                  "pm.variables.set(\"__expectedStatus\", 409);",
+                  "pm.variables.set(\"__errorShape\", \"problem\");",
+                  "pm.variables.set(\"__errorTitle\", \"Conflict\");",
                   "pm.variables.set(\"__validationFields\", \"[]\");",
                   "pm.variables.set(\"__responseKind\", \"json\");",
                   "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
@@ -11380,8 +11407,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "pm.test(\"Only the suite account status changes\", () => { const d=pm.response.json(); pm.expect(d.id).to.equal(pm.variables.get(\"onboardingUserId\"));pm.expect(d.status).to.equal(\"ACTIVE\"); });",
+                  "if (pm.response.code === 409) {",
+                  "pm.test(\"Generic activation cannot replace merchant review\", () => { pm.expect(pm.response.json().detail).to.equal(\"Use Merchant Approvals to approve or reject merchant accounts\"); });",
                   "}"
                 ]
               }
@@ -11483,7 +11510,7 @@
             "description": "Source-derived contract. Execute only against dedicated test data; missing prerequisites are skipped.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"notes\": \"Postman disposable test lifecycle complete\"\n}",
+              "raw": "{\n  \"notes\": \"Postman disposable test rejection before explicit reapproval\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -11497,6 +11524,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"approved\"){console.warn(\"SKIP: requires approved phase\");pm.execution.skipRequest();}",
                   "pm.variables.set(\"__expectedStatus\", 200);",
                   "pm.variables.set(\"__errorShape\", \"\");",
                   "pm.variables.set(\"__errorTitle\", \"\");",
@@ -11518,7 +11546,8 @@
                   " if (typeof value === \"string\") { const match=value.match(/^\\{\\{([^{}]+)\\}\\}$/); return match ? String(pm.variables.get(match[1]) ?? \"\") : value; }",
                   " return value;",
                   "}",
-                  "pm.request.body.update(JSON.stringify(resolveBody(JSON.parse(pm.request.body.raw))));"
+                  "pm.request.body.update(JSON.stringify(resolveBody(JSON.parse(pm.request.body.raw))));",
+                  "if (!pm.variables.get(\"onboardingApiKey\")) { console.warn(\"SKIP: missing onboardingApiKey\"); pm.execution.skipRequest(); }"
                 ]
               }
             },
@@ -11528,7 +11557,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "pm.test(\"Rejected profile has no exposed credentials\", () => { const d=pm.response.json(); pm.expect(d.id).to.equal(pm.variables.get(\"onboardingMerchantId\"));pm.expect(d.registrationStatus).to.equal(\"REJECTED\");pm.expect(d.apiKey).to.equal(null);pm.expect(d).not.to.have.property(\"secret\"); pm.expect(d).not.to.have.property(\"webhookSecret\");pm.variables.set(\"onboardingRejectedThisRun\",\"true\"); });",
+                  "pm.test(\"Rejected profile has no exposed credentials\", () => { const d=pm.response.json(); pm.expect(d.id).to.equal(pm.variables.get(\"onboardingMerchantId\"));pm.expect(d.registrationStatus).to.equal(\"REJECTED\");pm.expect(d.apiKey).to.equal(null);pm.expect(d).not.to.have.property(\"secret\"); pm.expect(d).not.to.have.property(\"webhookSecret\");pm.variables.set(\"onboardingRevokedApiKey\",pm.variables.get(\"onboardingApiKey\"));pm.variables.set(\"onboardingRejectedThisRun\",\"true\"); });",
                   "pm.environment.set(\"onboardingPhase\",\"rejected\");",
                   "}"
                 ]
@@ -11591,7 +11620,7 @@
               },
               {
                 "key": "X-API-KEY",
-                "value": "{{onboardingApiKey}}"
+                "value": "{{onboardingRevokedApiKey}}"
               }
             ],
             "auth": {
@@ -11611,7 +11640,7 @@
                   "pm.variables.set(\"__validationFields\", \"[]\");",
                   "pm.variables.set(\"__responseKind\", \"json\");",
                   "if (!pm.variables.get(\"onboardingRejectedThisRun\")) { console.warn(\"SKIP: missing onboardingRejectedThisRun\"); pm.execution.skipRequest(); }",
-                  "if (!pm.variables.get(\"onboardingApiKey\")) { console.warn(\"SKIP: missing onboardingApiKey\"); pm.execution.skipRequest(); }"
+                  "if (!pm.variables.get(\"onboardingRevokedApiKey\")) { console.warn(\"SKIP: missing onboardingRevokedApiKey\"); pm.execution.skipRequest(); }"
                 ]
               }
             }
@@ -11676,7 +11705,380 @@
           "response": []
         },
         {
-          "name": "Rejected merchant cannot be approved again",
+          "name": "[STATE CHANGE] Reapprove only this suite rejected merchant application",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/admin/merchants/{{onboardingMerchantId}}/approve",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Explicit ADMIN review via the existing approve endpoint. Reapproves only the suite-created rejected applicant and issues a replacement API key; admin responses must not expose that key or signing secrets.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Postman disposable applicant explicitly reapproved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"rejected\"){console.warn(\"SKIP: requires rejected phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 200);",
+                  "pm.variables.set(\"__errorShape\", \"\");",
+                  "pm.variables.set(\"__errorTitle\", \"\");",
+                  "pm.variables.set(\"__validationFields\", \"[]\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
+                  "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"adminAccessToken\")) { console.warn(\"SKIP: missing adminAccessToken\"); pm.execution.skipRequest(); }",
+                  "if (String(pm.variables.get(\"allowWrites\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowWrites explicitly\"); pm.execution.skipRequest(); }",
+                  "if (String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable runMerchantLifecycle explicitly\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingUserId\")) { console.warn(\"SKIP: missing onboardingUserId\"); pm.execution.skipRequest(); }",
+                  "if(String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable allowLifecycleRejection explicitly\");pm.execution.skipRequest();}",
+                  "if(pm.variables.get(\"onboardingCreatedBySuite\")!==\"true\") throw new Error(\"Lifecycle target must originate from this suite signup\");",
+                  "if(!pm.variables.get(\"onboardingEmailSnapshot\") || pm.variables.get(\"onboardingEmailSnapshot\")!==pm.variables.get(\"onboardingEmail\")) throw new Error(\"Clear lifecycle markers before changing onboardingEmail\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "pm.test(\"Admin reapproval restores the owned profile without exposing credentials\", () => { const d=pm.response.json(); pm.expect(d.id).to.equal(pm.variables.get(\"onboardingMerchantId\")); pm.expect(d.userId).to.equal(pm.variables.get(\"onboardingUserId\")); pm.expect(d.registrationStatus).to.equal(\"APPROVED\"); pm.expect(d.apiKey).to.equal(null); pm.expect(d).not.to.have.property(\"secret\"); pm.expect(d).not.to.have.property(\"webhookSecret\"); pm.variables.set(\"onboardingReapprovedThisRun\",\"true\"); pm.environment.set(\"onboardingPhase\",\"reapproved\"); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Login explicitly reapproved merchant",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Disposable suite-created applicant only. Run folder 09 in order; captured credentials remain run-local. No live calls are made by offline validation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{onboardingEmail}}\",\n  \"password\": \"{{onboardingPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"reapproved\"){console.warn(\"SKIP: requires reapproved phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 200);",
+                  "pm.variables.set(\"__errorShape\", \"\");",
+                  "pm.variables.set(\"__errorTitle\", \"\");",
+                  "pm.variables.set(\"__validationFields\", \"[]\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
+                  "if (!pm.variables.get(\"onboardingEmail\")) { console.warn(\"SKIP: missing onboardingEmail\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingPassword\")) { console.warn(\"SKIP: missing onboardingPassword\"); pm.execution.skipRequest(); }",
+                  "if (String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable runMerchantLifecycle explicitly\"); pm.execution.skipRequest(); }",
+                  "",
+                  "function resolveBody(value) {",
+                  " if (Array.isArray(value)) return value.map(resolveBody);",
+                  " if (value && typeof value === \"object\") return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,resolveBody(v)]));",
+                  " if (typeof value === \"string\") { const match=value.match(/^\\{\\{([^{}]+)\\}\\}$/); return match ? String(pm.variables.get(match[1]) ?? \"\") : value; }",
+                  " return value;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify(resolveBody(JSON.parse(pm.request.body.raw))));",
+                  "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingUserId\")) { console.warn(\"SKIP: missing onboardingUserId\"); pm.execution.skipRequest(); }",
+                  "if(String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable allowLifecycleRejection explicitly\");pm.execution.skipRequest();}",
+                  "if(pm.variables.get(\"onboardingCreatedBySuite\")!==\"true\") throw new Error(\"Lifecycle target must originate from this suite signup\");",
+                  "if(!pm.variables.get(\"onboardingEmailSnapshot\") || pm.variables.get(\"onboardingEmailSnapshot\")!==pm.variables.get(\"onboardingEmail\")) throw new Error(\"Clear lifecycle markers before changing onboardingEmail\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "pm.test(\"Reapproved account logs in as ACTIVE and remains verified\", () => { const d=pm.response.json(); pm.expect(d.user.id).to.equal(pm.variables.get(\"onboardingUserId\")); pm.expect(d.user.role).to.equal(\"ROLE_MERCHANT\"); pm.expect(d.user.status).to.equal(\"ACTIVE\"); pm.expect(d.user.emailVerified).to.equal(true); pm.expect(d.accessToken).to.be.a(\"string\").and.not.empty; pm.expect(d.refreshToken).to.be.a(\"string\").and.not.empty; pm.variables.set(\"onboardingAccessToken\",d.accessToken); pm.variables.set(\"onboardingRefreshToken\",d.refreshToken); pm.variables.set(\"onboardingReauthenticatedThisRun\",\"true\"); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reapproved merchant receives its replacement API key privately",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/merchant/profile",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onboardingAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Disposable suite-created applicant only. Run folder 09 in order; captured credentials remain run-local. No live calls are made by offline validation."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"reapproved\"){console.warn(\"SKIP: requires reapproved phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 200);",
+                  "pm.variables.set(\"__errorShape\", \"\");",
+                  "pm.variables.set(\"__errorTitle\", \"\");",
+                  "pm.variables.set(\"__validationFields\", \"[]\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
+                  "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingAccessToken\")) { console.warn(\"SKIP: missing onboardingAccessToken\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingReauthenticatedThisRun\")) { console.warn(\"SKIP: missing onboardingReauthenticatedThisRun\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingUserId\")) { console.warn(\"SKIP: missing onboardingUserId\"); pm.execution.skipRequest(); }",
+                  "if(String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable runMerchantLifecycle explicitly\");pm.execution.skipRequest();}",
+                  "if(String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable allowLifecycleRejection explicitly\");pm.execution.skipRequest();}",
+                  "if(pm.variables.get(\"onboardingCreatedBySuite\")!==\"true\") throw new Error(\"Lifecycle target must originate from this suite signup\");",
+                  "if(!pm.variables.get(\"onboardingEmailSnapshot\") || pm.variables.get(\"onboardingEmailSnapshot\")!==pm.variables.get(\"onboardingEmail\")) throw new Error(\"Clear lifecycle markers before changing onboardingEmail\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "pm.test(\"Only the reapproved merchant receives its replacement API key\", () => { const d=pm.response.json(); pm.expect(d.id).to.equal(pm.variables.get(\"onboardingMerchantId\")); pm.expect(d.userId).to.equal(pm.variables.get(\"onboardingUserId\")); pm.expect(d.registrationStatus).to.equal(\"APPROVED\"); pm.expect(typeof d.apiKey===\"string\" && d.apiKey.startsWith(\"sdp_live_\")).to.equal(true); pm.expect(d).not.to.have.property(\"secret\"); pm.expect(d).not.to.have.property(\"webhookSecret\"); pm.variables.set(\"onboardingApiKey\",d.apiKey); pm.variables.set(\"onboardingReplacementKeyCapturedThisRun\",\"true\"); });",
+                  "if (pm.variables.get(\"onboardingRevokedApiKey\")) pm.test(\"Reapproval replaces the pre-rejection API key\", () => { pm.expect(pm.response.json().apiKey).not.to.equal(pm.variables.get(\"onboardingRevokedApiKey\")); });",
+                  "else console.warn(\"Key comparison skipped: run approval through rejection/reapproval together; old keys are never persisted\");",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reapproval never restores the revoked API key",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/merchant/api/v1/orders",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-KEY",
+                "value": "{{onboardingRevokedApiKey}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Disposable suite-created applicant only. Run folder 09 in order; captured credentials remain run-local. No live calls are made by offline validation."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"reapproved\"){console.warn(\"SKIP: requires reapproved phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 401);",
+                  "pm.variables.set(\"__errorShape\", \"auth\");",
+                  "pm.variables.set(\"__errorTitle\", \"Unauthorized\");",
+                  "pm.variables.set(\"__validationFields\", \"[]\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
+                  "if (!pm.variables.get(\"onboardingRevokedApiKey\")) { console.warn(\"SKIP: missing onboardingRevokedApiKey\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingReplacementKeyCapturedThisRun\")) { console.warn(\"SKIP: missing onboardingReplacementKeyCapturedThisRun\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingUserId\")) { console.warn(\"SKIP: missing onboardingUserId\"); pm.execution.skipRequest(); }",
+                  "if(String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable runMerchantLifecycle explicitly\");pm.execution.skipRequest();}",
+                  "if(String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable allowLifecycleRejection explicitly\");pm.execution.skipRequest();}",
+                  "if(pm.variables.get(\"onboardingCreatedBySuite\")!==\"true\") throw new Error(\"Lifecycle target must originate from this suite signup\");",
+                  "if(!pm.variables.get(\"onboardingEmailSnapshot\") || pm.variables.get(\"onboardingEmailSnapshot\")!==pm.variables.get(\"onboardingEmail\")) throw new Error(\"Clear lifecycle markers before changing onboardingEmail\");"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reapproved merchant replacement API key authenticates machine list",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/merchant/api/v1/orders",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-KEY",
+                "value": "{{onboardingApiKey}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Disposable suite-created applicant only. Run folder 09 in order; captured credentials remain run-local. No live calls are made by offline validation."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"reapproved\"){console.warn(\"SKIP: requires reapproved phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 200);",
+                  "pm.variables.set(\"__errorShape\", \"\");",
+                  "pm.variables.set(\"__errorTitle\", \"\");",
+                  "pm.variables.set(\"__validationFields\", \"[]\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
+                  "if (!pm.variables.get(\"onboardingApiKey\")) { console.warn(\"SKIP: missing onboardingApiKey\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingReplacementKeyCapturedThisRun\")) { console.warn(\"SKIP: missing onboardingReplacementKeyCapturedThisRun\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingUserId\")) { console.warn(\"SKIP: missing onboardingUserId\"); pm.execution.skipRequest(); }",
+                  "if(String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable runMerchantLifecycle explicitly\");pm.execution.skipRequest();}",
+                  "if(String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable allowLifecycleRejection explicitly\");pm.execution.skipRequest();}",
+                  "if(pm.variables.get(\"onboardingCreatedBySuite\")!==\"true\") throw new Error(\"Lifecycle target must originate from this suite signup\");",
+                  "if(!pm.variables.get(\"onboardingEmailSnapshot\") || pm.variables.get(\"onboardingEmailSnapshot\")!==pm.variables.get(\"onboardingEmail\")) throw new Error(\"Clear lifecycle markers before changing onboardingEmail\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "pm.test(\"Machine owner has an order list\", () => { const d=pm.response.json(); pm.expect(d).to.be.an(\"array\"); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reapproval preserves webhook configuration and hides its secret",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/merchant/webhooks/config",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onboardingAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Disposable suite-created applicant only. Run folder 09 in order; captured credentials remain run-local. No live calls are made by offline validation."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"reapproved\"){console.warn(\"SKIP: requires reapproved phase\");pm.execution.skipRequest();}",
+                  "pm.variables.set(\"__expectedStatus\", 200);",
+                  "pm.variables.set(\"__errorShape\", \"\");",
+                  "pm.variables.set(\"__errorTitle\", \"\");",
+                  "pm.variables.set(\"__validationFields\", \"[]\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
+                  "if (!pm.variables.get(\"onboardingAccessToken\")) { console.warn(\"SKIP: missing onboardingAccessToken\"); pm.execution.skipRequest(); }",
+                  "if (String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowLifecycleRejection explicitly\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingReauthenticatedThisRun\")) { console.warn(\"SKIP: missing onboardingReauthenticatedThisRun\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingUserId\")) { console.warn(\"SKIP: missing onboardingUserId\"); pm.execution.skipRequest(); }",
+                  "if(String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable runMerchantLifecycle explicitly\");pm.execution.skipRequest();}",
+                  "if(pm.variables.get(\"onboardingCreatedBySuite\")!==\"true\") throw new Error(\"Lifecycle target must originate from this suite signup\");",
+                  "if(!pm.variables.get(\"onboardingEmailSnapshot\") || pm.variables.get(\"onboardingEmailSnapshot\")!==pm.variables.get(\"onboardingEmail\")) throw new Error(\"Clear lifecycle markers before changing onboardingEmail\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "pm.test(\"Reapproved webhook GET never returns a signing secret\", () => { const d=pm.response.json(); pm.expect(d.configured).to.be.a(\"boolean\"); pm.expect(d).not.to.have.property(\"secret\"); pm.expect(d).not.to.have.property(\"webhookSecret\"); });",
+                  "if (pm.variables.get(\"onboardingWebhookBeforeRejection\")) pm.test(\"Reapproval preserves the saved callback configuration\", () => { const d=pm.response.json(), before=JSON.parse(pm.variables.get(\"onboardingWebhookBeforeRejection\")); pm.expect(d.url).to.equal(before.url); pm.expect(d.configured).to.equal(before.configured); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "[STATE CHANGE] Repeated reapproval is a conflict",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/v1/admin/merchants/{{onboardingMerchantId}}/approve",
@@ -11696,7 +12098,7 @@
                 }
               ]
             },
-            "description": "Source-derived contract. Execute only against dedicated test data; missing prerequisites are skipped."
+            "description": "Disposable suite-created applicant only. Run folder 09 in order; captured credentials remain run-local. No live calls are made by offline validation."
           },
           "event": [
             {
@@ -11704,16 +12106,21 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "if(pm.variables.get(\"onboardingPhase\")!==\"reapproved\"){console.warn(\"SKIP: requires reapproved phase\");pm.execution.skipRequest();}",
                   "pm.variables.set(\"__expectedStatus\", 409);",
                   "pm.variables.set(\"__errorShape\", \"merchantError\");",
                   "pm.variables.set(\"__errorTitle\", \"Conflict\");",
                   "pm.variables.set(\"__validationFields\", \"[]\");",
                   "pm.variables.set(\"__responseKind\", \"json\");",
-                  "if (!pm.variables.get(\"onboardingRejectedThisRun\")) { console.warn(\"SKIP: missing onboardingRejectedThisRun\"); pm.execution.skipRequest(); }",
                   "if (!pm.variables.get(\"onboardingMerchantId\")) { console.warn(\"SKIP: missing onboardingMerchantId\"); pm.execution.skipRequest(); }",
                   "if (!pm.variables.get(\"adminAccessToken\")) { console.warn(\"SKIP: missing adminAccessToken\"); pm.execution.skipRequest(); }",
                   "if (String(pm.variables.get(\"allowWrites\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowWrites explicitly\"); pm.execution.skipRequest(); }",
-                  "if (String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable runMerchantLifecycle explicitly\"); pm.execution.skipRequest(); }"
+                  "if (String(pm.variables.get(\"runMerchantLifecycle\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable runMerchantLifecycle explicitly\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingReplacementKeyCapturedThisRun\")) { console.warn(\"SKIP: missing onboardingReplacementKeyCapturedThisRun\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"onboardingUserId\")) { console.warn(\"SKIP: missing onboardingUserId\"); pm.execution.skipRequest(); }",
+                  "if(String(pm.variables.get(\"allowLifecycleRejection\")).toLowerCase()!==\"true\"){console.warn(\"SKIP: enable allowLifecycleRejection explicitly\");pm.execution.skipRequest();}",
+                  "if(pm.variables.get(\"onboardingCreatedBySuite\")!==\"true\") throw new Error(\"Lifecycle target must originate from this suite signup\");",
+                  "if(!pm.variables.get(\"onboardingEmailSnapshot\") || pm.variables.get(\"onboardingEmailSnapshot\")!==pm.variables.get(\"onboardingEmail\")) throw new Error(\"Clear lifecycle markers before changing onboardingEmail\");"
                 ]
               }
             }

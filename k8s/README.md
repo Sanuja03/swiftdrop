@@ -42,6 +42,10 @@ are internal ClusterIP; no public Ingress, LoadBalancer or TLS is created.
 
 ## Build images and prepare offline
 
+Before upgrading an existing database, review the new REJECTED account state and the optional,
+separately authorized merchant backfill in [the database upgrade guide](db/README.md#merchant-account-status-upgrade-after-2949e47).
+The Kubernetes Job does not automatically execute `backend/database/merchant_account_statuses.sql`.
+
 For a registry deployment, choose a lowercase registry owner and a fresh build tag:
 
 ```powershell
@@ -277,13 +281,15 @@ and container logs in the chosen namespace. Typical causes:
   policy is installed; public hosting and webhook DNS-rebinding defenses need a separate
   network plan. One backend replica remains intentional for in-process STOMP/idempotency.
 
-During preparation, Python parsed all eight JSON-compatible YAML source files and
+During offline verification after merge 2949e47, Python parsed all eight JSON-compatible YAML source files and
 the 15-resource render, and checked resource APIs/kinds, selectors, references,
 ports, environment expansion order, probes, requests/limits, retained PVCs, current
 SQL copying, current environment/build contracts and migration gating. Renderer and
 migration tests check deterministic output, ledger order, secret preservation, source
-JPA/SQL column consistency and reviewed conversion boundaries; all 25 tests passed. Git Bash `bash -n` also passed for the schema
-wait script without executing it. PostgreSQL was unavailable: no SQL grammar/server
+JPA/SQL column consistency and reviewed conversion boundaries; all 26 tests passed, including
+boundary-whitespace comparison and meaningful SQL/checksum difference regressions. The original
+preparation also checked the schema wait script with Git Bash `bash -n` without executing it.
+PostgreSQL was unavailable: no SQL grammar/server
 execution, fresh/legacy upgrade, live credential, rollout or probe behavior was verified. These are custom offline contract checks, **not Kubernetes OpenAPI
 or admission validation**. `kubectl`, Docker, kustomize and kubeconform were unavailable.
 No cluster was contacted; no images were built/pulled, SQL executed, PVCs provisioned,

@@ -44,12 +44,70 @@ if a later step fails; reruns verify their SHA-256 checksums and skip them. A fa
 back and gets no ledger entry. Changed applied files are rejected, including changes to the
 frozen proof-conversion body used by step 002. The original repository script is
 bundled as a reference only. A later teammate edit does not silently rewrite step 002;
-`proofSourceMatchesFrozen=false` flags it for review/new numbered migration. Restore original files and append a new step;
+`proofSourceMatchesFrozen=false` flags a difference beyond leading/trailing whitespace for
+review/new numbered migration. Internal SQL text is compared exactly. This review comparison
+does not normalize the bytes used for migration checksums. Restore original files and append a new step;
 never clear ledgers to force a replay. `--revision` changes the Job identity, not this history.
 
 The old standalone courier/webhook setup scripts are **not replayed** on existing databases;
 the reviewed snapshot covers their current DDL. Existing old Kubernetes bundle markers are
 retained but do not satisfy a newly rendered bundle's gate.
+
+## Merchant account-status upgrade after 2949e47
+
+The backend now stores `users.status = 'REJECTED'` when an administrator rejects a merchant,
+and permits explicit admin reapproval through `/api/v1/admin/merchants/{merchantId}/approve`.
+Reapproval issues a replacement API key. Generic user status changes cannot replace this review.
+
+[merchant_account_statuses.sql](../../backend/database/merchant_account_statuses.sql) is a
+**separately reviewed data backfill**, not an automatically included Kubernetes migration.
+It applies only to ROLE_MERCHANT users still marked PENDING_APPROVAL whose existing merchant
+profile is already REJECTED. It aligns account status with that recorded decision; it does
+not approve users, change profile decisions, fabricate applications, or alter ACTIVE/SUSPENDED
+accounts. Its predicate makes reruns idempotent, but that does not authorize applying it.
+
+Fresh databases need no backfill: the current baseline uses `VARCHAR(50)` with no account-status
+CHECK constraint, and new rejection operations write REJECTED directly. Existing databases may
+benefit from the backfill for consistent reporting. The current backend still rejects login for
+legacy PENDING_APPROVAL accounts with REJECTED profiles, and webhook delivery requires both an
+ACTIVE account and APPROVED profile. Leaving the backfill pending does not grant approval.
+No new automatic numbered migration is required for the current baseline. The new operational
+notification queues reuse existing outbox/notification tables and introduce no schema columns.
+
+Before allowing new rejection operations or considering the backfill on an existing database,
+the database owner must review the actual type and constraints. These **read-only review examples**
+have not been executed by this task:
+
+```sql
+SELECT data_type, udt_schema, udt_name, domain_schema, domain_name
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'status';
+
+-- Review all table CHECK constraints, including combined role/status rules.
+SELECT conname, convalidated, pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid = 'public.users'::regclass AND contype = 'c';
+
+-- Preview exactly the legacy decisions targeted by the standalone script.
+SELECT u.id, u.status, m.registration_status
+FROM public.users u JOIN public.merchants m ON m.user_id = u.id
+WHERE u.role = 'ROLE_MERCHANT' AND u.status = 'PENDING_APPROVAL'
+  AND m.registration_status = 'REJECTED';
+```
+
+If status is an enum/domain, also review its allowed labels/domain constraints. A restrictive
+CHECK or custom type may reject REJECTED even when offline migration checks pass: the catalog
+gate does not prove allowed status values. Do not drop constraints or replay schema.sql to work
+around this. Design a separate reviewed change preserving valid existing values and business rules.
+
+For any later authorized backfill: take a backup, test on a restored isolated database, deploy
+only backend versions that understand REJECTED to every reader/writer, review the preview rows
+and obtain the database owner's approval before running the script's UPDATE transaction.
+Record the reviewed file/commit and affected IDs/counts, then verify profile decisions and other
+accounts were preserved. Older application images may not read REJECTED rows; review rollback
+compatibility first. Do not add this script to `SQL_SOURCES` or edit migrations 001-003. If a
+versioned constraint/data migration becomes necessary for a specific database, append a new
+version only after explicit review/approval; none has been added here.
 
 ## Required manual review
 

@@ -134,7 +134,7 @@ def main():
     require(scripts['migrate.sql'] == expected_runner and summary['migrationChecksums'] == checksums, 'Migration runner/checksums are stale')
     contract = migrations.catalog(scripts['001-schema.sql'])
     require(scripts['assert-catalog.sql'] == migrations.contract_sql(contract), 'Catalog gate is stale')
-    require(summary['proofSourceMatchesFrozen'] == (scripts['legacy-proof-body.sql'] == migrations.proof_body(scripts['legacy-proof-source.sql'])), 'Proof source comparison mismatch')
+    require(summary['proofSourceMatchesFrozen'] == migrations.proof_source_matches(scripts['legacy-proof-body.sql'], scripts['legacy-proof-source.sql']), 'Proof source comparison mismatch')
     require('BEGIN;' not in scripts['legacy-proof-body.sql'].splitlines() and 'COMMIT;' not in scripts['legacy-proof-body.sql'].splitlines(), 'Nested migration transactions')
     additive = migrations.without_comments(scripts['001-additive-schema.sql'])
     require(not re.search(r'\b(?:INSERT\s+INTO|UPDATE\s+\w|DELETE\s+FROM|TRUNCATE|DROP\s+(?:TABLE|COLUMN|SCHEMA|DATABASE))\b', additive, re.I), 'Additive migration contains unsafe row/destructive operations')

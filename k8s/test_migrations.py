@@ -101,7 +101,19 @@ class MigrationTests(unittest.TestCase):
         self.assertNotIn('BEGIN;',body.splitlines())
         self.assertNotIn('COMMIT;',body.splitlines())
         self.assertIn('UPDATE public.delivery_proofs',body)
-        self.assertEqual(body,migrations.proof_body(self.scripts['legacy-proof-source.sql']))
+        self.assertTrue(migrations.proof_source_matches(body,self.scripts['legacy-proof-source.sql']))
+
+    def test_proof_source_comparison_preserves_meaningful_sql_differences(self):
+        body = self.scripts['legacy-proof-body.sql']
+        source = self.scripts['legacy-proof-source.sql']
+        self.assertTrue(migrations.proof_source_matches('\n \t' + body + '\n \t',source))
+        changed = body.replace('REFERENCES public.users(id)', 'REFERENCES public.couriers(id)', 1)
+        self.assertNotEqual(changed,body)
+        self.assertFalse(migrations.proof_source_matches(changed,source))
+        _, before = migrations.runner(self.scripts)
+        scripts = dict(self.scripts, **{'legacy-proof-body.sql': body + '\n '})
+        _, after = migrations.runner(scripts)
+        self.assertNotEqual(before['002-proof-user-ids.sql'],after['002-proof-user-ids.sql'])
 
     def test_frozen_proof_body_change_changes_step_checksum(self):
         scripts = dict(self.scripts)

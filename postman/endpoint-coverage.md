@@ -3,10 +3,12 @@
 Generated offline from current Spring controller mappings by `node postman/validate.mjs --write-coverage`.
 A prepared request is not a live test result. Auth-only rows verify a security boundary, not business behavior.
 
+Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant status changes return 409; denied suspension preserves JWT/API-key access. Admin rejection and explicit reapproval use the existing merchant review endpoints, verify key replacement/revocation, and keep signing secrets private. See [execution prerequisites](README.md#staged-merchant-lifecycle-folder-09).
+
 | Method | Route | Prepared cases | Coverage | Controller |
 |---|---|---:|---|---|
 | GET | `/api/v1/admin/merchants` | 4 | Contract/lifecycle cases | [MerchantAdminController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantAdminController.java) |
-| POST | `/api/v1/admin/merchants/{merchantId}/approve` | 8 | Contract/lifecycle cases | [MerchantAdminController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantAdminController.java) |
+| POST | `/api/v1/admin/merchants/{merchantId}/approve` | 9 | Contract/lifecycle cases | [MerchantAdminController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantAdminController.java) |
 | POST | `/api/v1/admin/merchants/{merchantId}/reject` | 7 | Contract/lifecycle cases | [MerchantAdminController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantAdminController.java) |
 | GET | `/api/v1/admin/parcels/{parcelId}/proofs` | 1 | Anonymous authentication smoke only | [DeliveryProofController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/DeliveryProofController.java) |
 | GET | `/api/v1/admin/parcels/{parcelId}/proofs/{proofId}/photo` | 1 | Anonymous authentication smoke only | [DeliveryProofController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/DeliveryProofController.java) |
@@ -35,7 +37,7 @@ A prepared request is not a live test result. Auth-only rows verify a security b
 | POST | `/api/v1/auth/change-password` | 8 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
 | POST | `/api/v1/auth/forgot-password` | 2 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
 | POST | `/api/v1/auth/google` | 2 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
-| POST | `/api/v1/auth/login` | 19 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
+| POST | `/api/v1/auth/login` | 20 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
 | POST | `/api/v1/auth/logout` | 10 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
 | GET | `/api/v1/auth/me` | 3 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
 | PUT | `/api/v1/auth/profile` | 1 | Contract/lifecycle cases | [AuthController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/AuthController.java) |
@@ -69,7 +71,7 @@ A prepared request is not a live test result. Auth-only rows verify a security b
 | POST | `/api/v1/merchant/api-key/regenerate` | 4 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | POST | `/api/v1/merchant/api-key/rotate` | 4 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | POST | `/api/v1/merchant/api/v1/calculate-fee` | 4 | Contract/lifecycle cases | [MerchantApiController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantApiController.java) |
-| GET | `/api/v1/merchant/api/v1/orders` | 11 | Contract/lifecycle cases | [MerchantApiController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantApiController.java) |
+| GET | `/api/v1/merchant/api/v1/orders` | 13 | Contract/lifecycle cases | [MerchantApiController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantApiController.java) |
 | POST | `/api/v1/merchant/api/v1/orders` | 7 | Contract/lifecycle cases | [MerchantApiController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantApiController.java) |
 | GET | `/api/v1/merchant/api/v1/orders/{trackingNumber}` | 2 | Contract/lifecycle cases | [MerchantApiController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantApiController.java) |
 | POST | `/api/v1/merchant/api/v1/orders/{trackingNumber}/cancel` | 4 | Contract/lifecycle cases | [MerchantApiController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantApiController.java) |
@@ -79,7 +81,7 @@ A prepared request is not a live test result. Auth-only rows verify a security b
 | POST | `/api/v1/merchant/orders` | 3 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | GET | `/api/v1/merchant/orders/{trackingNumber}` | 1 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | POST | `/api/v1/merchant/orders/{trackingNumber}/cancel` | 2 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
-| GET | `/api/v1/merchant/profile` | 4 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
+| GET | `/api/v1/merchant/profile` | 5 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | POST | `/api/v1/merchant/register` | 3 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | GET | `/api/v1/merchant/stats` | 1 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | GET | `/api/v1/merchant/test` | 1 | Contract/lifecycle cases | [UserController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/UserController.java) |
@@ -88,7 +90,7 @@ A prepared request is not a live test result. Auth-only rows verify a security b
 | GET | `/api/v1/merchant/webhook/logs` | 1 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | POST | `/api/v1/merchant/webhook/rotate-secret` | 3 | Contract/lifecycle cases | [WebhookConfigurationController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookConfigurationController.java) |
 | POST | `/api/v1/merchant/webhook/test` | 11 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
-| GET | `/api/v1/merchant/webhooks/config` | 16 | Contract/lifecycle cases | [WebhookConfigurationController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookConfigurationController.java) |
+| GET | `/api/v1/merchant/webhooks/config` | 17 | Contract/lifecycle cases | [WebhookConfigurationController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookConfigurationController.java) |
 | PUT | `/api/v1/merchant/webhooks/config` | 17 | Contract/lifecycle cases | [WebhookConfigurationController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookConfigurationController.java) |
 | POST | `/api/v1/merchant/webhooks/config/rotate-secret` | 3 | Contract/lifecycle cases | [WebhookConfigurationController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookConfigurationController.java) |
 | GET | `/api/v1/merchant/webhooks/deliveries` | 6 | Contract/lifecycle cases | [WebhookDeliveryController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookDeliveryController.java) |

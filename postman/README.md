@@ -1,14 +1,14 @@
 # SwiftDrop API tests
 
-Source baseline: `a9781d8`, branch `feature/janani-final-tasks`. Import
+Source baseline: merged backend at `2949e47`, branch `feature/janani-final-tasks`. Import
 `SwiftDrop_API_Tests.postman_collection.json` and `SwiftDrop_Local.postman_environment.json`.
 Use a current Postman Collection Runner or Postman CLI that supports
 `pm.execution.skipRequest()`. No CLI, packages, services or databases are installed or started by these assets.
 
 ## Coverage and honest results
 
-The collection contains **289 requests**, **136 literal `pm.test` blocks** and
-**561 `pm.expect` check sites**, plus the shared HTTP-status assertion. Shared tests
+The collection contains **295 requests**, **145 literal `pm.test` blocks** and
+**588 `pm.expect` check sites**, plus the shared HTTP-status assertion. Shared tests
 run for each applicable request; conditionals, loops, prerequisite skips and selected
 folders mean these static counts are not a claim about executed/passing assertions.
 The 97 original requests are retained, with safety, secret handling and execution-order updates.
@@ -20,7 +20,7 @@ for every route and its controller. WebSockets, Actuator framework endpoints and
 single development-only status controller are outside this REST inventory.
 
 Core coverage includes auth/password changes, customer booking/pricing/tracking,
-merchant profiles and registration, approval/rejection, API-key authentication and
+merchant profiles and registration, approval/rejection/reapproval, API-key authentication and
 rotation, both merchant order interfaces, sequential/scoped idempotency, cancellation,
 both webhook configuration aliases, one-time secrets, explicit secret rotation,
 validated test pings, real engine logs and ownership. Additional prepared reads cover
@@ -129,9 +129,12 @@ they are never read from GET/profile endpoints or deliberately printed.
   stable DEAD/non-DEAD fixtures; concurrent workers can invalidate a 409 test fixture. The
   response after a manual retry can be DELIVERED or DEAD. No automatic retry fixtures are fabricated.
 - `runMerchantLifecycle`: enables the staged disposable applicant flow below.
-- `allowLifecycleRejection`: additionally suspends/restores and then permanently rejects **only
-  the suite-created applicant**. It revokes that applicant's API key. If interrupted while
-  suspended, log in as admin and run the explicit Restore request before continuing. No rows are deleted.
+- `allowLifecycleRejection`: tests rejected generic status changes, then rejects and explicitly
+  reapproves **only the suite-created applicant** through admin merchant review. Rejection revokes
+  its old API key; reapproval generates a replacement. The completed flow leaves that applicant
+  APPROVED/ACTIVE. Only the merchant profile response captures the replacement key, run-locally.
+  If interrupted after rejection, rerun 00 and 09 with the same lifecycle markers to resume
+  explicit reapproval. No rows are deleted, and no suspension API is assumed.
 - `runLegacyRegistration`: requires the specific profile-less fixture; creates a PENDING profile
   through `/merchant/register`. Normal `/auth/signup` already creates the merchant profile.
 - `runPasswordChange`: changes the dedicated customer's password, tests old credentials/refresh
@@ -158,9 +161,26 @@ they are never read from GET/profile endpoints or deliberately printed.
    secret, while subsequent saves/GET/profile responses must omit it. Optional pings use that
    merchant's actual configuration. Normal saves preserve even legacy inaccessible secrets;
    recovery requires explicit rotation, never silent replacement.
-4. Enable `allowLifecycleRejection` only when ready to exercise suspension and final rejection.
-   Suspended JWT/key requests must be 403; after rejection, the old JWT is 403 and the revoked
-   key is 401. Completed rejected applicants cannot be approved again. Keep their rows for review.
+4. Enable `allowLifecycleRejection` only when ready for rejection and explicit reapproval.
+   Generic `PATCH /api/v1/admin/users/{userId}/status` requests with SUSPENDED and ACTIVE must
+   return **409 ProblemDetail**, with the merchant-review policy message. The denied suspension
+   leaves webhook GET and machine API-key access working (200); these checks require the preceding
+   409 result. This flow never creates a suspended account or assumes one needs restoring.
+5. Admin rejection through `/api/v1/admin/merchants/{merchantId}/reject` returns a REJECTED
+   profile with no exposed credentials. The old JWT cannot access webhook settings (403), the
+   revoked key is unauthorized (401), and password login is refused (403).
+6. The existing admin `/{merchantId}/approve` endpoint explicitly reapproves that same rejected
+   applicant (200). Admin responses still omit usable credentials. Fresh password login must
+   show ACTIVE/verified, and the merchant's own profile must return a replacement API key.
+   The suite checks that this key differs from the pre-rejection key, the old key remains 401,
+   the replacement authenticates machine reads (200), webhook configuration remains private
+   and unchanged, and a second approval is 409. The resulting persisted phase is `reapproved`.
+
+Run the rejection/reapproval segment together to verify old-versus-new keys and configuration
+preservation: old keys and snapshots are never persisted in the environment. On an interrupted
+run, explicit reapproval/login/profile can resume, but unavailable old-key comparisons and
+snapshot checks skip. Do not interpret those skips as successful receiver or key-replacement
+verification. Keep the suite-created account/profile rows for review.
 
 On later resumes, phase guards skip completed signup/verification/first-configuration operations.
 Do not rerun verification with an already used code. For clean results select the documented
@@ -199,11 +219,14 @@ node postman/validate.mjs
 node postman/validate.mjs --write-coverage
 ```
 
-The validator uses only Node built-ins. It parses both JSON files, compiles 422 scripts,
+The validator uses only Node built-ins. It parses both JSON files, compiles 435 scripts,
 checks every request method/path against actual Java controller annotations/constants,
 checks variable references/secret defaults/core DTO property names, simulates default and
 opted-in pre-request branches, checks write/host guards and exercises quoted/backslashed
-password serialization. `--write-coverage` regenerates only the Markdown coverage map.
+password serialization. Eleven focused merchant lifecycle prerequisite/status-contract cases
+also cover the merged 409 policy, rejection/reapproval phases, ownership markers, and missing
+credential guards. These use synthetic inputs, not HTTP responses.
+`--write-coverage` regenerates only the Markdown coverage map.
 This is not official Postman JSON Schema validation, the full Postman runtime, response-assertion
 execution, receiver signature verification, Kubernetes validation or a live API test run.
 

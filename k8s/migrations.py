@@ -187,6 +187,11 @@ def proof_body(source):
     return result
 
 
+def proof_source_matches(frozen_body, source):
+    """Ignore boundary whitespace for review only; checksums still use exact SQL."""
+    return frozen_body.strip() == proof_body(source).strip()
+
+
 def runner(scripts):
     result = ["-- Generated immutable migration runner; each step and its ledger insert commit together."]
     checksums = {}

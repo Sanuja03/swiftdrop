@@ -141,7 +141,7 @@ Object.assign(synthetic, { baseUrl: 'http://localhost:8080', onboardingEmail: 'a
   customerPassword: quotePassword, newPassword: 'Different!123', operatorRole: 'ROLE_DISPATCHER',
   onboardingCreatedBySuite: 'true', serviceType: 'STANDARD', pickupCity: 'Colombo', dropoffCity: 'Colombo' })
 let enabledBranchSimulations = 0
-for (const item of requests) for (const phase of ['registered', 'verified', 'approved', 'rejected']) {
+for (const item of requests) for (const phase of ['registered', 'verified', 'approved', 'rejected', 'reapproved']) {
   const prepared = preflight(item, { ...synthetic, onboardingPhase: phase })
   enabledBranchSimulations++
   if (!prepared.skipped && prepared.body && !item.name.toLowerCase().includes('malformed json')) JSON.parse(prepared.body)
@@ -160,6 +160,53 @@ assert.throws(() => preflight(approval, { ...synthetic, onboardingPhase: 'verifi
 assert.throws(() => preflight(approval, { ...synthetic, onboardingPhase: 'verified', onboardingEmailSnapshot: 'another@example.test' }), /markers/)
 const verification = requests.find(item => item.name === '[WRITE] Verify applicant email using its fresh inbox code')
 assert.equal(preflight(verification, { ...synthetic, onboardingPhase: 'approved' }).skipped, true, 'Do not re-verify an already approved account')
+// Regression checks for the merged merchant review policy. Synthetic prerequisites only;
+// these checks neither call the backend nor execute response assertions.
+const lifecycleFixture = { ...synthetic, onboardingApprovedThisRun: 'true',
+  onboardingStatusChangeRejectedThisRun: 'true', onboardingReauthenticatedThisRun: 'true',
+  onboardingReplacementKeyCapturedThisRun: 'true', onboardingRevokedApiKey: 'synthetic-revoked-key' }
+const lifecycleCases = [
+  ['[STATE CHANGE] Merchant suspension through user management is rejected', 'approved', 409, 'problem'],
+  ['[STATE CHANGE] Merchant activation through user management is rejected', 'approved', 409, 'problem'],
+  ['Rejected suspension leaves merchant JWT webhook access unchanged', 'approved', 200, ''],
+  ['Rejected suspension leaves merchant API key usable', 'approved', 200, ''],
+  ['[STATE CHANGE] Reapprove only this suite rejected merchant application', 'rejected', 200, ''],
+  ['Login explicitly reapproved merchant', 'reapproved', 200, ''],
+  ['Reapproved merchant receives its replacement API key privately', 'reapproved', 200, ''],
+  ['Reapproval never restores the revoked API key', 'reapproved', 401, 'auth'],
+  ['Reapproved merchant replacement API key authenticates machine list', 'reapproved', 200, ''],
+  ['Reapproval preserves webhook configuration and hides its secret', 'reapproved', 200, ''],
+  ['[STATE CHANGE] Repeated reapproval is a conflict', 'reapproved', 409, 'merchantError'],
+]
+for (const [name, phase, status, shape] of lifecycleCases) {
+  const item = requests.find(item => item.name === name)
+  assert.ok(item, `Missing lifecycle contract: ${name}`)
+  const prepared = preflight(item, { ...lifecycleFixture, onboardingPhase: phase })
+  assert.equal(prepared.skipped, false, `Enabled lifecycle request unexpectedly skipped: ${name}`)
+  assert.equal(prepared.local.__expectedStatus, status, `${name}: wrong expected status`)
+  assert.equal(prepared.local.__errorShape, shape, `${name}: wrong error contract`)
+}
+for (const name of ['Rejected suspension leaves merchant JWT webhook access unchanged',
+  'Rejected suspension leaves merchant API key usable']) {
+  assert.equal(preflight(requests.find(item => item.name === name), {
+    ...lifecycleFixture, onboardingPhase: 'approved', onboardingStatusChangeRejectedThisRun: '',
+  }).skipped, true, 'Unchanged access checks require the preceding 409 result')
+}
+const reapproval = requests.find(item => item.name === '[STATE CHANGE] Reapprove only this suite rejected merchant application')
+const rejectedFixture = { ...lifecycleFixture, onboardingPhase: 'rejected' }
+assert.equal(preflight(reapproval, { ...rejectedFixture, allowLifecycleRejection: 'false' }).skipped, true)
+assert.equal(preflight(reapproval, { ...rejectedFixture, onboardingPhase: 'reapproved' }).skipped, true, 'Do not reapply a completed reapproval')
+assert.equal(preflight(reapproval, { ...rejectedFixture, onboardingUserId: '' }).skipped, true)
+assert.throws(() => preflight(reapproval, { ...rejectedFixture, onboardingCreatedBySuite: '' }), /suite signup/)
+assert.throws(() => preflight(reapproval, { ...rejectedFixture, onboardingEmailSnapshot: 'another@example.test' }), /markers/)
+for (const key of ['onboardingRevokedApiKey', 'onboardingReauthenticatedThisRun', 'onboardingReplacementKeyCapturedThisRun']) {
+  const name = key === 'onboardingRevokedApiKey' ? 'Reapproval never restores the revoked API key'
+    : key === 'onboardingReauthenticatedThisRun' ? 'Reapproved merchant receives its replacement API key privately'
+    : 'Reapproved merchant replacement API key authenticates machine list'
+  assert.equal(preflight(requests.find(item => item.name === name), {
+    ...lifecycleFixture, onboardingPhase: 'reapproved', [key]: '',
+  }).skipped, true, `${name}: missing prerequisite must skip`)
+}
 for (const item of writes) for (const event of item.event) {
   const code = event.script.exec.join('\n')
   assert.ok(!/pm\.environment\.set\(["'](?:\w*(?:AccessToken|RefreshToken|ApiKey|SigningSecret)|accessToken|refreshToken|newSigningSecret)["']/.test(code),
@@ -202,10 +249,12 @@ const summary = { requests: requests.length, scriptSyntaxChecks: scripts.length,
   staticExpectChecks: expectChecks, productionRouteVariants: productionRoutes.length, coveredRouteVariants: covered.length,
   authOnlyRouteVariants: productionRoutes.filter(route => coverage.get(`${route.method} ${route.path}`).every(item => item.name.startsWith('[AUTH SMOKE]'))).length,
   dtoPayloadChecks, defaultPrerequestSimulations: requests.length, enabledBranchSimulations,
+  merchantLifecycleContractCases: lifecycleCases.length,
   guardedWriteSimulations: writes.length, liveHttpRequests: 0 }
 if (process.argv.includes('--write-coverage')) {
   const lines = ['# Endpoint coverage', '', 'Generated offline from current Spring controller mappings by `node postman/validate.mjs --write-coverage`.',
     'A prepared request is not a live test result. Auth-only rows verify a security boundary, not business behavior.', '',
+    'Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant status changes return 409; denied suspension preserves JWT/API-key access. Admin rejection and explicit reapproval use the existing merchant review endpoints, verify key replacement/revocation, and keep signing secrets private. See [execution prerequisites](README.md#staged-merchant-lifecycle-folder-09).', '',
     '| Method | Route | Prepared cases | Coverage | Controller |', '|---|---|---:|---|---|']
   for (const route of routes) {
     const cases = coverage.get(`${route.method} ${route.path}`)

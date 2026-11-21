@@ -151,7 +151,7 @@ def render(args):
         'postgresImage': args.postgres_image, 'rabbitmqImage': args.rabbitmq_image,
         'migrationChecksums': migration_checksums,
         'reviewedProofConversion': args.reviewed_proof_conversion,
-        'proofSourceMatchesFrozen': scripts['legacy-proof-body.sql'] == migrations.proof_body(scripts['legacy-proof-source.sql']),
+        'proofSourceMatchesFrozen': migrations.proof_source_matches(scripts['legacy-proof-body.sql'], scripts['legacy-proof-source.sql']),
         'frontendBuild': {'dockerfile': 'k8s/frontend.Dockerfile', 'context': 'frontend',
                           'args': {'VITE_GOOGLE_CLIENT_ID': config['data']['GOOGLE_CLIENT_ID']}},
     }
