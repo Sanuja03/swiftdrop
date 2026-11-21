@@ -15,9 +15,15 @@ async function attempt(call, fallbackError) {
     return { success: true, data: await call() };
   } catch (error) {
     const offline = error.status === 0;
+    const validationErrors = error.body?.validationErrors;
+    const firstValidationError = validationErrors && typeof validationErrors === 'object'
+      ? Object.values(validationErrors).find((msg) => typeof msg === 'string' && msg.trim())
+      : null;
     return {
       success: false,
-      error: offline ? 'Unable to connect to SwiftDrop authentication server.' : error.message || fallbackError,
+      error: offline
+        ? 'Unable to connect to SwiftDrop authentication server.'
+        : firstValidationError || error.message || fallbackError,
     };
   }
 }
