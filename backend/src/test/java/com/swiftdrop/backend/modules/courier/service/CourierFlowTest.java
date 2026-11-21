@@ -94,12 +94,29 @@ class CourierFlowTest {
     @Test
     void todayExcludesAssignmentsWithAnyOtherStatus() {
         LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
-        for (String status : new String[]{"ACCEPTED", "CANCELLED", "REJECTED", "COMPLETED"}) {
+        for (String status : new String[]{"CANCELLED", "REJECTED", "COMPLETED"}) {
             UUID id = assignedParcel(courierUserId, today, "SDP-" + status);
             jdbc.update("update courier_assignments set status = ? where parcel_id = ?", status, id);
         }
         assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
                 .containsExactly(parcelId);
+    }
+
+    @Test
+    void acceptedDeliveriesRemainVisibleOnlyForTheirCourierAndScheduledDay() {
+        LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
+        UUID accepted = assignedParcel(courierUserId, today, "SDP-ACCEPTED");
+        UUID yesterday = assignedParcel(courierUserId, today.minusDays(1), "SDP-ACCEPTED-OLD");
+        UUID tomorrow = assignedParcel(courierUserId, today.plusDays(1), "SDP-ACCEPTED-NEXT");
+        UUID otherId = users.findByEmail(other.getName()).orElseThrow().getId();
+        UUID otherAccepted = assignedParcel(otherId, today, "SDP-ACCEPTED-OTHER");
+        for (UUID id : new UUID[]{accepted, yesterday, tomorrow, otherAccepted}) {
+            jdbc.update("update courier_assignments set status = 'ACCEPTED' where parcel_id = ?", id);
+        }
+
+        assertThat(deliveries.today(courier)).extracting(CourierDeliveryResponse::parcelId)
+                .containsExactlyInAnyOrder(parcelId, accepted);
+        assertThat(deliveries.details(accepted, courier).parcelId()).isEqualTo(accepted);
     }
 
     @Test
