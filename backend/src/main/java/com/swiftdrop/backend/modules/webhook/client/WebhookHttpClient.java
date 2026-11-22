@@ -44,14 +44,15 @@ public class WebhookHttpClient {
             return WebhookHttpResult.noResponse("Webhook URL must use http or https");
         }
 
-        HttpRequest.Builder request = HttpRequest.newBuilder(uri)
-                .timeout(requestTimeout)
-                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
-        headers.forEach(request::header);
-
         try {
+            HttpRequest.Builder request = HttpRequest.newBuilder(uri)
+                    .timeout(requestTimeout)
+                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            headers.forEach(request::header);
             HttpResponse<Void> response = httpClient.send(request.build(), HttpResponse.BodyHandlers.discarding());
             return WebhookHttpResult.response(response.statusCode());
+        } catch (IllegalArgumentException ex) {
+            return WebhookHttpResult.noResponse("Webhook request is not valid");
         } catch (HttpTimeoutException ex) {
             return WebhookHttpResult.noResponse("Endpoint did not answer within " + requestTimeout.toSeconds() + "s");
         } catch (IOException ex) {

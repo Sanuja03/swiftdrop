@@ -64,8 +64,16 @@ export const merchantApi = {
     return request(`${BASE}/calculate-fee`, { json: feeRequest })
   },
 
+  getWebhookConfig() {
+    return request(`${BASE}/webhooks/config`)
+  },
+
   updateWebhook(merchantId, webhookData) {
-    return request(`${BASE}/webhook`, { method: 'PUT', json: webhookData })
+    return request(`${BASE}/webhooks/config`, { method: 'PUT', json: { url: webhookData.url } })
+  },
+
+  rotateWebhookSecret() {
+    return request(`${BASE}/webhooks/config/rotate-secret`, { method: 'POST' })
   },
 
   testWebhook(merchantId, testUrl) {
@@ -73,7 +81,7 @@ export const merchantApi = {
   },
 
   getWebhookLogs(merchantId) {
-    return request(`${BASE}/webhook/logs`)
+    return request(`${BASE}/webhooks/deliveries?page=0&size=50`).then((page) => page.content)
   },
 
   /** Returns { apiKey } once; the key is not shown again until it is regenerated. */

@@ -607,9 +607,9 @@ body {
 .badge-in-transit { background: #E0F2FE; color: #0284C7; border: 1px solid #BAE6FD; }
 .badge-out-for-delivery { background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE; }
 .badge-delivered { background: #DCFCE7; color: var(--sd-success); border: 1px solid #BBF7D0; }
-.badge-failed { background: #FEE2E2; color: var(--sd-error); border: 1px solid #FECACA; }
+.badge-failed, .badge-dead { background: #FEE2E2; color: var(--sd-error); border: 1px solid #FECACA; }
 .badge-cancelled { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
-.badge-pending { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
+.badge-pending, .badge-retrying { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
 .badge-approved { background: #DCFCE7; color: var(--sd-success); border: 1px solid #BBF7D0; }
 .badge-rejected { background: #FEE2E2; color: var(--sd-error); border: 1px solid #FECACA; }
 .badge-success { background: #DCFCE7; color: var(--sd-success); border: 1px solid #BBF7D0; }

@@ -1,0 +1,10 @@
+{
+  "apiVersion": "v1",
+  "kind": "Namespace",
+  "metadata": {
+    "name": "swiftdrop",
+    "labels": {
+      "app.kubernetes.io/part-of": "swiftdrop"
+    }
+  }
+}

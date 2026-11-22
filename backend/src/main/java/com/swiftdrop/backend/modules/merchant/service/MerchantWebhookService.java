@@ -9,24 +9,29 @@ import com.swiftdrop.backend.modules.merchant.entity.WebhookDeliveryStatus;
 import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
 import com.swiftdrop.backend.modules.merchant.repository.MerchantWebhookLogRepository;
 import com.swiftdrop.backend.modules.parcel.entity.Parcel;
+import com.swiftdrop.backend.modules.webhook.client.WebhookHttpClient;
+import com.swiftdrop.backend.modules.webhook.client.WebhookHttpResult;
+import com.swiftdrop.backend.modules.webhook.endpoint.JdbcMerchantWebhookDirectory;
+import com.swiftdrop.backend.modules.webhook.exception.WebhookException;
+import com.swiftdrop.backend.modules.webhook.entity.WebhookDelivery;
+import com.swiftdrop.backend.modules.webhook.repository.WebhookDeliveryRepository;
+import com.swiftdrop.backend.modules.webhook.signing.WebhookSigner;
+import com.swiftdrop.backend.modules.webhook.validation.WebhookUrlValidator;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +44,11 @@ public class MerchantWebhookService {
 
     private final MerchantRepository merchantRepository;
     private final MerchantWebhookLogRepository webhookLogRepository;
+    private final JdbcMerchantWebhookDirectory directory;
+    private final WebhookUrlValidator validator;
+    private final WebhookSigner signer;
+    private final WebhookHttpClient sharedHttpClient;
+    private final WebhookDeliveryRepository deliveries;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -51,9 +61,17 @@ public class MerchantWebhookService {
     private boolean directDeliveryEnabled = false;
 
     public MerchantWebhookService(MerchantRepository merchantRepository,
-                                  MerchantWebhookLogRepository webhookLogRepository) {
+                                  MerchantWebhookLogRepository webhookLogRepository,
+                                  JdbcMerchantWebhookDirectory directory, WebhookUrlValidator validator,
+                                  WebhookSigner signer, WebhookHttpClient sharedHttpClient,
+                                  WebhookDeliveryRepository deliveries) {
         this.merchantRepository = merchantRepository;
         this.webhookLogRepository = webhookLogRepository;
+        this.directory = directory;
+        this.validator = validator;
+        this.signer = signer;
+        this.sharedHttpClient = sharedHttpClient;
+        this.deliveries = deliveries;
     }
 
     @Async
@@ -76,6 +94,9 @@ public class MerchantWebhookService {
     }
 
     public void sendWebhook(Merchant merchant, Parcel parcel, String eventType, String note, int attemptCount) {
+        // Legacy direct mode remains off. If explicitly enabled, it must obey the same eligibility/URL policy.
+        var endpoint = directory.findEndpoint(merchant.getId());
+        if (endpoint.isEmpty()) return;
         try {
             Map<String, Object> payloadMap = new LinkedHashMap<>();
             payloadMap.put("event", eventType);
@@ -97,11 +118,11 @@ public class MerchantWebhookService {
 
             long timestamp = Instant.now().getEpochSecond();
             String jsonPayload = objectMapper.writeValueAsString(payloadMap);
-            String signature = signPayload(jsonPayload, merchant.getWebhookSecret(), timestamp);
+            String signature = signer.sign(endpoint.get().secret(), timestamp, jsonPayload);
             String deliveryId = UUID.randomUUID().toString();
 
             HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(merchant.getWebhookUrl()))
+                    .uri(URI.create(endpoint.get().url()))
                     .timeout(Duration.ofSeconds(5))
                     .header("Content-Type", "application/json")
                     .header("User-Agent", "SwiftDrop-Webhook/1.0")
@@ -150,124 +171,76 @@ public class MerchantWebhookService {
         }
     }
 
+    /** A one-shot test using the production URL policy, transport and signature contract. */
     public WebhookTestResponse testWebhook(UUID merchantId, String overrideUrl) {
         Merchant merchant = merchantRepository.findById(merchantId)
-                .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
-
-        String targetUrl = (overrideUrl != null && !overrideUrl.isBlank()) ? overrideUrl : merchant.getWebhookUrl();
-        if (targetUrl == null || targetUrl.isBlank()) {
-            return WebhookTestResponse.builder()
-                    .success(false)
-                    .statusCode(400)
-                    .message("No webhook URL configured or provided")
-                    .endpointUrl(targetUrl)
-                    .build();
+                .orElseThrow(WebhookException::merchantAccountMissing);
+        if (merchant.getWebhookUrl() == null || merchant.getWebhookUrl().isBlank()
+                || merchant.getWebhookSecret() == null || merchant.getWebhookSecret().isBlank()) {
+            throw WebhookException.configurationRequired();
         }
-
+        String targetUrl = validator.validate(overrideUrl != null && !overrideUrl.isBlank()
+                ? overrideUrl : merchant.getWebhookUrl());
+        var endpoint = directory.findEndpoint(merchantId).orElseThrow(WebhookException::merchantAccountMissing);
+        Instant now = Instant.now();
+        UUID eventId = UUID.randomUUID();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("eventId", eventId);
+        payload.put("event", "webhook.test_ping");
+        payload.put("merchantId", merchantId);
+        payload.put("businessName", merchant.getBusinessName());
+        payload.put("message", "SwiftDrop webhook test ping");
+        payload.put("timestamp", now.toString());
+        final String body;
         try {
-            Map<String, Object> testPayload = new LinkedHashMap<>();
-            testPayload.put("event", "webhook.test_ping");
-            testPayload.put("merchantId", merchant.getId());
-            testPayload.put("businessName", merchant.getBusinessName());
-            testPayload.put("message", "SwiftDrop webhook test ping successful");
-            testPayload.put("timestamp", Instant.now().toString());
-
-            String jsonPayload = objectMapper.writeValueAsString(testPayload);
-            String signature = signPayload(jsonPayload, merchant.getWebhookSecret());
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(targetUrl))
-                    .timeout(Duration.ofSeconds(6))
-                    .header("Content-Type", "application/json")
-                    .header("User-Agent", "SwiftDrop-Webhook-Test/1.0")
-                    .header("X-SwiftDrop-Signature", signature)
-                    .header("X-SwiftDrop-Event", "webhook.test_ping")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload, StandardCharsets.UTF_8))
-                    .build();
-
-            long start = System.currentTimeMillis();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            long latency = System.currentTimeMillis() - start;
-            String respBody = response.body();
-            if (respBody != null && respBody.length() > 2000) {
-                respBody = respBody.substring(0, 2000) + "... [truncated]";
-            }
-
-            boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
-
-            MerchantWebhookLog webhookLog = MerchantWebhookLog.builder()
-                    .merchantId(merchant.getId())
-                    .trackingNumber("TEST-PING")
-                    .eventType("webhook.test_ping")
-                    .payload(jsonPayload)
-                    .endpointUrl(targetUrl)
-                    .responseCode(response.statusCode())
-                    .deliveryStatus(success ? WebhookDeliveryStatus.SUCCESS : WebhookDeliveryStatus.FAILED)
-                    .errorMessage(success ? (respBody != null && !respBody.isBlank() ? "Response: " + respBody : null)
-                            : "Target responded with HTTP " + response.statusCode() + (respBody != null && !respBody.isBlank() ? ": " + respBody : ""))
-                    .attemptCount(1)
-                    .build();
-            webhookLogRepository.save(webhookLog);
-
-            return WebhookTestResponse.builder()
-                    .success(success)
-                    .statusCode(response.statusCode())
-                    .message(success ? "Ping succeeded (HTTP " + response.statusCode() + ")" : "Target returned error " + response.statusCode())
-                    .latencyMs(latency)
-                    .endpointUrl(targetUrl)
-                    .simulatedPayload(jsonPayload)
-                    .responseBody(respBody)
-                    .build();
-
-        } catch (Exception ex) {
-            return WebhookTestResponse.builder()
-                    .success(false)
-                    .statusCode(0)
-                    .message("Connection failed: " + ex.getMessage())
-                    .latencyMs(0)
-                    .endpointUrl(targetUrl)
-                    .build();
+            body = objectMapper.writeValueAsString(payload);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new IllegalStateException("Could not serialize webhook test");
         }
+        WebhookDelivery delivery = deliveries.save(WebhookDelivery.create(eventId, merchantId, null,
+                "TEST-PING", "webhook.test_ping", targetUrl, body, 1));
+        long start = System.nanoTime();
+        WebhookHttpResult result = sharedHttpClient.post(targetUrl, body, Map.of(
+                "Content-Type", "application/json", "User-Agent", "SwiftDrop-Webhooks/1.0",
+                "X-SwiftDrop-Event", "webhook.test_ping", "X-SwiftDrop-Event-Id", eventId.toString(),
+                "X-SwiftDrop-Delivery", delivery.getId().toString(), "X-SwiftDrop-Attempt", "1",
+                WebhookSigner.SIGNATURE_HEADER, signer.sign(endpoint.secret(), now.getEpochSecond(), body)));
+        if (result.isSuccess()) {
+            delivery.recordSuccess(targetUrl, result.statusCode(), Instant.now());
+        } else {
+            delivery.recordFailure(targetUrl, result.statusCode(), result.error(), Instant.now());
+            delivery.markDead();
+        }
+        deliveries.save(delivery);
+        return WebhookTestResponse.builder().success(result.isSuccess())
+                .statusCode(result.statusCode() == null ? 0 : result.statusCode())
+                .message(result.isSuccess() ? "Ping succeeded (HTTP " + result.statusCode() + ")" : result.error())
+                .latencyMs((System.nanoTime() - start) / 1_000_000)
+                .endpointUrl(targetUrl).simulatedPayload(body).build();
     }
 
+    /** Compatibility list shape, backed by the actual delivery engine's records. */
     public List<MerchantWebhookLogDto> getRecentLogs(UUID merchantId) {
-        return webhookLogRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId)
-                .stream()
-                .limit(50)
-                .map(l -> MerchantWebhookLogDto.builder()
-                        .id(l.getId())
-                        .merchantId(l.getMerchantId())
-                        .trackingNumber(l.getTrackingNumber())
-                        .eventType(l.getEventType())
-                        .payload(l.getPayload())
-                        .endpointUrl(l.getEndpointUrl())
-                        .responseCode(l.getResponseCode())
-                        .deliveryStatus(l.getDeliveryStatus())
-                        .errorMessage(l.getErrorMessage())
-                        .attemptCount(l.getAttemptCount())
-                        .createdAt(l.getCreatedAt())
-                        .build())
-                .toList();
+        return deliveries.findByMerchantId(merchantId, PageRequest.of(0, 50, Sort.by("createdAt").descending()))
+                .stream().map(delivery -> MerchantWebhookLogDto.builder()
+                        .id(delivery.getId()).merchantId(delivery.getMerchantId())
+                        .trackingNumber(delivery.getTrackingNumber()).eventType(delivery.getEventType())
+                        .payload(delivery.getPayload()).endpointUrl(delivery.getEndpointUrl())
+                        .responseCode(delivery.getLastResponseCode())
+                        .deliveryStatus(switch (delivery.getStatus()) {
+                            case DELIVERED -> WebhookDeliveryStatus.SUCCESS;
+                            case DEAD -> WebhookDeliveryStatus.FAILED;
+                            case PENDING, RETRYING -> WebhookDeliveryStatus.RETRYING;
+                        })
+                        .errorMessage(delivery.getLastError()).attemptCount(delivery.getAttemptCount())
+                        .createdAt(delivery.getCreatedAt()).build()).toList();
     }
 
     public String signPayload(String payload, String secret) {
-        return signPayload(payload, secret, 0);
+        return signer.sign(secret, Instant.now().getEpochSecond(), payload);
     }
 
     public String signPayload(String payload, String secret, long timestamp) {
-        if (secret == null || secret.isBlank()) {
-            secret = "default_swiftdrop_webhook_secret_key";
-        }
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKey);
-            String toSign = timestamp > 0 ? timestamp + "." + payload : payload;
-            byte[] hash = mac.doFinal(toSign.getBytes(StandardCharsets.UTF_8));
-            String hex = HexFormat.of().formatHex(hash);
-            return timestamp > 0 ? "t=" + timestamp + ",v1=" + hex : "sha256=" + hex;
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            return "sha256=unsigned";
-        }
+        return signer.sign(secret, timestamp, payload);
     }
 }

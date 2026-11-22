@@ -9,7 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test src/test/assistant-node.test.mjs src/shared/auth/session.test.js src/features/reports/services/reportApi.test.js && vitest run"
+    "test": "node --test src/test/assistant-node.test.mjs src/shared/auth/session.test.js src/features/reports/services/reportApi.test.js src/features/merchant/services/merchantApi.test.mjs && vitest run"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",

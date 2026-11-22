@@ -299,6 +299,9 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status
     ON webhook_deliveries (status);
 -- ================= end Messaging & Webhook Engine section =================
 
+-- Merchant webhook configuration shares the merchant table below. The additive
+-- db/scripts/merchant_webhook_setup.sql remains safe to apply after this schema.
+-- Courier setup is consolidated below and also available as db/scripts/courier_setup.sql.
 -- =====================================================================
 -- Merchant Platform, Order API & Webhooks
 -- =====================================================================
@@ -320,6 +323,28 @@ CREATE TABLE IF NOT EXISTS merchants (
 );
 
 -- Backward compatibility for merchants tables created before these columns
+-- In particular, the webhook-only migration previously created a minimal table.
+-- Keep existing names, secrets, IDs and ownership; legacy profiles with no business
+-- name remain incomplete until explicitly completed, rather than inventing data.
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_name VARCHAR(255);
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS registration_number VARCHAR(100);
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50);
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_address TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS registration_status VARCHAR(50);
+-- Only legacy rows lacking a profile status inherit an already-approved user account.
+-- Explicit PENDING/REJECTED/APPROVED decisions from the merchant module are untouched.
+UPDATE merchants SET registration_status = CASE WHEN EXISTS (
+    SELECT 1 FROM users u WHERE u.id = merchants.user_id AND u.role = 'ROLE_MERCHANT'
+      AND u.status = 'ACTIVE' AND u.email_verified = TRUE
+) THEN 'APPROVED' ELSE 'PENDING' END
+WHERE registration_status IS NULL;
+ALTER TABLE merchants ALTER COLUMN registration_status SET DEFAULT 'PENDING';
+ALTER TABLE merchants ALTER COLUMN registration_status SET NOT NULL;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS approved_by UUID;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS approval_notes TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS api_key VARCHAR(128) UNIQUE;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS webhook_url VARCHAR(500);
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(255);
 ALTER TABLE merchants ALTER COLUMN webhook_secret TYPE VARCHAR(255);

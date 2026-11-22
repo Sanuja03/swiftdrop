@@ -8,7 +8,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,7 +21,6 @@ import com.swiftdrop.backend.modules.merchant.dto.MerchantProfileResponse;
 import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
 import com.swiftdrop.backend.modules.merchant.dto.MerchantStatsResponse;
 import com.swiftdrop.backend.modules.merchant.dto.MerchantWebhookLogDto;
-import com.swiftdrop.backend.modules.merchant.dto.WebhookConfigRequest;
 import com.swiftdrop.backend.modules.merchant.dto.WebhookTestRequest;
 import com.swiftdrop.backend.modules.merchant.dto.WebhookTestResponse;
 import com.swiftdrop.backend.modules.merchant.entity.Merchant;
@@ -104,11 +102,6 @@ public class MerchantController {
     @PostMapping("/calculate-fee")
     public ResponseEntity<FeeCalculationResponse> calculateFee(@Valid @RequestBody FeeCalculationRequest feeRequest) {
         return ResponseEntity.ok(pricingService.calculateFee(feeRequest));
-    }
-
-    @PutMapping("/webhook")
-    public ResponseEntity<MerchantProfileResponse> updateWebhook(@Valid @RequestBody WebhookConfigRequest webhookRequest) {
-        return ResponseEntity.ok(merchantService.updateWebhookConfig(currentMerchant().getId(), webhookRequest));
     }
 
     @PostMapping("/webhook/test")

@@ -19,6 +19,8 @@ vi.mock('../services/merchantApi', () => ({
     cancelOrder: vi.fn(),
     regenerateApiKey: vi.fn(),
     updateWebhook: vi.fn(),
+    getWebhookConfig: vi.fn(),
+    rotateWebhookSecret: vi.fn(),
     testWebhook: vi.fn(),
     getWebhookLogs: vi.fn(),
     registerMerchant: vi.fn(),
@@ -41,7 +43,6 @@ describe('MerchantPortal Component Tests', () => {
     registrationStatus: 'APPROVED',
     apiKey: 'sdp_live_abc123xyz789livekey',
     webhookUrl: 'https://apexfashion.lk/webhook',
-    webhookSecret: 'whsec_secret123456',
   };
 
   const mockStats = {
@@ -99,6 +100,8 @@ describe('MerchantPortal Component Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     merchantApi.getProfile.mockResolvedValue(mockProfile);
+    merchantApi.getWebhookConfig.mockResolvedValue({ url: mockProfile.webhookUrl, configured: true });
+    merchantApi.updateWebhook.mockResolvedValue({ url: mockProfile.webhookUrl, configured: true });
     merchantApi.getStats.mockResolvedValue(mockStats);
     merchantApi.getOrders.mockResolvedValue(mockOrders);
     merchantApi.getActiveZones.mockResolvedValue(mockZones);
@@ -213,6 +216,53 @@ describe('MerchantPortal Component Tests', () => {
     expect(screen.getAllByRole('button', { name: /Book Delivery/ })[0]).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Store Integration/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Business Profile/ })).toBeInTheDocument();
+  });
+
+  it('shows only a newly generated secret and preserves the business profile on save', async () => {
+    merchantApi.updateWebhook.mockResolvedValue({ url: mockProfile.webhookUrl, configured: true, secret: 'whsec_new_once' });
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+    expect(await screen.findByLabelText('New webhook signing secret')).toHaveValue('');
+    expect(screen.getByLabelText('New webhook signing secret')).toHaveAttribute('readonly');
+    fireEvent.click(screen.getByRole('button', { name: /Save Settings/ }));
+    await waitFor(() => expect(screen.getByLabelText('New webhook signing secret')).toHaveValue('whsec_new_once'));
+    expect(merchantApi.updateWebhook).toHaveBeenCalledWith(mockProfile.id, { url: mockProfile.webhookUrl });
+    fireEvent.click(screen.getByRole('button', { name: /Business Profile/ }));
+    expect(await screen.findByText('PV-84920')).toBeInTheDocument();
+    expect(screen.getByText('100 Galle Road, Colombo 03')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Store Integration/ }));
+    merchantApi.updateWebhook.mockResolvedValue({ url: mockProfile.webhookUrl, configured: true });
+    fireEvent.click(screen.getByRole('button', { name: /Save Settings/ }));
+    await waitFor(() => expect(screen.getByLabelText('New webhook signing secret')).toHaveValue(''));
+  });
+
+  it('requires explicit confirmation before rotating a signing secret', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    merchantApi.rotateWebhookSecret.mockResolvedValue({ url: mockProfile.webhookUrl, configured: true, secret: 'whsec_rotated_once' });
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+    const rotate = await screen.findByRole('button', { name: 'Rotate signing secret' });
+    await waitFor(() => expect(rotate).not.toBeDisabled());
+    fireEvent.click(rotate);
+    expect(merchantApi.rotateWebhookSecret).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    fireEvent.click(rotate);
+    await waitFor(() => expect(screen.getByLabelText('New webhook signing secret')).toHaveValue('whsec_rotated_once'));
+    expect(merchantApi.rotateWebhookSecret).toHaveBeenCalledTimes(1);
+    confirm.mockRestore();
+  });
+
+  it('renders the delivery engine status, response code and payload in history', async () => {
+    merchantApi.getWebhookLogs.mockResolvedValue([{ id: 'delivery-1', trackingNumber: 'SDP-TEST',
+      eventType: 'parcel.status_changed', endpointUrl: mockProfile.webhookUrl, status: 'DELIVERED',
+      lastResponseCode: 204, lastError: null, attemptCount: 2, createdAt: '2026-11-21T12:00:00Z',
+      payload: '{"eventId":"event-1"}' }]);
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+    expect(await screen.findByText('DELIVERED')).toBeInTheDocument();
+    expect(screen.getByText('204')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect' }));
+    expect(await screen.findByText(/"eventId": "event-1"/)).toBeInTheDocument();
   });
 
   it('5. Navigates to Store Integration tab and triggers live connection test', async () => {

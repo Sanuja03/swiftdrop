@@ -48,7 +48,7 @@ public class Parcel {
     @Column(name = "customer_id")
     private UUID customerId;
 
-    /** Merchant that created the parcel through the merchant API (null for customer bookings). */
+    /** Merchant owner for merchant API orders and webhooks; null for customer bookings. */
     @Column(name = "merchant_id")
     private UUID merchantId;
 

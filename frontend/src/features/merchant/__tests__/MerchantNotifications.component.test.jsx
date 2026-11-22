@@ -6,6 +6,7 @@ import MerchantPortal from '../pages/MerchantPortal'
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: { role: 'ROLE_MERCHANT' } }) }))
 vi.mock('../services/merchantApi', () => ({ merchantApi: {
   getProfile: vi.fn(async () => ({ id: 'test-merchant', businessName: 'Test Business', registrationStatus: 'APPROVED' })),
+  getWebhookConfig: vi.fn(async () => ({ configured: false })),
   getStats: vi.fn(async () => ({})), getOrders: vi.fn(async () => []), getWebhookLogs: vi.fn(async () => []),
   calculateFee: vi.fn(async () => ({ totalFee: 0 })),
 } }))
