@@ -1,5 +1,5 @@
 import { expect, it, describe, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import MerchantPortal from '../pages/MerchantPortal';
 import { merchantApi } from '../services/merchantApi';
@@ -43,6 +43,7 @@ describe('MerchantPortal Component Tests', () => {
     registrationStatus: 'APPROVED',
     apiKey: 'sdp_live_abc123xyz789livekey',
     webhookUrl: 'https://apexfashion.lk/webhook',
+    webhookConfigured: true,
   };
 
   const mockStats = {
@@ -224,6 +225,7 @@ describe('MerchantPortal Component Tests', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
     expect(await screen.findByLabelText('New webhook signing secret')).toHaveValue('');
     expect(screen.getByLabelText('New webhook signing secret')).toHaveAttribute('readonly');
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save Settings/ })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /Save Settings/ }));
     await waitFor(() => expect(screen.getByLabelText('New webhook signing secret')).toHaveValue('whsec_new_once'));
     expect(merchantApi.updateWebhook).toHaveBeenCalledWith(mockProfile.id, { url: mockProfile.webhookUrl });
@@ -256,13 +258,103 @@ describe('MerchantPortal Component Tests', () => {
     merchantApi.getWebhookLogs.mockResolvedValue([{ id: 'delivery-1', trackingNumber: 'SDP-TEST',
       eventType: 'parcel.status_changed', endpointUrl: mockProfile.webhookUrl, status: 'DELIVERED',
       lastResponseCode: 204, lastError: null, attemptCount: 2, createdAt: '2026-11-21T12:00:00Z',
-      payload: '{"eventId":"event-1"}' }]);
+      payload: '{"id":"event-1","type":"parcel.status_changed","data":{"trackingNumber":"SDP-TEST"}}' }]);
     render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
     expect(await screen.findByText('DELIVERED')).toBeInTheDocument();
     expect(screen.getByText('204')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Inspect' }));
-    expect(await screen.findByText(/"eventId": "event-1"/)).toBeInTheDocument();
+    expect(await screen.findByText(/"id": "event-1"/)).toBeInTheDocument();
+  });
+
+  it('loads webhook settings and history even when unrelated dashboard stats fail', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      merchantApi.getStats.mockRejectedValue(new Error('Stats unavailable'));
+      render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+      expect(await screen.findByDisplayValue(mockProfile.webhookUrl)).toBeInTheDocument();
+      await waitFor(() => expect(merchantApi.getWebhookLogs).toHaveBeenCalledWith(mockProfile.id));
+      expect(await screen.findByText(/No status updates sent yet/)).toBeInTheDocument();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('preserves a newly issued secret when history or order filters are refreshed', async () => {
+    merchantApi.updateWebhook.mockResolvedValue({ url: mockProfile.webhookUrl, configured: true, secret: 'whsec_copy_before_leaving' });
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+    const save = screen.getByRole('button', { name: /Save Settings/ });
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+    await waitFor(() => expect(screen.getByLabelText('New webhook signing secret')).toHaveValue('whsec_copy_before_leaving'));
+    const calls = merchantApi.getWebhookLogs.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: /Refresh Logs/ }));
+    await waitFor(() => expect(merchantApi.getWebhookLogs.mock.calls.length).toBe(calls + 1));
+    expect(screen.getByLabelText('New webhook signing secret')).toHaveValue('whsec_copy_before_leaving');
+    expect(merchantApi.getWebhookConfig).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: /My Orders/ }));
+    fireEvent.change(screen.getByPlaceholderText(/Search by tracking/), { target: { value: 'SDP-TEST' } });
+    await waitFor(() => expect(merchantApi.getOrders).toHaveBeenCalledWith(mockProfile.id, 'ALL', 'SDP-TEST'));
+    fireEvent.click(screen.getByRole('button', { name: /Store Integration/ }));
+    expect(screen.getByLabelText('New webhook signing secret')).toHaveValue('whsec_copy_before_leaving');
+    expect(merchantApi.getWebhookConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a successful ping result when the subsequent history request fails', async () => {
+    merchantApi.testWebhook.mockResolvedValue({ success: true, statusCode: 204, message: 'Ping succeeded (HTTP 204)', latencyMs: 5 });
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+    const testButton = screen.getByRole('button', { name: /Test Connection/ });
+    await waitFor(() => expect(testButton).not.toBeDisabled());
+    await waitFor(() => expect(merchantApi.getWebhookLogs).toHaveBeenCalledTimes(1));
+    merchantApi.getWebhookLogs.mockRejectedValue(new Error('History unavailable'));
+    fireEvent.click(testButton);
+    expect(await screen.findByText(/Connection Test Successful/)).toBeInTheDocument();
+    expect(await screen.findByText(/Unable to load delivery history: History unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText(/Connection Test Failed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No status updates sent yet/)).not.toBeInTheDocument();
+    merchantApi.getWebhookLogs.mockResolvedValue([]);
+    fireEvent.click(screen.getByRole('button', { name: /Refresh Logs/ }));
+    expect(await screen.findByText(/No status updates sent yet/)).toBeInTheDocument();
+    expect(screen.queryByText(/Unable to load delivery history/)).not.toBeInTheDocument();
+  });
+
+  it('shows loading and configuration errors without permitting writes, and supports retry', async () => {
+    let rejectConfiguration;
+    merchantApi.getWebhookConfig.mockReturnValueOnce(new Promise((resolve, reject) => { rejectConfiguration = reject; }));
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+    expect(await screen.findByText('Loading webhook settings...')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Save Settings/ })).toBeDisabled();
+    await act(async () => { rejectConfiguration(new Error('Forbidden')); });
+    expect(await screen.findByText(/Unable to load webhook settings: Forbidden/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Save Settings/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Rotate signing secret' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Test Connection/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading settings' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save Settings/ })).not.toBeDisabled());
+    expect(screen.queryByText(/Unable to load webhook settings/)).not.toBeInTheDocument();
+  });
+
+  it('displays backend URL validation failures without fabricating a secret', async () => {
+    merchantApi.updateWebhook.mockRejectedValue(new Error('Webhook URL must use a public address'));
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Store Integration/ }));
+    const save = screen.getByRole('button', { name: /Save Settings/ });
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+    expect(await screen.findByText('Webhook URL must use a public address')).toBeInTheDocument();
+    expect(screen.getByLabelText('New webhook signing secret')).toHaveValue('');
+  });
+
+  it('does not load configuration or delivery history before merchant approval', async () => {
+    merchantApi.getProfile.mockResolvedValue({ ...mockProfile, registrationStatus: 'PENDING' });
+    render(<MemoryRouter><MerchantPortal /></MemoryRouter>);
+    await waitFor(() => expect(merchantApi.getOrders).toHaveBeenCalled());
+    expect(merchantApi.getWebhookConfig).not.toHaveBeenCalled();
+    expect(merchantApi.getWebhookLogs).not.toHaveBeenCalled();
   });
 
   it('5. Navigates to Store Integration tab and triggers live connection test', async () => {
@@ -284,10 +376,11 @@ describe('MerchantPortal Component Tests', () => {
     fireEvent.click(storeTabBtn);
 
     expect(await screen.findByText(/Store Connection Settings/)).toBeInTheDocument();
-    expect(screen.getByDisplayValue('https://apexfashion.lk/webhook')).toBeInTheDocument();
+    expect(await screen.findByDisplayValue('https://apexfashion.lk/webhook')).toBeInTheDocument();
 
     // Trigger Test Connection
     const testBtn = screen.getByRole('button', { name: /Test Connection/ });
+    await waitFor(() => expect(testBtn).not.toBeDisabled());
     fireEvent.click(testBtn);
 
     await waitFor(() => {

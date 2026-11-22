@@ -83,6 +83,26 @@ class MerchantServiceTest {
     }
 
     @Test
+    void webhookConfiguredRequiresBothDestinationAndSecretWithoutExposingTheSecret() {
+        var merchant = merchant("sdp_live_test_key");
+        merchant.setWebhookUrl(null);
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isFalse();
+        merchant.setWebhookUrl("https://hooks.example.test/events");
+        merchant.setWebhookSecret(null);
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isFalse();
+        merchant.setWebhookSecret(" ");
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isFalse();
+        merchant.setWebhookSecret("whsec_profile_test_only");
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isTrue();
+        assertThat(service.mapToAdminProfile(merchant).isWebhookConfigured()).isTrue();
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        assertThat(mapper.writeValueAsString(service.mapToProfile(merchant)))
+                .doesNotContain("webhookSecret", "whsec_profile_test_only");
+        assertThat(mapper.writeValueAsString(service.mapToAdminProfile(merchant)))
+                .doesNotContain("webhookSecret", "whsec_profile_test_only", "sdp_live_test_key");
+    }
+
+    @Test
     void statsCountOnlyThisMerchantsParcels() {
         when(parcelRepository.countByMerchantId(MERCHANT_ID)).thenReturn(5L);
         when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.CREATED)).thenReturn(1L);

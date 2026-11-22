@@ -158,7 +158,8 @@ public class MerchantService {
                 .registrationStatus(m.getRegistrationStatus())
                 .apiKey(includeApiKey ? m.getApiKey() : null)
                 .webhookUrl(m.getWebhookUrl())
-                .webhookConfigured(m.getWebhookUrl() != null && !m.getWebhookUrl().isBlank())
+                .webhookConfigured(m.getWebhookUrl() != null && !m.getWebhookUrl().isBlank()
+                        && m.getWebhookSecret() != null && !m.getWebhookSecret().isBlank())
                 .createdAt(m.getCreatedAt())
                 .updatedAt(m.getUpdatedAt())
                 .build();

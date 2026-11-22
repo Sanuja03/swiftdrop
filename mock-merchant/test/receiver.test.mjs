@@ -78,6 +78,25 @@ test('rejects invalid signatures before recording or parsing untrusted payloads'
   assert.deepEqual(await receiver.history(), { events: [], attempts: [] })
 })
 
+test('rejects correctly signed expired/future HTTP requests without retaining them', async t => {
+  const receiver = await fixture(t), body = payload('stale')
+  for (const timestamp of [seconds - 301, seconds + 301]) {
+    assert.equal((await receiver.post(body, sign(body, timestamp))).status, 401)
+  }
+  assert.deepEqual(await receiver.history(), { events: [], attempts: [] })
+  // The documented five-minute tolerance includes the boundary itself.
+  assert.equal((await receiver.post(body, sign(body, seconds - 300))).status, 200)
+})
+
+test('rejects signed non-object JSON without crashing or recording an event', async t => {
+  const receiver = await fixture(t)
+  for (const body of ['null', '[]', 'true', '42', '"event"']) {
+    assert.equal((await receiver.post(body)).status, 400)
+  }
+  assert.deepEqual(await receiver.history(), { events: [], attempts: [] })
+  assert.equal((await fetch(receiver.base + '/health')).status, 200)
+})
+
 test('returns 503 twice, then accepts the same event, and acknowledges duplicates once', async t => {
   const receiver = await fixture(t, { failFirst: 2 }), body = payload('retry-1')
   for (const expected of [503, 503, 200, 200]) assert.equal((await receiver.post(body)).status, expected)
