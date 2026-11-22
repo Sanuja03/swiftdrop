@@ -1,8 +1,25 @@
 # SwiftDrop Kubernetes deployment
 
-Prepared for `feature/janani-final-tasks`; **nothing has been deployed**. Commands
+Reviewed on `feature/janani-final-validation`; **nothing has been deployed**. Commands
 below are operator instructions for a later authorized deployment. Run them from
 the repository root. Examples use PowerShell, as on the development machine.
+
+## Bonus status and deferred work
+
+This is an implemented raw-manifest package with offline checks, **not a verified live
+deployment**. Live Kubernetes work is deferred while mandatory webhook/API work is completed.
+No images or local/cloud clusters are created by this review.
+
+There is currently **no Helm chart** (`Chart.yaml`, `values.yaml`, templates or Helm tests).
+The Python renderer is not Helm. If the bonus rubric requires Helm packaging, that requirement
+is incomplete; do not describe this package as Helm-based or claim deployment bonus marks.
+Confirm the rubric before adding a separate chart, so the existing checksummed database
+Jobs and migration history are not duplicated or changed unnecessarily.
+
+Remaining runtime bonus evidence: build the exact images, supply private credentials and
+storage, validate against a Kubernetes API, execute reviewed fresh/upgrade SQL on isolated
+data, and verify rollout, probes, routing and webhook delivery. No Ingress/TLS/egress policy
+is supplied. These are later authorized operator steps, not work executed on this laptop.
 
 ## Package and prerequisites
 

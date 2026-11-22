@@ -1,10 +1,48 @@
 # SwiftDrop API tests
 
-Source baseline: merged backend at `bc99c72` with the verification-security correction,
-branch `feature/janani-final-tasks`. Import
+Source baseline: backend at `8fefed6`, branch `feature/janani-final-validation`. Import
 `SwiftDrop_API_Tests.postman_collection.json` and `SwiftDrop_Local.postman_environment.json`.
 Use a current Postman Collection Runner or Postman CLI that supports
 `pm.execution.skipRequest()`. No CLI, packages, services or databases are installed or started by these assets.
+
+## Newman in CI
+
+The `api-tests` GitHub Actions job runs a fixed **20-request smoke subset** exported by
+`node postman/ci.mjs <new-output.json>`. It reuses requests and response assertions from
+the main collection; the 295-request collection remains unchanged. The subset covers
+public service-price reads, invalid authentication DTOs, and anonymous merchant webhook,
+delivery-log, key and admin-review restrictions. It does not claim authenticated lifecycle
+or live webhook transport coverage. Those cases remain in the main collection and backend tests.
+
+CI starts the existing backend JAR with normal security on loopback and a fresh in-memory
+H2 database. Schema generation is explicit **only for this disposable CI process**; deployment
+continues to use reviewed SQL migrations. No Supabase connection, existing data, Docker
+volume, mail, callback or broker is used. Outbox publishing and direct delivery are disabled.
+The generated JWT key is masked, ephemeral and never supplied to the frontend.
+
+Newman 6.2.1 is installed on GitHub's runner, not by these scripts on your laptop.
+The pinned version's [official package metadata](https://raw.githubusercontent.com/postmanlabs/newman/v6.2.1/package.json)
+specifies its runtime dependencies; [Postman execution documentation](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-execution/)
+describes optional collection skipping. The CI subset does not require that feature.
+The export uses literal loopback URLs and requires `ciIsolatedDatabase=true`; it needs
+no test credentials. Optional `skipRequest` flows are not copied, so CI does not depend
+on that runtime feature or silently skip missing fixtures. JUnit results and startup
+logs are uploaded, and failures block the image job. A prepared workflow is not proof
+that GitHub Actions has executed successfully.
+
+The existing frontend CI job also runs `npm test` after its dependency installation,
+so merchant portal component regressions are exercised on the runner. These tests
+were not rerun on the laptop without their Vite/Vitest dependencies.
+
+Lightweight local contract checks, without installing Newman or starting Spring Boot:
+
+```text
+node --test postman/ci.test.mjs mock-merchant/test/receiver.test.mjs frontend/src/features/merchant/services/merchantApi.test.mjs
+```
+
+See [the local mock receiver](../mock-merchant/README.md) for HMAC verification and bounded
+event history. Production URL validation remains intact; localhost cannot be configured
+through the normal merchant API.
 
 ## Coverage and honest results
 
