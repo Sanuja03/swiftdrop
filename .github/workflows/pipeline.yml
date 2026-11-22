@@ -1,19 +1,21 @@
 # SwiftDrop CI/CD pipeline (GitHub Actions)
 #
-# CI  (every pull request into any branch, and every push to main):
-#     1. backend  : compile + run tests against a throwaway PostgreSQL,
-#                   then save test results and the JaCoCo coverage report
-#     2. frontend : install + lint + production build
-#     3. docker   : build both Docker images (proves the Dockerfiles still work)
+# CI  (every pull request into any branch, and every push to dev or main):
+#     1. backend  : compile + run tests (in-memory H2 database from
+#                   src/test/resources/application.properties), then save
+#                   test results and the JaCoCo coverage report
+#     2. frontend : install + lint + regression tests + production build
+#     3. api-tests: local mock contracts + Newman smoke against disposable H2
+#     4. docker   : build both Docker images (proves the Dockerfiles still work)
 # CD  (only when code lands on main):
-#     3. docker   : also push the images to GitHub Container Registry (ghcr.io)
+#     4. docker   : also push the images to GitHub Container Registry (ghcr.io)
 
 name: CI/CD
 
 on:
   pull_request: # a PR into ANY branch (main, develop, a feature branch...)
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch: # lets you run it manually from the Actions tab
 
 # If you push to a PR again while its run is still going, cancel the old run.
@@ -30,32 +32,9 @@ jobs:
       run:
         working-directory: backend
 
-    # A temporary PostgreSQL just for the tests. It is deleted after the job.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: swiftdrop
-          POSTGRES_USER: swiftdrop
-          POSTGRES_PASSWORD: ci_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U swiftdrop -d swiftdrop"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    # Overrides application.properties so tests use the CI database, not Supabase
-    env:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/swiftdrop
-      SPRING_DATASOURCE_USERNAME: swiftdrop
-      SPRING_DATASOURCE_PASSWORD: ci_password
-      # Hibernate creates the tables from the @Entity classes when tests start
-      # and drops them at the end. Safe ONLY because this database is thrown
-      # away after the job. NEVER use create-drop against Supabase: it deletes
-      # every table and all its data.
-      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+    # No database settings here on purpose: the tests use their own in-memory
+    # H2 database (src/test/resources/application.properties), so CI never
+    # touches Supabase and needs no database service.
 
     steps:
       - uses: actions/checkout@v5
@@ -110,6 +89,14 @@ jobs:
             backend/target/site/jacoco/
           retention-days: 30
 
+      - name: Share backend JAR with isolated API test job
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-api-test-jar
+          path: backend/target/*.jar
+          if-no-files-found: error
+          retention-days: 1
+
   frontend:
     name: Frontend (lint + build)
     runs-on: ubuntu-latest
@@ -133,12 +120,122 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Frontend regression tests including merchant webhook settings
+        run: npm test
+
       - name: Build
         run: npm run build
 
+  api-tests:
+    name: Webhook receiver and Newman API smoke
+    needs: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Check collection and mandatory contribution contracts
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/swiftdrop-api-evidence"
+          node postman/validate.mjs | tee "$RUNNER_TEMP/swiftdrop-api-evidence/collection-validation.log"
+          node --test mock-merchant/test/receiver.test.mjs postman/ci.test.mjs frontend/src/features/merchant/services/merchantApi.test.mjs | tee "$RUNNER_TEMP/swiftdrop-api-evidence/mandatory-node-tests.log"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-api-test-jar
+          path: ${{ runner.temp }}/swiftdrop-api-jar
+
+      - name: Install pinned Newman on the CI runner only
+        run: npm install --global newman@6.2.1 --no-audit --no-fund
+
+      - name: Start isolated API test process
+        shell: bash
+        env:
+          # Fresh in-process H2, not the configured Supabase database or any Docker volume.
+          SPRING_PROFILES_ACTIVE: default
+          SPRING_DATASOURCE_URL: "jdbc:h2:mem:swiftdrop_api_ci;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
+          SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+          SPRING_DATASOURCE_USERNAME: sa
+          SPRING_DATASOURCE_PASSWORD: ""
+          SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.H2Dialect
+          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+          SPRING_SQL_INIT_MODE: never
+          SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+          APP_MESSAGING_OUTBOX_PUBLISHER_ENABLED: "false"
+          SWIFTDROP_WEBHOOKS_DIRECT_DELIVERY_ENABLED: "false"
+          APP_AUTH_GOOGLE_MOCK_TOKENS_ENABLED: "false"
+          MANAGEMENT_HEALTH_RABBIT_ENABLED: "false"
+          MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+          MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: never
+          SPRING_MAIL_HOST: 127.0.0.1
+          SPRING_MAIL_PORT: "1"
+          SERVER_ADDRESS: 127.0.0.1
+          SERVER_PORT: "8080"
+          AI_API_KEY: ""
+          MINIO_ENDPOINT: ""
+        run: |
+          JWT_SECRET="$(node -p "require('node:crypto').randomBytes(32).toString('base64')")"
+          echo "::add-mask::$JWT_SECRET"
+          export JWT_SECRET
+          mkdir -p "$RUNNER_TEMP/swiftdrop-api-evidence"
+          jars=("$RUNNER_TEMP"/swiftdrop-api-jar/*.jar)
+          test "${#jars[@]}" -eq 1
+          java -Xmx512m -Dapp.messaging.outbox.publisher-enabled=false -jar "${jars[0]}" > "$RUNNER_TEMP/swiftdrop-api-evidence/backend.log" 2>&1 &
+          pid=$!
+          echo "$pid" > "$RUNNER_TEMP/swiftdrop-api-evidence/backend.pid"
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --max-time 3 http://127.0.0.1:8080/actuator/health > /dev/null; then
+              exit 0
+            fi
+            kill -0 "$pid" || exit 1
+            sleep 2
+          done
+          echo "Isolated backend did not become healthy within the startup window."
+          exit 1
+
+      - name: Run existing collection smoke cases with Newman
+        shell: bash
+        run: |
+          node postman/ci.mjs "$RUNNER_TEMP/swiftdrop-api-evidence/collection.json"
+          newman run "$RUNNER_TEMP/swiftdrop-api-evidence/collection.json" \
+            --env-var ciIsolatedDatabase=true --bail \
+            --timeout-request 10000 --reporters cli,junit \
+            --reporter-junit-export "$RUNNER_TEMP/swiftdrop-api-evidence/newman.xml"
+
+      - name: Stop only this job's test process
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/swiftdrop-api-evidence/backend.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/swiftdrop-api-evidence/backend.pid")" 2>/dev/null || true
+          fi
+
+      - name: Upload API test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-api-smoke-results
+          path: |
+            ${{ runner.temp }}/swiftdrop-api-evidence/newman.xml
+            ${{ runner.temp }}/swiftdrop-api-evidence/backend.log
+            ${{ runner.temp }}/swiftdrop-api-evidence/collection-validation.log
+            ${{ runner.temp }}/swiftdrop-api-evidence/mandatory-node-tests.log
+          if-no-files-found: warn
+          retention-days: 14
+
   docker:
     name: Docker images (${{ matrix.service }})
-    needs: [backend, frontend] # only runs if both jobs above passed
+    needs: [backend, frontend, api-tests] # publish/build images only after mandatory checks pass
     runs-on: ubuntu-latest
     permissions:
       contents: read

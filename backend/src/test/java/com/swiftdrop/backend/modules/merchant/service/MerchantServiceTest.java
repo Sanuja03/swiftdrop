@@ -1,0 +1,140 @@
+package com.swiftdrop.backend.modules.merchant.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import com.swiftdrop.backend.modules.merchant.dto.MerchantRegisterRequest;
+import com.swiftdrop.backend.modules.merchant.entity.Merchant;
+import com.swiftdrop.backend.modules.merchant.entity.MerchantRegistrationStatus;
+import com.swiftdrop.backend.modules.merchant.repository.MerchantRepository;
+import com.swiftdrop.backend.modules.parcel.repository.ParcelRepository;
+import com.swiftdrop.backend.modules.tracking.domain.ParcelStatus;
+
+class MerchantServiceTest {
+    private static final UUID USER_ID = UUID.fromString("70000000-0000-4000-8000-000000000001");
+    private static final UUID MERCHANT_ID = UUID.fromString("80000000-0000-4000-8000-000000000001");
+
+    private final MerchantRepository merchantRepository = mock(MerchantRepository.class);
+    private final ParcelRepository parcelRepository = mock(ParcelRepository.class);
+    private final com.swiftdrop.backend.modules.messaging.service.OutboxService outboxService =
+            mock(com.swiftdrop.backend.modules.messaging.service.OutboxService.class);
+    private final MerchantService service = new MerchantService(merchantRepository, parcelRepository, outboxService);
+
+    @Test
+    void registrationIsLinkedToTheCallersOwnAccountAndStartsPending() {
+        when(merchantRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        when(merchantRepository.save(any(Merchant.class))).thenAnswer(invocation -> {
+            Merchant merchant = invocation.getArgument(0);
+            merchant.setId(MERCHANT_ID);
+            return merchant;
+        });
+
+        var response = service.registerMerchant(USER_ID, registerRequest());
+
+        var saved = ArgumentCaptor.forClass(Merchant.class);
+        verify(merchantRepository).save(saved.capture());
+        assertThat(saved.getValue().getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getValue().getWebhookSecret()).isNull();
+        assertThat(response.getRegistrationStatus()).isEqualTo(MerchantRegistrationStatus.PENDING);
+        assertThat(response.getApiKey()).isNull();
+        verify(outboxService).publishEvent("MERCHANT", MERCHANT_ID, "MERCHANT_REGISTERED",
+                "merchant.registered", new com.swiftdrop.backend.modules.merchant.event.MerchantRegisteredPayload(MERCHANT_ID));
+    }
+
+    @Test
+    void secondProfileForTheSameAccountIsRejected() {
+        when(merchantRepository.findByUserId(USER_ID)).thenReturn(Optional.of(merchant(null)));
+
+        assertThatThrownBy(() -> service.registerMerchant(USER_ID, registerRequest()))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(merchantRepository, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void regeneratedKeyIsNewAndRandom() {
+        var merchant = merchant("sdp_live_old");
+        when(merchantRepository.findById(MERCHANT_ID)).thenReturn(Optional.of(merchant));
+
+        String first = service.regenerateApiKey(MERCHANT_ID);
+        String second = service.regenerateApiKey(MERCHANT_ID);
+
+        assertThat(first).startsWith("sdp_live_").isNotEqualTo("sdp_live_old").isNotEqualTo(second);
+        assertThat(merchant.getApiKey()).isEqualTo(second);
+    }
+
+    @Test
+    void ownProfileShowsTheKeyButTheAdminViewDoesNot() {
+        var merchant = merchant("sdp_live_test_key");
+
+        assertThat(service.mapToProfile(merchant).getApiKey()).isEqualTo("sdp_live_test_key");
+        assertThat(service.mapToAdminProfile(merchant).getApiKey()).isNull();
+    }
+
+    @Test
+    void webhookConfiguredRequiresBothDestinationAndSecretWithoutExposingTheSecret() {
+        var merchant = merchant("sdp_live_test_key");
+        merchant.setWebhookUrl(null);
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isFalse();
+        merchant.setWebhookUrl("https://hooks.example.test/events");
+        merchant.setWebhookSecret(null);
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isFalse();
+        merchant.setWebhookSecret(" ");
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isFalse();
+        merchant.setWebhookSecret("whsec_profile_test_only");
+        assertThat(service.mapToProfile(merchant).isWebhookConfigured()).isTrue();
+        assertThat(service.mapToAdminProfile(merchant).isWebhookConfigured()).isTrue();
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        assertThat(mapper.writeValueAsString(service.mapToProfile(merchant)))
+                .doesNotContain("webhookSecret", "whsec_profile_test_only");
+        assertThat(mapper.writeValueAsString(service.mapToAdminProfile(merchant)))
+                .doesNotContain("webhookSecret", "whsec_profile_test_only", "sdp_live_test_key");
+    }
+
+    @Test
+    void statsCountOnlyThisMerchantsParcels() {
+        when(parcelRepository.countByMerchantId(MERCHANT_ID)).thenReturn(5L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.CREATED)).thenReturn(1L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.IN_TRANSIT)).thenReturn(2L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.DELIVERED)).thenReturn(1L);
+        when(parcelRepository.countByMerchantIdAndStatus(MERCHANT_ID, ParcelStatus.CANCELLED)).thenReturn(1L);
+
+        var stats = service.getStats(MERCHANT_ID);
+
+        assertThat(stats.getTotalOrders()).isEqualTo(5);
+        assertThat(stats.getPendingOrders()).isEqualTo(1);
+        assertThat(stats.getActiveShipments()).isEqualTo(2);
+        assertThat(stats.getCancelledOrders()).isEqualTo(1);
+    }
+
+    private static MerchantRegisterRequest registerRequest() {
+        return MerchantRegisterRequest.builder()
+                .businessName("Test Shop")
+                .registrationNumber("TEST-REG")
+                .contactPhone("0000000000")
+                .businessAddress("1 Sample Street")
+                .build();
+    }
+
+    private static Merchant merchant(String apiKey) {
+        return Merchant.builder()
+                .id(MERCHANT_ID)
+                .userId(USER_ID)
+                .businessName("Test Shop")
+                .registrationStatus(MerchantRegistrationStatus.APPROVED)
+                .apiKey(apiKey)
+                .webhookSecret("whsec_old")
+                .build();
+    }
+}

@@ -10,6 +10,10 @@ RUN npm ci
 
 # Copy source code and build
 COPY . .
+ARG VITE_GOOGLE_CLIENT_ID=""
+ARG VITE_API_BASE_URL=""
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build
 
 # Serve the production build
@@ -17,6 +21,9 @@ FROM nginx:alpine
 
 # Copy the production build into Nginx
 COPY --from=build /app/dist /usr/share/nginx/html
+
+# SPA routing plus /api and /ws forwarding to the backend
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

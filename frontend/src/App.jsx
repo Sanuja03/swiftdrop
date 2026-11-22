@@ -1,122 +1,158 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
-function App() {
-  const [count, setCount] = useState(0)
+// Auth (identity & accounts)
+import { AuthProvider, useAuth } from './context/AuthContext'
+import ProtectedRoute from './components/common/ProtectedRoute'
+import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import VerifyEmailPage from './pages/VerifyEmailPage'
+import ProfilePage from './pages/ProfilePage'
 
+// Customer app (booking, tracking, dashboard)
+import { ROUTES } from '@/shared/config/routes'
+import CustomerLayout from '@/shared/layouts/CustomerLayout'
+import PublicLayout from '@/shared/layouts/PublicLayout'
+import NotFoundPage from '@/shared/pages/NotFoundPage'
+import { BookingConfirmationPage, CreateDeliveryPage } from '@/features/booking'
+import { DeliveryHistoryPage, LiveTrackingPage, MyShipmentsPage, TrackParcelPage } from '@/features/tracking'
+import { OverviewPage } from '@/features/dashboard'
+import { SettingsPage } from '@/features/account'
+import CourierPage, { CourierLayout } from '@/features/courier/pages/CourierPage'
+
+// Dispatcher operations (queue management & courier workloads)
+import {
+  DispatcherRoute,
+  DispatcherLayout,
+  DispatchManagementPage,
+  CourierWorkloadPage,
+} from '@/features/dispatch'
+
+// Merchant portal (orders, API key, webhooks)
+import MerchantPortal from './features/merchant/pages/MerchantPortal'
+
+import AdminLayout from '@/shared/layouts/AdminLayout'
+import ReportsDashboard from './features/reports/pages/ReportsDashboard'
+import UserManagement from './features/users/pages/UserManagement'
+import MyNotifications from './features/notifications/pages/MyNotifications'
+import { AdminZonesPage, AdminPricingPage } from '@/features/admin'
+
+function OperationsLayout() {
+  const { user } = useAuth()
+  return user?.role?.replace(/^ROLE_/, '') === 'DISPATCHER' ? <DispatcherLayout /> : <AdminLayout />
+}
+
+function NotificationsLayout() {
+  const { user } = useAuth()
+  const role = user?.role?.replace(/^ROLE_/, '')
+  if (role === 'COURIER') return <CourierLayout />
+  return ['ADMIN', 'DISPATCHER'].includes(role) ? <OperationsLayout /> : <CustomerLayout />
+}
+
+export function AppRoutes() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Routes>
+      {/* Public: landing and auth */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ForgotPasswordPage />} />
 
-      <div className="ticks"></div>
+      {/* Public: parcel tracking */}
+      <Route element={<PublicLayout />}>
+        <Route path={ROUTES.track} element={<TrackParcelPage />} />
+        <Route path={`${ROUTES.track}/:trackingNumber`} element={<TrackParcelPage />} />
+      </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {/* Logged-in: profile */}
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* Logged-in: customer app */}
+      <Route
+        path={ROUTES.app}
+        element={
+          <ProtectedRoute>
+            <CustomerLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<OverviewPage />} />
+        <Route path="shipments" element={<MyShipmentsPage />} />
+        <Route path="shipments/:trackingNumber" element={<LiveTrackingPage />} />
+        <Route path="create" element={<CreateDeliveryPage />} />
+        <Route path="bookings/:trackingNumber" element={<BookingConfirmationPage />} />
+        <Route path="history" element={<DeliveryHistoryPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+
+      {/* Administrator workspace */}
+      <Route
+        path={ROUTES.admin}
+        element={<ProtectedRoute roles={['ROLE_ADMIN']}><AdminLayout /></ProtectedRoute>}
+      >
+        <Route index element={<Navigate to={ROUTES.adminReports} replace />} />
+        <Route path="reports" element={<ReportsDashboard />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="zones" element={<ProtectedRoute roles={['ROLE_ADMIN']}><AdminZonesPage /></ProtectedRoute>} />
+        <Route path="pricing" element={<ProtectedRoute roles={['ROLE_ADMIN']}><AdminPricingPage /></ProtectedRoute>} />
+      </Route>
+
+      {/* Notifications use the signed-in account's layout. */}
+      <Route path="/notifications" element={<ProtectedRoute><NotificationsLayout /></ProtectedRoute>}>
+        <Route index element={<MyNotifications />} />
+      </Route>
+
+      {/* Logged-in couriers only */}
+      <Route path={ROUTES.courier} element={<ProtectedRoute roles={['ROLE_COURIER']}><CourierLayout /></ProtectedRoute>}>
+        <Route index element={<CourierPage />} />
+        <Route path=":parcelId" element={<CourierPage />} />
+      </Route>
+
+      {/* Logged-in: dispatcher operations */}
+      <Route
+        path={ROUTES.dispatch}
+        element={
+          <DispatcherRoute>
+            <OperationsLayout />
+          </DispatcherRoute>
+        }
+      >
+        <Route index element={<DispatchManagementPage />} />
+        <Route path="workload" element={<CourierWorkloadPage />} />
+      </Route>
+
+      {/* Logged-in merchants only */}
+      <Route
+        path="/merchant/*"
+        element={
+          <ProtectedRoute roles={['ROLE_MERCHANT']}>
+            <MerchantPortal />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route path="/home" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
+  )
+}

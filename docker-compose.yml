@@ -1,21 +1,55 @@
+# Local stack: PostgreSQL, RabbitMQ, backend and frontend.
+# Every credential comes from the root .env file (copy .env.example). There are no defaults
+# here: a missing value stops `docker compose` with a message naming the variable.
 
 services:
   postgres:
     image: postgres:17-alpine
     container_name: swiftdrop-postgres
     environment:
-      POSTGRES_DB: swiftdrop
-      POSTGRES_USER: swiftdrop
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-swiftdrop_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      # Host port 5433, so it does not clash with a PostgreSQL already installed on 5432.
+      # Inside the Docker network the backend still uses postgres:5432.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Creates every table (and the starter zones and prices) the first time the volume is created.
+      # Existing volumes are preserved: review upgrades in k8s/db/README.md; never reset data to apply schema changes.
+      - ./backend/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U swiftdrop -d swiftdrop"]
+      # $$ = read the variable inside the container, not when compose parses this file
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Message broker for parcel status events, the outbox relay and merchant webhooks.
+  # Same image as the messaging integration test (Testcontainers). Management UI: http://localhost:15672
+  # The built-in "guest" user only works from inside the container, so a named user is created here.
+  # The user is created only when rabbitmq_data is new. Existing-volume credential changes
+  # require a reviewed broker user/password change; changing .env alone does not rotate them.
+  rabbitmq:
+    image: rabbitmq:4.4.0-management
+    container_name: swiftdrop-rabbitmq
+    hostname: swiftdrop-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
 
   backend:
     build: ./backend
@@ -23,15 +57,63 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/swiftdrop
-      SPRING_DATASOURCE_USERNAME: swiftdrop
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-swiftdrop_dev_password}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      SWIFTDROP_WEBHOOKS_DIRECT_DELIVERY_ENABLED: "false"
+      # All email (verification, password reset, parcel-status notifications) goes to Mailpit:
+      # nothing leaves this machine, read it at http://localhost:8025. Mailpit needs no login or
+      # TLS. The backend only sends when SPRING_MAIL_USERNAME is set; it is also the sender address.
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-no-reply@example.com}
+      SPRING_MAIL_PASSWORD: ""
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: "false"
+      # Read by spring.rabbitmq.* in application.properties
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      RABBITMQ_VHOST: /
+      # Optional: AI delivery assistant and courier photo proof (unavailable when empty)
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-}
+      MINIO_PROOF_BUCKET: ${MINIO_PROOF_BUCKET:-delivery-proofs}
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+
+  # Local email catcher: the backend's SMTP server. Web inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.34.0
+    container_name: swiftdrop-mailpit
+    ports:
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+        VITE_API_BASE_URL: ""
     container_name: swiftdrop-frontend
     ports:
       - "5173:80"
@@ -40,3 +122,4 @@ services:
 
 volumes:
   postgres_data:
+  rabbitmq_data:

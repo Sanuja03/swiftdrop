@@ -1,0 +1,97 @@
+.map {
+  position: relative;
+  min-height: 240px;
+  height: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #eef2f6;
+}
+
+.compact {
+  min-height: 150px;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ground {
+  fill: #eef2f6;
+}
+
+.park {
+  fill: #dcefe2;
+}
+
+.street {
+  stroke: #fff;
+  stroke-width: 7;
+  fill: none;
+}
+
+.routeTrack {
+  stroke: #f8d9c4;
+  stroke-width: 5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.route {
+  stroke: var(--color-orange);
+  stroke-width: 3;
+  stroke-dasharray: 2 7;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.origin {
+  fill: var(--color-navy);
+  stroke: #fff;
+  stroke-width: 3;
+}
+
+.pin,
+.van {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.pin {
+  transform: translate(-50%, -90%);
+  color: var(--color-orange);
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.2));
+}
+
+.van {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--color-navy);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgb(15 39 71 / 0.15);
+  transition:
+    left 900ms ease,
+    top 900ms ease;
+}
+
+.legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 0.9);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.compact .legend {
+  top: 10px;
+  bottom: auto;
+}

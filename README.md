@@ -74,8 +74,30 @@ cd swiftdrop
 Create a `.env` file in the project root using `.env.example` as a template.
 
 ```env
+POSTGRES_DB=swiftdrop
+POSTGRES_USER=swiftdrop
 POSTGRES_PASSWORD=your_local_password
+RABBITMQ_USERNAME=swiftdrop
+RABBITMQ_PASSWORD=your_local_password
+JWT_SECRET=a_base64_key_of_at_least_256_bits
 ```
+
+These are required by `docker compose`; `.env.example` lists every optional variable.
+
+For Google login, set `GOOGLE_CLIENT_ID` to your public OAuth client ID and register
+`http://localhost:5173` as an authorized browser origin. Compose passes that same value
+to the backend and the frontend build. Rebuild the frontend after changing it; Vite
+configuration is compiled into the image. Never pass signing keys or passwords as
+frontend build arguments. `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:5173`.
+
+For the AI delivery assistant, set `AI_API_KEY` to the API key of an OpenAI-compatible
+provider (`AI_BASE_URL` and `AI_MODEL` choose the provider and model). Without it the rest
+of the app works normally and the assistant replies with a "not configured" message.
+
+New accounts must verify their email before they can sign in. With Docker Compose every email
+goes to Mailpit (see "Email and photo storage" below), so no SMTP account is needed. A backend
+run outside Docker needs SMTP: set `SPRING_MAIL_USERNAME` and `SPRING_MAIL_PASSWORD`. The dev
+profile's seeded accounts (see below) are already verified and work without SMTP.
 
 Use a suitable local development password. Do not commit the `.env` file or share production credentials.
 
@@ -87,7 +109,7 @@ Run the following command from the project root:
 docker compose up --build -d
 ```
 
-Docker Compose builds the application images and starts the frontend, backend, and PostgreSQL database containers.
+Docker Compose builds the application images and starts the frontend, backend, PostgreSQL, RabbitMQ and Mailpit containers. On the first start (a new database volume) PostgreSQL runs `backend/src/main/resources/schema.sql`, which creates every table and the starter zones and prices.
 
 ### 4. Access the Application
 
@@ -98,7 +120,9 @@ Once the containers have started, the services are available at:
 | Frontend | http://localhost:5173 |
 | Backend | http://localhost:8080 |
 | Backend Health | http://localhost:8080/actuator/health |
-| PostgreSQL | localhost:5432 |
+| PostgreSQL | localhost:5433 |
+| RabbitMQ management | http://localhost:15672 |
+| Mailpit inbox | http://localhost:8025 |
 
 ### 5. Check Container Status
 
@@ -134,13 +158,18 @@ docker compose down
 
 PostgreSQL data is stored in a persistent Docker volume and is retained when the containers are stopped.
 
-To remove the containers, network, and database volume:
+Do not use volume deletion to apply schema changes. `schema.sql` initializes an empty
+PostgreSQL volume once; existing databases require a backup and reviewed migrations.
+See [the database upgrade contract](k8s/db/README.md), including the separate merchant
+account-status review. Changing database or RabbitMQ credentials in `.env` does not
+rotate credentials already stored on existing volumes. Keep the volumes and coordinate
+credential/schema upgrades with the database or broker owner.
 
-```bash
-docker compose down -v
-```
-
-**Warning:** Using `-v` deletes the persisted local PostgreSQL database data.
+PostgreSQL and RabbitMQ have Compose health checks; backend startup waits for both.
+Compose does not currently provide application readiness checks, so the frontend may
+briefly return 502 while Spring Boot starts. Inspect `/actuator/health` and application
+logs before the demo. Nginx forwards `/api` and `/ws` and accepts the backend's 6 MB
+multipart request limit. Photo proof additionally requires external MinIO configuration.
 
 ## Docker Services
 
@@ -150,11 +179,42 @@ The current Docker Compose configuration includes:
 |---|---|---:|---:|
 | Frontend | React + Nginx | 80 | 5173 |
 | Backend | Spring Boot | 8080 | 8080 |
-| Database | PostgreSQL 17 | 5432 | 5432 |
+| Database | PostgreSQL 17 | 5432 | 5433 |
+| Message broker | RabbitMQ 4 | 5672, 15672 | 5672, 15672 |
+| Email catcher | Mailpit | 1025 (SMTP), 8025 | 8025 |
 
 The backend connects to PostgreSQL through Docker's internal service network using the hostname `postgres`.
 
-RabbitMQ and other infrastructure integrations will be incorporated.
+### Email and photo storage
+
+- **Mailpit** (in Compose): the backend sends every email to Mailpit instead of a real mail
+  server. Verification codes, password-reset codes and parcel-status emails appear in the
+  inbox at http://localhost:8025. Nothing is delivered outside your machine.
+- **MinIO** (not in Compose): the official `minio/minio` images are no longer published, so
+  photo proof needs an S3-compatible server you provide through the `MINIO_*` settings. Without
+  them, photo proof is unavailable and recipient-name proof still works.
+
+## Running the backend locally (dev profile)
+
+`SPRING_PROFILES_ACTIVE=dev` uses a local H2 file database (`backend/data/`) instead of Supabase and creates test data on first start: zones, prices, three demo parcels and these accounts (all `@example.com`):
+
+| Account | Role |
+|---|---|
+| test.customer@example.com | Customer (owns the demo parcels) |
+| test.courier@example.com | Courier |
+| test.dispatcher@example.com | Dispatcher |
+| test.admin@example.com | Admin |
+| test.merchant@example.com | Approved merchant with an API key |
+
+Set `DEV_USER_PASSWORD` to choose the password of the first four; otherwise each gets a generated password, logged once. The merchant uses `DEV_MERCHANT_PASSWORD` (set in `application-dev.properties`). To send status events through RabbitMQ (merchant webhooks, notifications), run `docker compose up -d rabbitmq` and start the backend with `DEV_MESSAGING_ENABLED=true` and the same `RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD`.
+
+## API Tests and Kubernetes
+
+- `postman/`: Postman collection and local environment for the REST API, plus the Newman
+  smoke run used in CI. See `postman/README.md`.
+- `k8s/`: Kubernetes manifests (namespace, ConfigMap, Secret example, Services, Deployments,
+  database jobs). See `k8s/README.md`. Credentials go in your own copy of
+  `k8s/secret.example.yaml`, never in the repository.
 
 ## Development Notes
 

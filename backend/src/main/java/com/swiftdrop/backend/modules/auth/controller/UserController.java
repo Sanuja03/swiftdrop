@@ -1,0 +1,49 @@
+package com.swiftdrop.backend.modules.auth.controller;
+
+import com.swiftdrop.backend.modules.auth.dto.UserProfileDto;
+import com.swiftdrop.backend.modules.auth.entity.AccountStatus;
+import com.swiftdrop.backend.modules.auth.service.AuthService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/v1")
+@RequiredArgsConstructor
+public class UserController {
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public org.springframework.http.ProblemDetail handleAccountStatusConflict(
+            org.springframework.web.server.ResponseStatusException exception) {
+        return org.springframework.http.ProblemDetail.forStatusAndDetail(exception.getStatusCode(), exception.getReason());
+    }
+
+    private final AuthService authService;
+
+    // Accessible by any authenticated user
+    @GetMapping("/users/me")
+    public ResponseEntity<UserProfileDto> getCurrentUserProfile(Principal principal) {
+        UserProfileDto profile = authService.getCurrentUser(principal.getName());
+        return ResponseEntity.ok(profile);
+    }
+
+    // Admin only: List all users
+    @GetMapping("/admin/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<UserProfileDto>> getAllUsers() {
+        return ResponseEntity.ok(authService.getAllUsers());
+    }
+
+    // Admin: manage user account status.
+    @PatchMapping("/admin/users/{userId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserProfileDto> updateUserStatus(
+            @PathVariable UUID userId,
+            @RequestParam AccountStatus status) {
+        return ResponseEntity.ok(authService.updateUserStatus(userId, status));
+    }
+}

@@ -26,3 +26,13 @@ Thumbs.db
 
 # Temporary files
 *.tmp
+
+# Local Batch / Shell Runner scripts
+*.bat
+*.cmd
+
+# Local Database / H2 runtime storage
+**/data/
+*.mv.db
+*.trace.db
+

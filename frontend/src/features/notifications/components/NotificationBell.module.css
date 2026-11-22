@@ -1,0 +1,4 @@
+.bell { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: #102d50; border-radius: 8px; }
+.bell:hover { background: #edf2f7; }
+.bell:focus-visible { outline: 2px solid #e96b10; outline-offset: 2px; }
+.count { position: absolute; top: 1px; right: 0; min-width: 18px; padding: 2px 4px; border-radius: 12px; color: white; background: #102d50; font-size: 11px; text-align: center; }
