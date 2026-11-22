@@ -42,7 +42,7 @@ public class DemoMerchantSeeder implements ApplicationRunner {
     public static final String BUSINESS_NAME = "Demo Merchant";
     public static final String WEBHOOK_URL = "https://example.com/webhook";
 
-    public static final String SWIFTDROP_MERCHANT_EMAIL = "merchant@swiftdrop.com";
+    public static final String SWIFTDROP_MERCHANT_EMAIL = "merchant@example.com";
     public static final String SWIFTDROP_MERCHANT_NAME = "SwiftDrop Official Merchant";
 
     private final UserRepository userRepository;

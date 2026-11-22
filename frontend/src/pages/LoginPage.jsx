@@ -249,7 +249,7 @@ export default function LoginPage() {
                     <Mail size={18} className="login-input-icon" />
                     <input
                       type="email"
-                      placeholder="e.g. customer@swiftdrop.lk"
+                      placeholder="e.g. name@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required

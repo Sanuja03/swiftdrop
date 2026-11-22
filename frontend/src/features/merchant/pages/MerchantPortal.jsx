@@ -1209,7 +1209,7 @@ export default function MerchantPortal() {
                           <input
                             type="tel"
                             className="form-input"
-                            placeholder="e.g. 0771234567"
+                            placeholder="e.g. +94 70 000 0000"
                             required
                             value={orderForm.recipientPhone}
                             onChange={(e) => setOrderForm({ ...orderForm, recipientPhone: e.target.value })}

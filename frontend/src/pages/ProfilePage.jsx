@@ -298,7 +298,7 @@ export default function ProfilePage() {
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="e.g. 077 123 4567"
+                        placeholder="e.g. +94 70 000 0000"
                         required
                         className="profile-input"
                       />
