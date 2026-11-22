@@ -90,6 +90,14 @@ to the backend and the frontend build. Rebuild the frontend after changing it; V
 configuration is compiled into the image. Never pass signing keys or passwords as
 frontend build arguments. `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:5173`.
 
+For the AI delivery assistant, set `AI_API_KEY` to the API key of an OpenAI-compatible
+provider (`AI_BASE_URL` and `AI_MODEL` choose the provider and model). Without it the rest
+of the app works normally and the assistant replies with a "not configured" message.
+
+New accounts must verify their email before they can sign in, so outside the dev profile
+signup needs SMTP: set `SPRING_MAIL_USERNAME` and `SPRING_MAIL_PASSWORD`. The dev profile's
+seeded accounts (see below) are already verified and work without SMTP.
+
 Use a suitable local development password. Do not commit the `.env` file or share production credentials.
 
 ### 3. Build and Start the Application
@@ -189,6 +197,14 @@ Not in Compose yet: Mailpit (email) and MinIO (courier proof photos). Without SM
 | test.merchant@example.com | Approved merchant with an API key |
 
 Set `DEV_USER_PASSWORD` to choose the password of the first four; otherwise each gets a generated password, logged once. The merchant uses `DEV_MERCHANT_PASSWORD` (set in `application-dev.properties`). To send status events through RabbitMQ (merchant webhooks, notifications), run `docker compose up -d rabbitmq` and start the backend with `DEV_MESSAGING_ENABLED=true` and the same `RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD`.
+
+## API Tests and Kubernetes
+
+- `postman/`: Postman collection and local environment for the REST API, plus the Newman
+  smoke run used in CI. See `postman/README.md`.
+- `k8s/`: Kubernetes manifests (namespace, ConfigMap, Secret example, Services, Deployments,
+  database jobs). See `k8s/README.md`. Credentials go in your own copy of
+  `k8s/secret.example.yaml`, never in the repository.
 
 ## Development Notes
 

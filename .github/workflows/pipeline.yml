@@ -1,6 +1,6 @@
 # SwiftDrop CI/CD pipeline (GitHub Actions)
 #
-# CI  (every pull request into any branch, and every push to main):
+# CI  (every pull request into any branch, and every push to dev or main):
 #     1. backend  : compile + run tests (in-memory H2 database from
 #                   src/test/resources/application.properties), then save
 #                   test results and the JaCoCo coverage report
@@ -15,7 +15,7 @@ name: CI/CD
 on:
   pull_request: # a PR into ANY branch (main, develop, a feature branch...)
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch: # lets you run it manually from the Actions tab
 
 # If you push to a PR again while its run is still going, cancel the old run.

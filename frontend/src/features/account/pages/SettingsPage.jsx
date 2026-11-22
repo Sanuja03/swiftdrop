@@ -171,7 +171,7 @@ export default function SettingsPage() {
                     id={id}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Kasun Perera"
+                    placeholder="e.g. Test Customer"
                     required
                     autoFocus
                   />
@@ -189,7 +189,7 @@ export default function SettingsPage() {
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 077 123 4567"
+                    placeholder="e.g. +94 70 000 0000"
                     required
                   />
                 )}

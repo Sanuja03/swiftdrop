@@ -436,7 +436,7 @@ export default function SignupPage() {
                       <Phone size={18} className="signup-input-icon" />
                       <input
                         type="tel"
-                        placeholder="077 123 4567"
+                        placeholder="+94 70 000 0000"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         required
