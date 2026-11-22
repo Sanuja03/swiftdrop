@@ -13,7 +13,7 @@ the repository root. Examples use PowerShell, as on the development machine.
 | `postgres.yaml`, `rabbitmq.yaml` | Single-replica StatefulSets, retained PVCs, governing and application Services |
 | `backend.yaml`, `frontend.yaml` | Deployments, Services, probes, CPU/memory requests/limits |
 | `db-init.yaml`, `db/`, `migrations.py` | Versioned database upgrades, checksum ledger, current catalog assertion and backend startup gate |
-| `frontend.Dockerfile` | Optional Google-enabled Vite build without changing the application Dockerfile |
+| `frontend.Dockerfile` | Kubernetes Vite build with public Google client ID and same-origin API configuration |
 | `prepare.py`, `validate.py`, `test_*.py` | Dependency-free offline rendering, contract checks and tests |
 
 The `.yaml` files use **JSON syntax, a YAML 1.2 subset** accepted by Kubernetes.
@@ -78,8 +78,8 @@ match Compose (`postgres:17-alpine`, `rabbitmq:4.4.0-management`). Pin all four 
 digests for byte-identical image content; upstream version tags can move. Do not
 change PostgreSQL major versions as an ordinary image update.
 
-The Kubernetes build recipe keeps the application Dockerfile untouched. It supports
-public `VITE_GOOGLE_CLIENT_ID` at build time and forces the API/WebSocket base to the
+Both frontend Dockerfiles support public `VITE_GOOGLE_CLIENT_ID` at build time. The
+Kubernetes recipe forces the API/WebSocket base to the
 same browser origin. Kubernetes runtime `VITE_*` environment variables cannot change
 a compiled React bundle. For Google login, use the **same public client ID** in both:
 
@@ -93,16 +93,17 @@ Register the real browser origin in Google OAuth settings. Client IDs are public
 never put JWT, merchant API keys, webhook secrets or AI credentials in a frontend build.
 The render records expected build arguments in its summary/annotations; it cannot
 inspect or prove that a supplied image was actually built with them. Original CI
-images use the original frontend Dockerfile and need a separate build for Google.
+images use the application Dockerfile but do not supply this build argument; configure
+the public client ID in CI or use the explicit build command above for Google login.
 Builds/pushes above are future operator instructions; none were executed here.
 The frontend context honors `frontend/.dockerignore` and excludes private `.env` files.
 Optional `NODE_IMAGE` / `NGINX_IMAGE` build arguments allow approved base-image digests.
 
 A rendered frontend ConfigMap derives Nginx configuration from the current application
-proxy, preserving `/api/` and `/ws` routes to `backend:8080`. It adds a 6 MiB request
-limit to accommodate the backend's 5 MiB proof uploads / 6 MiB multipart requests.
-A pod checksum rolls Nginx when that mounted file changes; no frontend application
-source or original Dockerfile/Nginx file is edited.
+proxy, preserving `/api/` and `/ws` routes to `backend:8080`. The shared proxy now includes
+one 6 MiB request limit for the backend's 5 MiB proof uploads / 6 MiB multipart requests.
+The renderer verifies and copies that setting without duplicating it. A pod checksum
+rolls Nginx when the mounted file changes.
 
 ## Configure credentials and settings
 
@@ -275,9 +276,9 @@ and container logs in the chosen namespace. Typical causes:
   to depend on them. Frontend 502 can occur while backend is still starting.
 - WebSocket rejection: browser origin is missing from CORS settings. Google login or
   proof photos unavailable: configure their build-time/external prerequisites above.
-- Readiness does not prove end-to-end API correctness. Existing application issues such
-  as the email-verification token bypass and per-process idempotency remain outside this
-  package. Review those before exposing the application publicly. No TLS/Ingress/egress
+- Readiness does not prove end-to-end API correctness. Per-process idempotency remains an
+  application limitation; the verified-email token shortcut is corrected separately in AuthService.
+  Review application security before public exposure. No TLS/Ingress/egress
   policy is installed; public hosting and webhook DNS-rebinding defenses need a separate
   network plan. One backend replica remains intentional for in-process STOMP/idempotency.
 

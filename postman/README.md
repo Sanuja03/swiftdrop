@@ -1,23 +1,29 @@
 # SwiftDrop API tests
 
-Source baseline: merged backend at `2949e47`, branch `feature/janani-final-tasks`. Import
+Source baseline: merged backend at `bc99c72` with the verification-security correction,
+branch `feature/janani-final-tasks`. Import
 `SwiftDrop_API_Tests.postman_collection.json` and `SwiftDrop_Local.postman_environment.json`.
 Use a current Postman Collection Runner or Postman CLI that supports
 `pm.execution.skipRequest()`. No CLI, packages, services or databases are installed or started by these assets.
 
 ## Coverage and honest results
 
-The collection contains **295 requests**, **145 literal `pm.test` blocks** and
-**588 `pm.expect` check sites**, plus the shared HTTP-status assertion. Shared tests
+The collection contains **295 requests**, **146 literal `pm.test` blocks** and
+**594 `pm.expect` check sites**, plus the shared HTTP-status assertion. Shared tests
 run for each applicable request; conditionals, loops, prerequisite skips and selected
 folders mean these static counts are not a claim about executed/passing assertions.
 The 97 original requests are retained, with safety, secret handling and execution-order updates.
 
-All **100 production REST method/path variants** extracted from current controllers
-have prepared requests. **21 variants have authentication-only coverage**; their
+All **96 production REST method/path variants** extracted from current controllers
+have prepared requests. **20 variants have authentication-only coverage**; their
 business workflows are not claimed as tested. See [endpoint-coverage.md](endpoint-coverage.md)
 for every route and its controller. WebSockets, Actuator framework endpoints and the
 single development-only status controller are outside this REST inventory.
+
+PR #22 removed four probe routes (`merchant/test`, `customer/test`, `courier/test`,
+and `admin/reports/test`). Their requests now use supported profile, shipment,
+courier-today and report-count endpoints with matching assertions; business endpoint
+coverage and authentication scenarios are retained.
 
 Core coverage includes auth/password changes, customer booking/pricing/tracking,
 merchant profiles and registration, approval/rejection/reapproval, API-key authentication and
@@ -142,7 +148,9 @@ they are never read from GET/profile endpoints or deliberately printed.
   and restore manually. Run this separately from `runPasswordReset`.
 - `runRegistration`, `runEmailFlows`, `runPasswordReset`, `runGoogleAuth`: original interactive
   flows; reset changes the password without automatic restoration. SMTP/Google prerequisites apply.
-- `runKnownIssues`: enables three intentionally failing security/robustness regressions below.
+- `runKnownIssues`: enables the two unresolved idempotency/malformed-JSON regressions below.
+  The corrected verified-email regression is now a regular guarded request in folder 01;
+  it expects 401 and no tokens without requiring SMTP or this known-issues flag.
 - `strictCoverage`: final summary fails if machine creation, sequential replay or a successful
   primary-merchant ping did not execute. It is opt-in because those workflows require writes,
   infrastructure and fixture credentials. Individual response assertion failures still fail normally.
@@ -204,9 +212,11 @@ folders; enabling `runEmailFlows` for the whole collection can also send origina
 - Idempotency currently works through an in-memory per-process cache. It ignores changed bodies,
   is not atomic for concurrent creates and does not survive restarts or coordinate replicas.
   The normal suite verifies sequential replay and merchant scoping, not durable idempotency.
-- Known regression probes expect safer behavior: already-verified email must reject arbitrary
-  codes (current source issues tokens), changed-body idempotency must conflict (current source
-  replays 200), and malformed merchant JSON should be 400 (generic exception handling suggests 500).
+- Already-verified ACTIVE accounts must reject arbitrary/reused verification codes with 401;
+  the backend correction removes token issuance from this shortcut. First verification with a
+  valid unexpired unused code still authenticates an eligible account; normal login/OAuth are unchanged.
+- Known regression probes expect safer behavior: changed-body idempotency must conflict
+  (current source replays 200), and malformed merchant JSON should be 400 (generic exception handling suggests 500).
   These are source findings, not live observations from this task. Do not normalize them as passes.
 - Logout/password changes revoke refresh tokens; immediate revocation of issued JWTs is not asserted.
 
@@ -219,7 +229,7 @@ node postman/validate.mjs
 node postman/validate.mjs --write-coverage
 ```
 
-The validator uses only Node built-ins. It parses both JSON files, compiles 435 scripts,
+The validator uses only Node built-ins. It parses both JSON files, compiles 436 scripts,
 checks every request method/path against actual Java controller annotations/constants,
 checks variable references/secret defaults/core DTO property names, simulates default and
 opted-in pre-request branches, checks write/host guards and exercises quoted/backslashed

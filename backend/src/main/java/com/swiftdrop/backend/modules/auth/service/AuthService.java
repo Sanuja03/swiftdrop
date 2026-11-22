@@ -486,14 +486,8 @@ public class AuthService {
                 return AuthResponse.builder().user(UserProfileDto.fromEntity(user))
                         .accessToken(null).refreshToken(null).expiresIn(0).build();
             }
-            String accessToken = jwtTokenProvider.generateAccessToken(user);
-            RefreshToken refreshToken = createRefreshToken(user);
-            return AuthResponse.builder()
-                    .accessToken(accessToken)
-                    .refreshToken(refreshToken.getToken())
-                    .expiresIn(jwtTokenProvider.getAccessTokenExpirationMs())
-                    .user(UserProfileDto.fromEntity(user))
-                    .build();
+            // Verification is a one-time credential, not a replacement for password/OAuth login.
+            throw new InvalidTokenException("This email address is already verified. Please log in.");
         }
 
         EmailVerificationToken verificationToken = emailVerificationTokenRepository

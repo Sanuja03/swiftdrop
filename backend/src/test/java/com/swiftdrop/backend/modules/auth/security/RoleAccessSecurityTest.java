@@ -56,6 +56,18 @@ class RoleAccessSecurityTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/courier/deliveries/today", "/api/v1/admin/reports/total-parcels", "/api/v1/admin/users"})
+    @WithMockUser(roles = "CUSTOMER")
+    void customersCannotAccessOperationalBusinessRoutes(String path) throws Exception {
+        mockMvc.perform(get(path)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void courierBusinessRouteRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/courier/deliveries/today")).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"ADMIN"})
     void administratorsCanManageUserStatus(String role) throws Exception {
         when(authService.updateUserStatus(TEST_USER_ID, AccountStatus.SUSPENDED))

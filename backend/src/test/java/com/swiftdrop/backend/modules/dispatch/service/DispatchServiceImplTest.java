@@ -24,6 +24,8 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,8 +34,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,7 +87,8 @@ class DispatchServiceImplTest {
                 parcelRepository,
                 courierAssignmentRepository,
                 userRepository,
-                notificationOutbox
+                notificationOutbox,
+                Clock.fixed(Instant.parse("2026-11-21T20:00:00Z"), ZoneOffset.UTC)
         );
 
         activeCourier = User.builder()
@@ -246,7 +251,7 @@ class DispatchServiceImplTest {
         when(courierAssignmentRepository.saveAndFlush(any(CourierAssignment.class)))
                 .thenAnswer(invocation -> {
                     CourierAssignment a = invocation.getArgument(0);
-                    assertThat(a.getScheduledDate()).isEqualTo(LocalDate.now());
+                    assertThat(a.getScheduledDate()).isEqualTo(LocalDate.of(2026, 11, 22));
                     return CourierAssignment.builder()
                             .id(ASSIGNMENT_ID)
                             .parcelId(a.getParcelId())
@@ -270,6 +275,22 @@ class DispatchServiceImplTest {
         assertThat(response.getDispatcherId()).isEqualTo(DISPATCHER_ID);
         assertThat(response.getStatus()).isEqualTo(AssignmentStatus.ASSIGNED);
         assertThat(response.getNotes()).isEqualTo("Handle with care");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"2026-11-21T18:29:59Z, 2026-11-21", "2026-11-21T18:30:00Z, 2026-11-22"})
+    void assignmentScheduleUsesTheSameColomboDayAsTheCourierQuery(String instant, LocalDate expected) {
+        var service = new DispatchServiceImpl(parcelRepository, courierAssignmentRepository, userRepository,
+                notificationOutbox, Clock.fixed(Instant.parse(instant), ZoneOffset.UTC));
+        when(parcelRepository.findById(PARCEL_ID_1)).thenReturn(Optional.of(TestParcels.withId(PARCEL_ID_1)));
+        when(userRepository.findById(COURIER_ID_1)).thenReturn(Optional.of(activeCourier));
+        when(userRepository.findById(DISPATCHER_ID)).thenReturn(Optional.of(dispatcherUser));
+        when(courierAssignmentRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            CourierAssignment assignment = invocation.getArgument(0);
+            assertThat(assignment.getScheduledDate()).isEqualTo(expected);
+            return assignment;
+        });
+        service.assignCourier(AssignCourierRequest.builder().parcelId(PARCEL_ID_1).courierId(COURIER_ID_1).build(), DISPATCHER_ID);
     }
 
     @Test

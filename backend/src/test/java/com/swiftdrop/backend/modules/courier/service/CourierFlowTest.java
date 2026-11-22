@@ -65,8 +65,8 @@ class CourierFlowTest {
         assignedParcel(courierUserId, today.minusDays(1), "SDP-OVERDUE");
         assignedParcel(courierUserId, today.plusDays(1), "SDP-TOMORROW");
         assignedParcel(otherId, today, "SDP-OTHER");
-        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
-                + " values (?, ?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId, dispatcherId);
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, scheduled_date, status)"
+                + " values (?, ?, ?, ?, ?, 'CANCELLED')", UUID.randomUUID(), parcelId, otherId, dispatcherId, today);
     }
 
     @Test
@@ -123,8 +123,9 @@ class CourierFlowTest {
     void reassignedParcelOnlyAppearsForNewCourier() {
         jdbc.update("update courier_assignments set status = 'CANCELLED' where parcel_id = ?", parcelId);
         UUID otherId = users.findByEmail(other.getName()).orElseThrow().getId();
-        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, status)"
-                + " values (?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), parcelId, otherId, dispatcherId);
+        LocalDate today = LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo")));
+        jdbc.update("insert into courier_assignments (id, parcel_id, courier_id, dispatcher_id, scheduled_date, status)"
+                + " values (?, ?, ?, ?, ?, 'ASSIGNED')", UUID.randomUUID(), parcelId, otherId, dispatcherId, today);
 
         assertThat(deliveries.today(courier)).isEmpty();
         assertThat(deliveries.today(other)).extracting(CourierDeliveryResponse::parcelId).contains(parcelId);

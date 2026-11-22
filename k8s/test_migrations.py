@@ -145,7 +145,9 @@ class MigrationTests(unittest.TestCase):
     def test_frontend_override_tracks_proxy_source_and_upload_limit(self):
         config = next(x for x in self.manifest['items'] if x['metadata']['name']=='swiftdrop-frontend-config')['data']['default.conf']
         source = (prepare.ROOT/'frontend/nginx.conf').read_text().replace('\r\n','\n')
-        self.assertEqual(config,source.replace('listen 80;','listen 80;\n    client_max_body_size 6m;'))
+        self.assertEqual(config,source)
+        self.assertEqual(config.count('client_max_body_size'),1)
+        self.assertIn('client_max_body_size 6m;',config)
         self.assertIn('location /ws',config)
 
     def test_private_secrets_never_enter_public_config(self):
