@@ -94,9 +94,10 @@ For the AI delivery assistant, set `AI_API_KEY` to the API key of an OpenAI-comp
 provider (`AI_BASE_URL` and `AI_MODEL` choose the provider and model). Without it the rest
 of the app works normally and the assistant replies with a "not configured" message.
 
-New accounts must verify their email before they can sign in, so outside the dev profile
-signup needs SMTP: set `SPRING_MAIL_USERNAME` and `SPRING_MAIL_PASSWORD`. The dev profile's
-seeded accounts (see below) are already verified and work without SMTP.
+New accounts must verify their email before they can sign in. With Docker Compose every email
+goes to Mailpit (see "Email and photo storage" below), so no SMTP account is needed. A backend
+run outside Docker needs SMTP: set `SPRING_MAIL_USERNAME` and `SPRING_MAIL_PASSWORD`. The dev
+profile's seeded accounts (see below) are already verified and work without SMTP.
 
 Use a suitable local development password. Do not commit the `.env` file or share production credentials.
 
@@ -108,7 +109,7 @@ Run the following command from the project root:
 docker compose up --build -d
 ```
 
-Docker Compose builds the application images and starts the frontend, backend, PostgreSQL and RabbitMQ containers. On the first start (a new database volume) PostgreSQL runs `backend/src/main/resources/schema.sql`, which creates every table and the starter zones and prices.
+Docker Compose builds the application images and starts the frontend, backend, PostgreSQL, RabbitMQ and Mailpit containers. On the first start (a new database volume) PostgreSQL runs `backend/src/main/resources/schema.sql`, which creates every table and the starter zones and prices.
 
 ### 4. Access the Application
 
@@ -121,6 +122,7 @@ Once the containers have started, the services are available at:
 | Backend Health | http://localhost:8080/actuator/health |
 | PostgreSQL | localhost:5433 |
 | RabbitMQ management | http://localhost:15672 |
+| Mailpit inbox | http://localhost:8025 |
 
 ### 5. Check Container Status
 
@@ -179,10 +181,18 @@ The current Docker Compose configuration includes:
 | Backend | Spring Boot | 8080 | 8080 |
 | Database | PostgreSQL 17 | 5432 | 5433 |
 | Message broker | RabbitMQ 4 | 5672, 15672 | 5672, 15672 |
+| Email catcher | Mailpit | 1025 (SMTP), 8025 | 8025 |
 
 The backend connects to PostgreSQL through Docker's internal service network using the hostname `postgres`.
 
-Not in Compose yet: Mailpit (email) and MinIO (courier proof photos). Without SMTP settings, emails are skipped; without the MINIO_* settings, photo proof is unavailable and recipient-name proof still works.
+### Email and photo storage
+
+- **Mailpit** (in Compose): the backend sends every email to Mailpit instead of a real mail
+  server. Verification codes, password-reset codes and parcel-status emails appear in the
+  inbox at http://localhost:8025. Nothing is delivered outside your machine.
+- **MinIO** (not in Compose): the official `minio/minio` images are no longer published, so
+  photo proof needs an S3-compatible server you provide through the `MINIO_*` settings. Without
+  them, photo proof is unavailable and recipient-name proof still works.
 
 ## Running the backend locally (dev profile)
 

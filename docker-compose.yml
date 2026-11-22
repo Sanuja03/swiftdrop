@@ -64,9 +64,16 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       SWIFTDROP_WEBHOOKS_DIRECT_DELIVERY_ENABLED: "false"
-      # Shared SMTP sender for account emails and parcel-status notifications.
-      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
-      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      # All email (verification, password reset, parcel-status notifications) goes to Mailpit:
+      # nothing leaves this machine, read it at http://localhost:8025. Mailpit needs no login or
+      # TLS. The backend only sends when SPRING_MAIL_USERNAME is set; it is also the sender address.
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-no-reply@example.com}
+      SPRING_MAIL_PASSWORD: ""
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: "false"
       # Read by spring.rabbitmq.* in application.properties
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
@@ -86,6 +93,20 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
+
+  # Local email catcher: the backend's SMTP server. Web inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.34.0
+    container_name: swiftdrop-mailpit
+    ports:
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   frontend:
     build:
