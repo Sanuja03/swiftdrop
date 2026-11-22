@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import '../styles/merchant.css';
 import { merchantApi } from '../services/merchantApi';
@@ -71,6 +71,14 @@ export default function MerchantPortal() {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
   const [webhookLogs, setWebhookLogs] = useState([]);
+  const [webhookConfigLoading, setWebhookConfigLoading] = useState(true);
+  const [webhookConfigError, setWebhookConfigError] = useState(null);
+  const [webhookConfigReloadKey, setWebhookConfigReloadKey] = useState(0);
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookLogsLoading, setWebhookLogsLoading] = useState(false);
+  const [webhookLogsError, setWebhookLogsError] = useState(null);
+  const [webhookLogsReloadKey, setWebhookLogsReloadKey] = useState(0);
+  const webhookIdentity = useRef(null);
   const [selectedLogDetails, setSelectedLogDetails] = useState(null);
   const [testResult, setTestResult] = useState(null);
   const [testLoading, setTestLoading] = useState(false);
@@ -103,7 +111,7 @@ export default function MerchantPortal() {
     return () => { ignore = true; };
   }, []);
 
-  // Load merchant profile, stats, orders, and webhook logs
+  // Load merchant profile, stats and orders independently of webhook settings/history.
   useEffect(() => {
     let ignore = false;
     async function fetchData() {
@@ -120,19 +128,21 @@ export default function MerchantPortal() {
           throw err;
         });
         if (ignore) return;
+        // A one-time secret belongs only to this profile and eligibility state.
+        // Order filters/reloads of the same profile must not discard it.
+        const identity = `${prof?.id || ''}:${prof?.registrationStatus || ''}`;
+        if (webhookIdentity.current !== identity) {
+          webhookIdentity.current = identity;
+          setWebhookSecret('');
+          setTestResult(null);
+          setSelectedLogDetails(null);
+        }
         if (!prof) {
           setProfile(null);
           setActiveTab('registration');
           return;
         }
         setProfile(prof);
-        setWebhookSecret('');
-        if (prof.registrationStatus === 'APPROVED') {
-          const configuration = await merchantApi.getWebhookConfig();
-          if (ignore) return;
-          setWebhookUrl(configuration.url || '');
-          setProfile((previous) => ({ ...previous, webhookUrl: configuration.url, webhookConfigured: configuration.configured }));
-        }
 
         const s = await merchantApi.getStats(prof.id);
         if (ignore) return;
@@ -148,9 +158,6 @@ export default function MerchantPortal() {
         if (ignore) return;
         setOrders(ords || []);
 
-        const logs = await merchantApi.getWebhookLogs(prof.id);
-        if (ignore) return;
-        setWebhookLogs(logs || []);
       } catch (err) {
         if (!ignore) {
           console.error(err);
@@ -168,6 +175,54 @@ export default function MerchantPortal() {
       ignore = true;
     };
   }, [orderFilter, searchQuery, reloadKey, isAdmin]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadConfiguration() {
+      setWebhookConfigError(null);
+      if (!profile?.id || profile.registrationStatus !== 'APPROVED') {
+        setWebhookUrl('');
+        setWebhookConfigLoading(false);
+        return;
+      }
+      setWebhookConfigLoading(true);
+      try {
+        const configuration = await merchantApi.getWebhookConfig();
+        if (ignore) return;
+        setWebhookUrl(configuration.url || '');
+        setProfile((previous) => ({ ...previous, webhookUrl: configuration.url, webhookConfigured: configuration.configured }));
+      } catch (err) {
+        if (!ignore) setWebhookConfigError(err.message);
+      } finally {
+        if (!ignore) setWebhookConfigLoading(false);
+      }
+    }
+    loadConfiguration();
+    return () => { ignore = true; };
+  }, [profile?.id, profile?.registrationStatus, webhookConfigReloadKey]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadHistory() {
+      setWebhookLogsError(null);
+      if (!profile?.id || profile.registrationStatus !== 'APPROVED') {
+        setWebhookLogs([]);
+        setWebhookLogsLoading(false);
+        return;
+      }
+      setWebhookLogsLoading(true);
+      try {
+        const logs = await merchantApi.getWebhookLogs(profile.id);
+        if (!ignore) setWebhookLogs(logs || []);
+      } catch (err) {
+        if (!ignore) setWebhookLogsError(err.message);
+      } finally {
+        if (!ignore) setWebhookLogsLoading(false);
+      }
+    }
+    loadHistory();
+    return () => { ignore = true; };
+  }, [profile?.id, profile?.registrationStatus, reloadKey, webhookLogsReloadKey]);
 
   // Recalculate price estimate for Order Booking Form
   useEffect(() => {
@@ -307,32 +362,34 @@ export default function MerchantPortal() {
   const handleSaveWebhook = async (e) => {
     e.preventDefault();
     try {
-      setLoading(true);
+      setWebhookSaving(true);
       const updated = await merchantApi.updateWebhook(profile?.id, {
         url: webhookUrl,
       });
       setProfile((previous) => ({ ...previous, webhookUrl: updated.url, webhookConfigured: updated.configured }));
       setWebhookUrl(updated.url || '');
       setWebhookSecret(updated.secret || '');
+      setTestResult(null);
       setMessage({ type: 'success', text: 'Store sync settings saved successfully!' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
     } finally {
-      setLoading(false);
+      setWebhookSaving(false);
     }
   };
 
   const handleRotateWebhookSecret = async () => {
     if (!window.confirm('Rotate the webhook signing secret? The current secret will stop working immediately. Update your receiver with the new secret.')) return;
     try {
-      setLoading(true);
+      setWebhookSaving(true);
       const updated = await merchantApi.rotateWebhookSecret();
       setWebhookSecret(updated.secret || '');
+      setTestResult(null);
       setMessage({ type: 'success', text: 'New signing secret generated. Copy it now and update your receiver.' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
     } finally {
-      setLoading(false);
+      setWebhookSaving(false);
     }
   };
 
@@ -343,8 +400,8 @@ export default function MerchantPortal() {
       setTestResult(null);
       const res = await merchantApi.testWebhook(profile?.id, webhookUrl);
       setTestResult(res);
-      const logs = await merchantApi.getWebhookLogs(profile?.id);
-      setWebhookLogs(logs || []);
+      // Refresh separately: a history outage does not change the receiver's ping result.
+      setWebhookLogsReloadKey((key) => key + 1);
     } catch (err) {
       setTestResult({ success: false, message: err.message, statusCode: 0, latencyMs: 0 });
     } finally {
@@ -1541,6 +1598,11 @@ export default function MerchantPortal() {
                   </div>
 
                   <form onSubmit={handleSaveWebhook} style={{ marginTop: '1.25rem' }}>
+                    {webhookConfigLoading && <p role="status">Loading webhook settings...</p>}
+                    {webhookConfigError && <div role="alert">
+                      <p>Unable to load webhook settings: {webhookConfigError}.</p>
+                      <button type="button" className="btn btn-outline" onClick={() => setWebhookConfigReloadKey((key) => key + 1)}>Retry loading settings</button>
+                    </div>}
                     <div className="form-group" style={{ marginBottom: '1rem' }}>
                       <label className="form-label">Store Notification URL *</label>
                       <input
@@ -1579,20 +1641,20 @@ export default function MerchantPortal() {
                       <small style={{ color: 'var(--sd-muted)', marginTop: '0.35rem', display: 'block' }}>
                         A secret is generated on first configuration and shown only in that response. Copy it now; it is not saved in your browser. Use explicit rotation if you lose it.
                       </small>
-                      <button type="button" className="btn btn-outline" disabled={!profile?.webhookConfigured || loading} onClick={handleRotateWebhookSecret}>
+                      <button type="button" className="btn btn-outline" disabled={!profile?.webhookConfigured || webhookSaving || testLoading || webhookConfigLoading || !!webhookConfigError} onClick={handleRotateWebhookSecret}>
                         Rotate signing secret
                       </button>
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button type="submit" className="btn btn-primary" disabled={loading}>
+                      <button type="submit" className="btn btn-primary" disabled={profile?.registrationStatus !== 'APPROVED' || webhookSaving || testLoading || webhookConfigLoading || !!webhookConfigError}>
                         💾 Save Settings
                       </button>
                       <button
                         type="button"
                         className="btn btn-secondary"
                         onClick={handleTestWebhook}
-                        disabled={!profile?.webhookConfigured || !webhookUrl || testLoading}
+                        disabled={!profile?.webhookConfigured || !webhookUrl || webhookSaving || testLoading || webhookConfigLoading || !!webhookConfigError}
                       >
                         {testLoading ? 'Testing...' : '🚀 Test Connection'}
                       </button>
@@ -1664,7 +1726,7 @@ export default function MerchantPortal() {
                     🛡️ Reliable Delivery Guarantee
                   </h3>
                   <p style={{ fontSize: '0.85rem', color: 'var(--sd-muted)', lineHeight: 1.6, margin: 0 }}>
-                    If your store website is temporarily unavailable, SwiftDrop automatically retries sending updates up to 3 times so you never miss an order milestone.
+                    Failed parcel updates are retried according to the delivery engine's configured policy. The history shows each delivery's attempt count and final status. Connection-test pings run once.
                   </p>
                 </div>
 
@@ -1672,10 +1734,12 @@ export default function MerchantPortal() {
                 <div className="card" style={{ marginTop: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h2 className="card-title" style={{ margin: 0 }}>📜 Recent Status Update Activity</h2>
-                    <button type="button" className="btn btn-outline" style={{ fontSize: '0.8rem' }} onClick={reloadData}>
+                    <button type="button" className="btn btn-outline" style={{ fontSize: '0.8rem' }} disabled={webhookLogsLoading} onClick={() => setWebhookLogsReloadKey((key) => key + 1)}>
                       🔄 Refresh Logs
                     </button>
                   </div>
+
+                  {webhookLogsError && <p role="alert">Unable to load delivery history: {webhookLogsError}. Refresh logs to retry.</p>}
 
                   <div className="table-responsive">
                     <table className="data-table">
@@ -1692,10 +1756,12 @@ export default function MerchantPortal() {
                         </tr>
                       </thead>
                       <tbody>
-                        {webhookLogs.length === 0 ? (
+                        {webhookLogsLoading ? (
+                          <tr><td colSpan="8" role="status">Loading delivery history...</td></tr>
+                        ) : webhookLogs.length === 0 ? (
                           <tr>
                             <td colSpan="8" style={{ textAlign: 'center', color: 'var(--sd-muted)', padding: '2.5rem' }}>
-                              No status updates sent yet. Book a delivery or click "Test Connection" to test the connection.
+                              {webhookLogsError ? 'Delivery history is unavailable.' : 'No status updates sent yet. Book a delivery or click "Test Connection" to test the connection.'}
                             </td>
                           </tr>
                         ) : (

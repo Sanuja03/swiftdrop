@@ -27,7 +27,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +51,7 @@ public class DispatchServiceImpl implements DispatchService {
     private final DispatchCourierAssignmentRepository courierAssignmentRepository;
     private final UserRepository userRepository;
     private final com.swiftdrop.backend.modules.messaging.service.OutboxService notificationOutbox;
+    private final Clock clock;
 
     @Override
     public List<Parcel> getUnassignedParcels() {
@@ -125,7 +128,7 @@ public class DispatchServiceImpl implements DispatchService {
                 .dispatcherId(dispatcher.getId())
                 .status(AssignmentStatus.ASSIGNED)
                 .notes(request.getNotes())
-                .scheduledDate(LocalDate.now())
+                .scheduledDate(LocalDate.now(clock.withZone(ZoneId.of("Asia/Colombo"))))
                 .build();
 
         try {

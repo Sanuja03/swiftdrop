@@ -1806,6 +1806,74 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "[WRITE] Verified account rejects an arbitrary email-verification code",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/auth/verify-email",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Regression for the corrected public verification route: an already verified ACTIVE test customer must receive 401 with no tokens. Requires only the verified customer fixture and explicitly enabled test writes; no email is sent.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"code\": \"invalid-{{suiteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"__expectedStatus\", 401);",
+                  "pm.variables.set(\"__errorShape\", \"auth\");",
+                  "pm.variables.set(\"__errorTitle\", \"Invalid Token\");",
+                  "pm.variables.set(\"__validationFields\", \"[]\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
+                  "if (!pm.variables.get(\"customerEmail\")) { console.warn(\"SKIP: missing customerEmail\"); pm.execution.skipRequest(); }",
+                  "if (!pm.variables.get(\"accessToken\")) { console.warn(\"SKIP: missing accessToken\"); pm.execution.skipRequest(); }",
+                  "if (String(pm.variables.get(\"allowWrites\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowWrites explicitly\"); pm.execution.skipRequest(); }",
+                  "",
+                  "function resolveBody(value) {",
+                  " if (Array.isArray(value)) return value.map(resolveBody);",
+                  " if (value && typeof value === \"object\") return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,resolveBody(v)]));",
+                  " if (typeof value === \"string\") { const match=value.match(/^\\{\\{([^{}]+)\\}\\}$/); return match ? String(pm.variables.get(match[1]) ?? \"\") : value; }",
+                  " return value;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify(resolveBody(JSON.parse(pm.request.body.raw))));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 401) {",
+                  "pm.test(\"Verification errors never expose authentication tokens\", () => { const d=pm.response.json(); pm.expect(d).not.to.have.property(\"accessToken\"); pm.expect(d).not.to.have.property(\"refreshToken\"); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ]
     },
@@ -4282,10 +4350,10 @@
           "response": []
         },
         {
-          "name": "Merchant JWT role probe",
+          "name": "Merchant JWT can read its approved business profile",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/merchant/test",
+            "url": "{{baseUrl}}/api/v1/merchant/profile",
             "header": [
               {
                 "key": "Accept",
@@ -4325,7 +4393,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "pm.test(\"Role probe message\", () => { const d=pm.response.json(); pm.expect(d.message).to.be.a(\"string\"); });",
+                  "pm.test(\"Merchant profile enforces the portal identity\", () => { const d=pm.response.json(); pm.expect(d.userId).to.be.a(\"string\"); pm.expect(d.registrationStatus).to.equal(\"APPROVED\"); pm.expect(d).not.to.have.property(\"webhookSecret\"); pm.expect(d).not.to.have.property(\"secret\"); });",
                   "}"
                 ]
               }
@@ -12839,10 +12907,10 @@
           "response": []
         },
         {
-          "name": "Customer JWT role probe",
+          "name": "Customer JWT can list its own shipments",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/customer/test",
+            "url": "{{baseUrl}}/api/v1/customer/parcels",
             "header": [
               {
                 "key": "Accept",
@@ -12882,7 +12950,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "pm.test(\"Customer role response\", () => { const d=pm.response.json(); pm.expect(d.message).to.be.a(\"string\"); });",
+                  "pm.test(\"Customer shipment list is scoped to the authenticated user\", () => { pm.expect(pm.response.json()).to.be.an(\"array\"); });",
                   "}"
                 ]
               }
@@ -13415,10 +13483,10 @@
           "response": []
         },
         {
-          "name": "Admin reports text health probe",
+          "name": "Admin reports returns the total parcel count",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/admin/reports/test",
+            "url": "{{baseUrl}}/api/v1/admin/reports/total-parcels",
             "header": [
               {
                 "key": "Accept",
@@ -13447,7 +13515,7 @@
                   "pm.variables.set(\"__errorShape\", \"\");",
                   "pm.variables.set(\"__errorTitle\", \"\");",
                   "pm.variables.set(\"__validationFields\", \"[]\");",
-                  "pm.variables.set(\"__responseKind\", \"text\");",
+                  "pm.variables.set(\"__responseKind\", \"json\");",
                   "if (!pm.variables.get(\"adminAccessToken\")) { console.warn(\"SKIP: missing adminAccessToken\"); pm.execution.skipRequest(); }"
                 ]
               }
@@ -13458,7 +13526,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "pm.test(\"Reports text response\",()=>pm.expect(pm.response.text()).to.equal(\"SwiftDrop Reports API is working!\"));",
+                  "pm.test(\"Reports parcel count is a nonnegative integer\", () => { const d=pm.response.json(); pm.expect(d).to.be.a(\"number\"); pm.expect(Number.isInteger(d) && d>=0).to.equal(true); });",
                   "}"
                 ]
               }
@@ -14627,64 +14695,6 @@
     {
       "name": "12 Known security regression probes - disabled by default",
       "item": [
-        {
-          "name": "[WRITE] [KNOWN ISSUE] Verified account must reject an arbitrary email-verification code",
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/api/v1/auth/verify-email",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "noauth"
-            },
-            "description": "Security expectation: already-verified accounts must not receive JWTs from an arbitrary code. Current AuthService shortcut is known to return 200; this opt-in regression is expected to fail until fixed. Use only the dedicated customer account.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"code\": \"invalid-{{suiteId}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.variables.set(\"__expectedStatus\", 401);",
-                  "pm.variables.set(\"__errorShape\", \"auth\");",
-                  "pm.variables.set(\"__errorTitle\", \"Invalid Token\");",
-                  "pm.variables.set(\"__validationFields\", \"[]\");",
-                  "pm.variables.set(\"__responseKind\", \"json\");",
-                  "if (!pm.variables.get(\"customerEmail\")) { console.warn(\"SKIP: missing customerEmail\"); pm.execution.skipRequest(); }",
-                  "if (!pm.variables.get(\"accessToken\")) { console.warn(\"SKIP: missing accessToken\"); pm.execution.skipRequest(); }",
-                  "if (String(pm.variables.get(\"allowWrites\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable allowWrites explicitly\"); pm.execution.skipRequest(); }",
-                  "if (String(pm.variables.get(\"runKnownIssues\")).toLowerCase() !== \"true\") { console.warn(\"SKIP: enable runKnownIssues explicitly\"); pm.execution.skipRequest(); }",
-                  "",
-                  "function resolveBody(value) {",
-                  " if (Array.isArray(value)) return value.map(resolveBody);",
-                  " if (value && typeof value === \"object\") return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,resolveBody(v)]));",
-                  " if (typeof value === \"string\") { const match=value.match(/^\\{\\{([^{}]+)\\}\\}$/); return match ? String(pm.variables.get(match[1]) ?? \"\") : value; }",
-                  " return value;",
-                  "}",
-                  "pm.request.body.update(JSON.stringify(resolveBody(JSON.parse(pm.request.body.raw))));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
         {
           "name": "[WRITE] [KNOWN ISSUE] Reusing idempotency key with another payload must conflict",
           "request": {
@@ -16274,10 +16284,10 @@
           "response": []
         },
         {
-          "name": "[AUTH SMOKE] GET /api/v1/courier/test",
+          "name": "[AUTH SMOKE] Anonymous courier delivery list requires authentication",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/courier/test",
+            "url": "{{baseUrl}}/api/v1/courier/deliveries/today",
             "header": [
               {
                 "key": "Accept",

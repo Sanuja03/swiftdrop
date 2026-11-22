@@ -1,23 +1,67 @@
 # SwiftDrop API tests
 
-Source baseline: merged backend at `2949e47`, branch `feature/janani-final-tasks`. Import
+Source baseline: backend at `8fefed6`, branch `feature/janani-final-validation`. Import
 `SwiftDrop_API_Tests.postman_collection.json` and `SwiftDrop_Local.postman_environment.json`.
 Use a current Postman Collection Runner or Postman CLI that supports
 `pm.execution.skipRequest()`. No CLI, packages, services or databases are installed or started by these assets.
 
+## Newman in CI
+
+The `api-tests` GitHub Actions job runs a fixed **20-request smoke subset** exported by
+`node postman/ci.mjs <new-output.json>`. It reuses requests and response assertions from
+the main collection; the 295-request collection remains unchanged. The subset covers
+public service-price reads, invalid authentication DTOs, and anonymous merchant webhook,
+delivery-log, key and admin-review restrictions. It does not claim authenticated lifecycle
+or live webhook transport coverage. Those cases remain in the main collection and backend tests.
+
+CI starts the existing backend JAR with normal security on loopback and a fresh in-memory
+H2 database. Schema generation is explicit **only for this disposable CI process**; deployment
+continues to use reviewed SQL migrations. No Supabase connection, existing data, Docker
+volume, mail, callback or broker is used. Outbox publishing and direct delivery are disabled.
+The generated JWT key is masked, ephemeral and never supplied to the frontend.
+
+Newman 6.2.1 is installed on GitHub's runner, not by these scripts on your laptop.
+The pinned version's [official package metadata](https://raw.githubusercontent.com/postmanlabs/newman/v6.2.1/package.json)
+specifies its runtime dependencies; [Postman execution documentation](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-execution/)
+describes optional collection skipping. The CI subset does not require that feature.
+The export uses literal loopback URLs and requires `ciIsolatedDatabase=true`; it needs
+no test credentials. Optional `skipRequest` flows are not copied, so CI does not depend
+on that runtime feature or silently skip missing fixtures. JUnit results and startup
+logs are uploaded, and failures block the image job. A prepared workflow is not proof
+that GitHub Actions has executed successfully.
+
+The existing frontend CI job also runs `npm test` after its dependency installation,
+so merchant portal component regressions are exercised on the runner. These tests
+were not rerun on the laptop without their Vite/Vitest dependencies.
+
+Lightweight local contract checks, without installing Newman or starting Spring Boot:
+
+```text
+node --test postman/ci.test.mjs mock-merchant/test/receiver.test.mjs frontend/src/features/merchant/services/merchantApi.test.mjs
+```
+
+See [the local mock receiver](../mock-merchant/README.md) for HMAC verification and bounded
+event history. Production URL validation remains intact; localhost cannot be configured
+through the normal merchant API.
+
 ## Coverage and honest results
 
-The collection contains **295 requests**, **145 literal `pm.test` blocks** and
-**588 `pm.expect` check sites**, plus the shared HTTP-status assertion. Shared tests
+The collection contains **295 requests**, **146 literal `pm.test` blocks** and
+**594 `pm.expect` check sites**, plus the shared HTTP-status assertion. Shared tests
 run for each applicable request; conditionals, loops, prerequisite skips and selected
 folders mean these static counts are not a claim about executed/passing assertions.
 The 97 original requests are retained, with safety, secret handling and execution-order updates.
 
-All **100 production REST method/path variants** extracted from current controllers
-have prepared requests. **21 variants have authentication-only coverage**; their
+All **96 production REST method/path variants** extracted from current controllers
+have prepared requests. **20 variants have authentication-only coverage**; their
 business workflows are not claimed as tested. See [endpoint-coverage.md](endpoint-coverage.md)
 for every route and its controller. WebSockets, Actuator framework endpoints and the
 single development-only status controller are outside this REST inventory.
+
+PR #22 removed four probe routes (`merchant/test`, `customer/test`, `courier/test`,
+and `admin/reports/test`). Their requests now use supported profile, shipment,
+courier-today and report-count endpoints with matching assertions; business endpoint
+coverage and authentication scenarios are retained.
 
 Core coverage includes auth/password changes, customer booking/pricing/tracking,
 merchant profiles and registration, approval/rejection/reapproval, API-key authentication and
@@ -142,7 +186,9 @@ they are never read from GET/profile endpoints or deliberately printed.
   and restore manually. Run this separately from `runPasswordReset`.
 - `runRegistration`, `runEmailFlows`, `runPasswordReset`, `runGoogleAuth`: original interactive
   flows; reset changes the password without automatic restoration. SMTP/Google prerequisites apply.
-- `runKnownIssues`: enables three intentionally failing security/robustness regressions below.
+- `runKnownIssues`: enables the two unresolved idempotency/malformed-JSON regressions below.
+  The corrected verified-email regression is now a regular guarded request in folder 01;
+  it expects 401 and no tokens without requiring SMTP or this known-issues flag.
 - `strictCoverage`: final summary fails if machine creation, sequential replay or a successful
   primary-merchant ping did not execute. It is opt-in because those workflows require writes,
   infrastructure and fixture credentials. Individual response assertion failures still fail normally.
@@ -204,9 +250,11 @@ folders; enabling `runEmailFlows` for the whole collection can also send origina
 - Idempotency currently works through an in-memory per-process cache. It ignores changed bodies,
   is not atomic for concurrent creates and does not survive restarts or coordinate replicas.
   The normal suite verifies sequential replay and merchant scoping, not durable idempotency.
-- Known regression probes expect safer behavior: already-verified email must reject arbitrary
-  codes (current source issues tokens), changed-body idempotency must conflict (current source
-  replays 200), and malformed merchant JSON should be 400 (generic exception handling suggests 500).
+- Already-verified ACTIVE accounts must reject arbitrary/reused verification codes with 401;
+  the backend correction removes token issuance from this shortcut. First verification with a
+  valid unexpired unused code still authenticates an eligible account; normal login/OAuth are unchanged.
+- Known regression probes expect safer behavior: changed-body idempotency must conflict
+  (current source replays 200), and malformed merchant JSON should be 400 (generic exception handling suggests 500).
   These are source findings, not live observations from this task. Do not normalize them as passes.
 - Logout/password changes revoke refresh tokens; immediate revocation of issued JWTs is not asserted.
 
@@ -219,7 +267,7 @@ node postman/validate.mjs
 node postman/validate.mjs --write-coverage
 ```
 
-The validator uses only Node built-ins. It parses both JSON files, compiles 435 scripts,
+The validator uses only Node built-ins. It parses both JSON files, compiles 436 scripts,
 checks every request method/path against actual Java controller annotations/constants,
 checks variable references/secret defaults/core DTO property names, simulates default and
 opted-in pre-request branches, checks write/host guards and exercises quoted/backslashed

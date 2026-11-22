@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SwiftDrop Mock Merchant</title>
+  <style>
+    body{font:16px system-ui,sans-serif;margin:0;background:#f4f6fa;color:#18243b}main{max-width:1100px;margin:auto;padding:32px 20px}
+    h1{margin-bottom:8px}p{line-height:1.6}.panel{background:white;border:1px solid #d9dfeb;border-radius:12px;padding:20px;margin-top:22px}
+    .scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e3e7ef}
+    th{white-space:nowrap}button{padding:10px 16px;border:0;border-radius:6px;background:#244fbd;color:white;cursor:pointer}code{word-break:break-word}
+    #status{color:#4f607a}h2{font-size:19px}footer{font-size:13px;color:#59677e;margin-top:20px}
+  </style>
+</head>
+<body><main>
+  <h1>SwiftDrop Mock Merchant</h1>
+  <p>A local demonstration receiver. Only authenticated events appear below. Signing secrets and full customer payloads are never displayed.</p>
+  <button id="refresh" type="button">Refresh history</button><p id="status" role="status">Loading receiver status…</p>
+  <section class="panel"><h2>Accepted events</h2><div class="scroll"><table>
+    <thead><tr><th>Received</th><th>Event</th><th>Tracking number</th><th>Parcel status</th><th>Event ID</th></tr></thead>
+    <tbody id="events"></tbody>
+  </table></div></section>
+  <section class="panel"><h2>Verified delivery attempts</h2><div class="scroll"><table>
+    <thead><tr><th>Received</th><th>Event ID</th><th>Attempt</th><th>Response</th><th>Duplicate</th></tr></thead>
+    <tbody id="attempts"></tbody>
+  </table></div></section>
+  <footer>History is bounded and held in memory. Restarting clears it. Failure simulation shows receiver responses, not proof of a RabbitMQ retry.</footer>
+</main><script src="/app.js"></script></body></html>

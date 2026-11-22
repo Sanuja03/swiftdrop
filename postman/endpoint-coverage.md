@@ -3,7 +3,7 @@
 Generated offline from current Spring controller mappings by `node postman/validate.mjs --write-coverage`.
 A prepared request is not a live test result. Auth-only rows verify a security boundary, not business behavior.
 
-Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant status changes return 409; denied suspension preserves JWT/API-key access. Admin rejection and explicit reapproval use the existing merchant review endpoints, verify key replacement/revocation, and keep signing secrets private. See [execution prerequisites](README.md#staged-merchant-lifecycle-folder-09).
+Inventory follows bc99c72 after removal of four probe routes; requests now use supported business endpoints. The corrected verified-email regression requires 401 with no tokens. Merchant lifecycle cases retain the 409 user-management policy and explicit admin rejection/reapproval with API-key replacement and secret privacy. See [execution prerequisites](README.md#staged-merchant-lifecycle-folder-09).
 
 | Method | Route | Prepared cases | Coverage | Controller |
 |---|---|---:|---|---|
@@ -20,8 +20,7 @@ Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant stat
 | GET | `/api/v1/admin/reports/snapshots/{id}` | 1 | Contract/lifecycle cases | [ReportSnapshotController.java](../backend/src/main/java/com/swiftdrop/backend/modules/reports/controller/ReportSnapshotController.java) |
 | GET | `/api/v1/admin/reports/success-rate` | 1 | Contract/lifecycle cases | [ReportController.java](../backend/src/main/java/com/swiftdrop/backend/modules/reports/controller/ReportController.java) |
 | GET | `/api/v1/admin/reports/summary` | 1 | Contract/lifecycle cases | [ReportController.java](../backend/src/main/java/com/swiftdrop/backend/modules/reports/controller/ReportController.java) |
-| GET | `/api/v1/admin/reports/test` | 1 | Contract/lifecycle cases | [ReportController.java](../backend/src/main/java/com/swiftdrop/backend/modules/reports/controller/ReportController.java) |
-| GET | `/api/v1/admin/reports/total-parcels` | 1 | Contract/lifecycle cases | [ReportController.java](../backend/src/main/java/com/swiftdrop/backend/modules/reports/controller/ReportController.java) |
+| GET | `/api/v1/admin/reports/total-parcels` | 2 | Contract/lifecycle cases | [ReportController.java](../backend/src/main/java/com/swiftdrop/backend/modules/reports/controller/ReportController.java) |
 | GET | `/api/v1/admin/users` | 1 | Contract/lifecycle cases | [UserController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/UserController.java) |
 | PATCH | `/api/v1/admin/users/{userId}/status` | 2 | Contract/lifecycle cases | [UserController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/UserController.java) |
 | GET | `/api/v1/admin/webhooks/deliveries` | 4 | Contract/lifecycle cases | [WebhookDeliveryController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookDeliveryController.java) |
@@ -50,7 +49,7 @@ Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant stat
 | POST | `/api/v1/courier/assignments/{assignmentId}/accept` | 1 | Anonymous authentication smoke only | [CourierAssignmentController.java](../backend/src/main/java/com/swiftdrop/backend/modules/dispatch/controller/CourierAssignmentController.java) |
 | POST | `/api/v1/courier/assignments/{assignmentId}/complete` | 1 | Anonymous authentication smoke only | [CourierAssignmentController.java](../backend/src/main/java/com/swiftdrop/backend/modules/dispatch/controller/CourierAssignmentController.java) |
 | POST | `/api/v1/courier/assignments/{assignmentId}/reject` | 1 | Anonymous authentication smoke only | [CourierAssignmentController.java](../backend/src/main/java/com/swiftdrop/backend/modules/dispatch/controller/CourierAssignmentController.java) |
-| GET | `/api/v1/courier/deliveries/today` | 1 | Contract/lifecycle cases | [CourierController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/CourierController.java) |
+| GET | `/api/v1/courier/deliveries/today` | 2 | Contract/lifecycle cases | [CourierController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/CourierController.java) |
 | GET | `/api/v1/courier/me` | 1 | Contract/lifecycle cases | [CourierController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/CourierController.java) |
 | GET | `/api/v1/courier/parcels/{parcelId}` | 1 | Anonymous authentication smoke only | [CourierController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/CourierController.java) |
 | POST | `/api/v1/courier/parcels/{parcelId}/pickup` | 1 | Anonymous authentication smoke only | [CourierController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/CourierController.java) |
@@ -59,9 +58,7 @@ Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant stat
 | POST | `/api/v1/courier/parcels/{parcelId}/proof/corrections/photo` | 1 | Anonymous authentication smoke only | [DeliveryProofController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/DeliveryProofController.java) |
 | POST | `/api/v1/courier/parcels/{parcelId}/proof/photo` | 1 | Anonymous authentication smoke only | [DeliveryProofController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/DeliveryProofController.java) |
 | PATCH | `/api/v1/courier/parcels/{parcelId}/status` | 1 | Anonymous authentication smoke only | [CourierController.java](../backend/src/main/java/com/swiftdrop/backend/modules/courier/controller/CourierController.java) |
-| GET | `/api/v1/courier/test` | 1 | Anonymous authentication smoke only | [UserController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/UserController.java) |
-| GET | `/api/v1/customer/parcels` | 1 | Contract/lifecycle cases | [CustomerShipmentController.java](../backend/src/main/java/com/swiftdrop/backend/modules/tracking/controller/CustomerShipmentController.java) |
-| GET | `/api/v1/customer/test` | 1 | Contract/lifecycle cases | [UserController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/UserController.java) |
+| GET | `/api/v1/customer/parcels` | 2 | Contract/lifecycle cases | [CustomerShipmentController.java](../backend/src/main/java/com/swiftdrop/backend/modules/tracking/controller/CustomerShipmentController.java) |
 | POST | `/api/v1/dev/parcels/{trackingNumber}/status` | 0 | Development-only; intentionally excluded | [DevParcelStatusController.java](../backend/src/main/java/com/swiftdrop/backend/dev/DevParcelStatusController.java) |
 | POST | `/api/v1/dispatcher/assignments` | 1 | Anonymous authentication smoke only | [DispatchController.java](../backend/src/main/java/com/swiftdrop/backend/modules/dispatch/controller/DispatchController.java) |
 | PATCH | `/api/v1/dispatcher/assignments/{assignmentId}/cancel` | 1 | Anonymous authentication smoke only | [DispatchController.java](../backend/src/main/java/com/swiftdrop/backend/modules/dispatch/controller/DispatchController.java) |
@@ -81,10 +78,9 @@ Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant stat
 | POST | `/api/v1/merchant/orders` | 3 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | GET | `/api/v1/merchant/orders/{trackingNumber}` | 1 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | POST | `/api/v1/merchant/orders/{trackingNumber}/cancel` | 2 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
-| GET | `/api/v1/merchant/profile` | 5 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
+| GET | `/api/v1/merchant/profile` | 6 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | POST | `/api/v1/merchant/register` | 3 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
 | GET | `/api/v1/merchant/stats` | 1 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |
-| GET | `/api/v1/merchant/test` | 1 | Contract/lifecycle cases | [UserController.java](../backend/src/main/java/com/swiftdrop/backend/modules/auth/controller/UserController.java) |
 | GET | `/api/v1/merchant/webhook` | 2 | Contract/lifecycle cases | [WebhookConfigurationController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookConfigurationController.java) |
 | PUT | `/api/v1/merchant/webhook` | 6 | Contract/lifecycle cases | [WebhookConfigurationController.java](../backend/src/main/java/com/swiftdrop/backend/modules/webhook/controller/WebhookConfigurationController.java) |
 | GET | `/api/v1/merchant/webhook/logs` | 1 | Contract/lifecycle cases | [MerchantController.java](../backend/src/main/java/com/swiftdrop/backend/modules/merchant/controller/MerchantController.java) |

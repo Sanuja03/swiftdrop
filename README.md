@@ -84,6 +84,12 @@ JWT_SECRET=a_base64_key_of_at_least_256_bits
 
 These are required by `docker compose`; `.env.example` lists every optional variable.
 
+For Google login, set `GOOGLE_CLIENT_ID` to your public OAuth client ID and register
+`http://localhost:5173` as an authorized browser origin. Compose passes that same value
+to the backend and the frontend build. Rebuild the frontend after changing it; Vite
+configuration is compiled into the image. Never pass signing keys or passwords as
+frontend build arguments. `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:5173`.
+
 Use a suitable local development password. Do not commit the `.env` file or share production credentials.
 
 ### 3. Build and Start the Application
@@ -142,13 +148,18 @@ docker compose down
 
 PostgreSQL data is stored in a persistent Docker volume and is retained when the containers are stopped.
 
-To remove the containers, network, and database volume:
+Do not use volume deletion to apply schema changes. `schema.sql` initializes an empty
+PostgreSQL volume once; existing databases require a backup and reviewed migrations.
+See [the database upgrade contract](k8s/db/README.md), including the separate merchant
+account-status review. Changing database or RabbitMQ credentials in `.env` does not
+rotate credentials already stored on existing volumes. Keep the volumes and coordinate
+credential/schema upgrades with the database or broker owner.
 
-```bash
-docker compose down -v
-```
-
-**Warning:** Using `-v` deletes the persisted local PostgreSQL database data.
+PostgreSQL and RabbitMQ have Compose health checks; backend startup waits for both.
+Compose does not currently provide application readiness checks, so the frontend may
+briefly return 502 while Spring Boot starts. Inspect `/actuator/health` and application
+logs before the demo. Nginx forwards `/api` and `/ws` and accepts the backend's 6 MB
+multipart request limit. Photo proof additionally requires external MinIO configuration.
 
 ## Docker Services
 

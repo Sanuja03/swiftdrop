@@ -47,3 +47,19 @@ test('authorization errors propagate without fake configuration or history', asy
   await assert.rejects(api.getWebhookConfig(), error)
   await assert.rejects(api.getWebhookLogs(), error)
 })
+
+test('test delivery sends only the destination override to the authenticated compatibility route', async () => {
+  const response = { success: true, statusCode: 204, latencyMs: 3, message: 'Ping succeeded (HTTP 204)' }
+  const { api, calls } = service(response)
+  assert.equal(await api.testWebhook('ignored-id', 'https://hooks.shop.com/test'), response)
+  // The shared request client defaults JSON-body requests to POST.
+  assert.deepEqual(calls, [['/merchant/webhook/test', { json: { webhookUrl: 'https://hooks.shop.com/test' } }]])
+})
+
+test('validation errors on save, rotation and test delivery propagate unchanged', async () => {
+  const error = new Error('Invalid webhook destination')
+  const { api } = service(error)
+  await assert.rejects(api.updateWebhook('ignored-id', { url: 'http://localhost' }), error)
+  await assert.rejects(api.rotateWebhookSecret(), error)
+  await assert.rejects(api.testWebhook('ignored-id', 'http://localhost'), error)
+})

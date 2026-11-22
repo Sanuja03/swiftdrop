@@ -254,7 +254,7 @@ const summary = { requests: requests.length, scriptSyntaxChecks: scripts.length,
 if (process.argv.includes('--write-coverage')) {
   const lines = ['# Endpoint coverage', '', 'Generated offline from current Spring controller mappings by `node postman/validate.mjs --write-coverage`.',
     'A prepared request is not a live test result. Auth-only rows verify a security boundary, not business behavior.', '',
-    'Merchant lifecycle cases follow the merged 2949e47 policy: generic merchant status changes return 409; denied suspension preserves JWT/API-key access. Admin rejection and explicit reapproval use the existing merchant review endpoints, verify key replacement/revocation, and keep signing secrets private. See [execution prerequisites](README.md#staged-merchant-lifecycle-folder-09).', '',
+    'Inventory follows bc99c72 after removal of four probe routes; requests now use supported business endpoints. The corrected verified-email regression requires 401 with no tokens. Merchant lifecycle cases retain the 409 user-management policy and explicit admin rejection/reapproval with API-key replacement and secret privacy. See [execution prerequisites](README.md#staged-merchant-lifecycle-folder-09).', '',
     '| Method | Route | Prepared cases | Coverage | Controller |', '|---|---|---:|---|---|']
   for (const route of routes) {
     const cases = coverage.get(`${route.method} ${route.path}`)

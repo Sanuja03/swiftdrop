@@ -101,7 +101,9 @@ def render(args):
     nginx_source = (ROOT / 'frontend/nginx.conf').read_text(encoding='utf-8').replace('\r\n', '\n')
     if nginx_source.count('listen 80;') != 1:
         raise ValueError('Frontend Nginx listen contract changed; review the Kubernetes override')
-    nginx = nginx_source.replace('listen 80;', 'listen 80;\n    client_max_body_size 6m;')
+    if nginx_source.count('client_max_body_size') != 1 or 'client_max_body_size 6m;' not in nginx_source:
+        raise ValueError('Frontend upload limit changed; review the Kubernetes override')
+    nginx = nginx_source
     nginx_hash = hashlib.sha256(nginx.encode()).hexdigest()
     frontend_config = {'apiVersion': 'v1', 'kind': 'ConfigMap',
                        'metadata': {'name': 'swiftdrop-frontend-config', 'namespace': args.namespace,
