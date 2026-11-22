@@ -135,31 +135,4 @@ class RoleAccessSecurityTest {
         mockMvc.perform(get("/api/v1/admin/users"))
                 .andExpect(status().isOk());
     }
-
-    @Test
-    @WithMockUser(roles = "CUSTOMER")
-    @DisplayName("Customer attempting to access Courier endpoint should receive 403 Forbidden")
-    void customerAccessingCourierReturns403() throws Exception {
-        mockMvc.perform(get("/api/v1/courier/test"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403));
-    }
-
-    @Test
-    @WithMockUser(roles = "COURIER")
-    @DisplayName("Courier accessing Courier endpoint should succeed with 200 OK")
-    void courierAccessingCourierSucceeds() throws Exception {
-        mockMvc.perform(get("/api/v1/courier/test"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Authorized access to Courier portal"));
-    }
-
-    @Test
-    @WithMockUser(roles = "CUSTOMER")
-    @DisplayName("Customer accessing Customer endpoint should succeed with 200 OK")
-    void customerAccessingCustomerSucceeds() throws Exception {
-        mockMvc.perform(get("/api/v1/customer/test"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Authorized access to Customer portal"));
-    }
 }

@@ -33,11 +33,6 @@ public class ReportController {
         this.reportService = reportService;
     }
 
-    @GetMapping("/test")
-    public String testReport() {
-        return "SwiftDrop Reports API is working!";
-    }
-
     @GetMapping("/total-parcels")
     public Long getTotalParcels() {
         return reportService.getTotalParcels();
